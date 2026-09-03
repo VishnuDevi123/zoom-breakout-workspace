@@ -17,6 +17,7 @@ declare global {
       getBreakoutRoomList: () => Promise<unknown>;
 
       onBreakoutRoomChange: (callback: (event: unknown) => void) => void;
+      onAuthorized : (callback: (event: unknown) => void) => void;
     };
   }
 

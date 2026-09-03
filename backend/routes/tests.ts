@@ -24,6 +24,7 @@ router.post("/session", (req, res) => {
   res.json({
     success: true,
     message: "Meeting session received by backend",
+    message2: `Received meetingUUID: ${req.body.meetingUUID}`,
     meetingUUID: req.body.meetingUUID,
   });
 });

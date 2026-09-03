@@ -49,8 +49,8 @@ export default function ZoomClient() {
 
       console.log("Backend response:", backendResult);
 
-      setBackendMessage(backendResult.message);
-    }
+      setBackendMessage(backendResult.message + " " + backendResult.message2);
+        }
 
     initZoom().catch(console.error);
   }, []);

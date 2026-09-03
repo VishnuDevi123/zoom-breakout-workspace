@@ -35,7 +35,9 @@ app.get("/auth/callback", (req, res) => {
   res.send("Zoom OAuth callback reached backend.");
 });
 
-
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
 app.listen(PORT, () => {
   console.log(`Express backend running on port ${PORT}`);
