@@ -1,83 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useHostGate } from "@/lib/host-gate";
 
-import type { ApiResponse, SessionRecord } from "@/types/breakout";
+import CheckingScreen from "./screens/CheckingScreen";
+import HostWorkspace from "./screens/HostWorkspace";
+import ParticipantScreen from "./screens/ParticipantScreen";
+import UnsupportedScreen from "./screens/UnsupportedScreen";
 
+/**
+ * Slice 1 gate.
+ *
+ * ZoomClient owns the only Zoom SDK conversation on the page and picks one of
+ * the four states from it: checking, host, participant, unsupported. Because
+ * the choice is state and not navigation, a promotion to co-host swaps the
+ * screen with no reload, and a demotion takes the controls back the same way.
+ *
+ * The whole page hangs off this component, so page.tsx stays a thin server
+ * component and no host control is ever rendered before the role is known.
+ */
 export default function ZoomClient() {
-  const [meetingUUID, setMeetingUUID] = useState("");
-  const [sessionState, setSessionState] = useState("");
+  const { state, role, screenName, meetingUUID, sessionState, sdkError } = useHostGate();
 
-  useEffect(() => {
-    async function initZoom() {
-      const zoomSdk = window.zoomSdk;
+  switch (state) {
+    case "host":
+      return (
+        <HostWorkspace
+          meetingUUID={meetingUUID}
+          sessionState={sessionState}
+          role={role}
+        />
+      );
 
-      if (!zoomSdk) {
-        console.log("Zoom SDK not available");
-        return;
-      }
+    case "participant":
+      return <ParticipantScreen screenName={screenName} meetingUUID={meetingUUID} />;
 
-      await zoomSdk.config({
-        version: "0.16",
-        capabilities: [
-          "getMeetingUUID",
-          "getMeetingContext",
-          "getBreakoutRoomList",
-          "onBreakoutRoomChange",
-        ],
-      });
+    case "unsupported":
+      return <UnsupportedScreen error={sdkError} />;
 
-      const result = await zoomSdk.getMeetingUUID();
-
-      console.log("Zoom result:", result);
-
-      setMeetingUUID(result.meetingUUID);
-
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          parentUUID: result.meetingUUID,
-          declaredRole: "host",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Backend returned ${response.status}`);
-      }
-
-      const backendResult: ApiResponse<SessionRecord> = await response.json();
-
-      console.log("Backend response:", backendResult);
-
-      if (backendResult.success) {
-        setSessionState(backendResult.data.sessionState);
-      }
-    }
-
-    initZoom().catch(console.error);
-  }, []);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span
-        className="bw-mono"
-        style={{
-          fontSize: 10,
-          color: "var(--bw-muted-3)",
-          overflowWrap: "anywhere",
-        }}
-      >
-        {meetingUUID || "no meeting uuid yet"}
-      </span>
-
-      {sessionState && (
-        <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
-          Session {sessionState}
-        </span>
-      )}
-    </div>
-  );
+    case "checking":
+    default:
+      return <CheckingScreen />;
+  }
 }
