@@ -3,6 +3,9 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 
 import testRoutes from "./routes/tests.ts";
+import roomRoutes from "./routes/rooms.ts";
+import sessionRoutes from "./routes/session.ts";
+import type { ApiResponse, HealthResponse } from "./types/breakout.ts";
 
 dotenv.config();
 
@@ -25,7 +28,8 @@ app.use(
 );
 
 app.use("/api/test", testRoutes);
-app.use("/api", testRoutes);
+app.use("/api/session", sessionRoutes);
+app.use("/api/rooms", roomRoutes);
 
 // zoom OAuth callback route, only backend should handle this
 app.get("/auth/callback", (req, res) => {
@@ -35,8 +39,23 @@ app.get("/auth/callback", (req, res) => {
   res.send("Zoom OAuth callback reached backend.");
 });
 
+function health(): ApiResponse<HealthResponse> {
+  return {
+    success: true,
+    data: {
+      status: "ok",
+      service: "breakout-workspace-backend",
+      uptimeSeconds: Math.round(process.uptime()),
+    },
+  };
+}
+
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json(health());
+});
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json(health());
 });
 
 app.listen(PORT, () => {

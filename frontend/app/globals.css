@@ -1,26 +1,411 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens lifted from `Breakout Workspace.dc.html` (screens 01, 03, 06).
+ * Component classes live here too so the primitives stay plain CSS and match
+ * the mockup pixel values directly.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Surfaces */
+  --bw-bg: #eceef1;
+  --bw-surface: #ffffff;
+  --bw-surface-sunken: #fafbfc;
+  --bw-surface-muted: #f0f1f4;
+
+  /* Borders, strongest to faintest */
+  --bw-border: #e0e2e8;
+  --bw-border-soft: #dfe1e8;
+  --bw-border-faint: #eef0f3;
+  --bw-border-strong: #c7cad5;
+
+  /* Ink */
+  --bw-ink: #1c1c1e;
+  --bw-ink-hover: #2c2c34;
+  --bw-muted: #555a6a;
+  --bw-muted-2: #6b6f7e;
+  --bw-muted-3: #8e91a0;
+  --bw-muted-4: #a5a8b5;
+
+  /* Accent */
+  --bw-accent: #4262ff;
+  --bw-accent-deep: #2a41b6;
+  --bw-accent-tint: #eef1ff;
+
+  /* Status */
+  --bw-teal: #0fbcb0;
+  --bw-teal-deep: #187574;
+  --bw-teal-tint: #c3faf5;
+  --bw-amber: #ffd02f;
+  --bw-amber-tint: #fff4c4;
+  --bw-amber-deep: #746019;
+  --bw-red: #ff9999;
+  --bw-red-tint: #ffc6c6;
+  --bw-red-deep: #600000;
+
+  /* Room dots */
+  --bw-dot-1: #fcb900;
+  --bw-dot-2: #4262ff;
+  --bw-dot-3: #ff9999;
+  --bw-dot-4: #0fbcb0;
+  --bw-dot-5: #e58cc9;
+  --bw-dot-6: #555a6a;
+
+  /* Radii */
+  --bw-radius-sm: 8px;
+  --bw-radius-md: 12px;
+  --bw-radius-lg: 16px;
+  --bw-radius-pill: 9999px;
+
+  --bw-font-ui: var(--font-hanken), "Noto Sans", -apple-system, sans-serif;
+  --bw-font-mono: var(--font-plex-mono), monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bw-bg: var(--bw-bg);
+  --color-bw-surface: var(--bw-surface);
+  --color-bw-border: var(--bw-border);
+  --color-bw-ink: var(--bw-ink);
+  --color-bw-accent: var(--bw-accent);
+  --font-sans: var(--bw-font-ui);
+  --font-mono: var(--bw-font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--bw-bg);
+  color: var(--bw-ink);
+  font-family: var(--bw-font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.bw-mono {
+  font-family: var(--bw-font-mono);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d5d8e0;
+  border-radius: var(--bw-radius-pill);
+}
+
+@keyframes bwPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(255, 153, 153, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 153, 153, 0.05);
+  }
+}
+
+/* ── Button ─────────────────────────────────────────────────────────────── */
+
+.bw-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: var(--bw-radius-pill);
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.bw-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bw-button--sm {
+  height: 32px;
+  padding: 0 13px;
+  font-size: 12px;
+}
+
+.bw-button--md {
+  height: 33px;
+  padding: 0 16px;
+  font-size: 12.5px;
+}
+
+.bw-button--lg {
+  height: 38px;
+  padding: 0 20px;
+  font-size: 13px;
+}
+
+.bw-button--dark {
+  border: 0;
+  background: var(--bw-ink);
+  color: #fff;
+}
+
+.bw-button--dark:hover:not(:disabled) {
+  background: var(--bw-ink-hover);
+}
+
+.bw-button--accent {
+  border: 0;
+  background: var(--bw-accent);
+  color: #fff;
+}
+
+.bw-button--accent:hover:not(:disabled) {
+  background: var(--bw-accent-deep);
+}
+
+.bw-button--outline {
+  border: 1px solid var(--bw-border-strong);
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+}
+
+.bw-button--outline:hover:not(:disabled) {
+  border-color: var(--bw-ink);
+}
+
+.bw-button--ghost {
+  border: 0;
+  background: none;
+  color: var(--bw-accent);
+  padding: 0;
+  height: auto;
+  font-weight: 600;
+}
+
+.bw-button--ghost:hover:not(:disabled) {
+  color: var(--bw-accent-deep);
+}
+
+/* ── Card ───────────────────────────────────────────────────────────────── */
+
+.bw-card {
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  padding: 11px;
+}
+
+.bw-card--lg {
+  border-radius: var(--bw-radius-lg);
+  padding: 22px 24px;
+}
+
+.bw-card--sunken {
+  background: var(--bw-surface-sunken);
+  border-color: var(--bw-border-faint);
+}
+
+.bw-card--dashed {
+  border: 1px dashed var(--bw-border-strong);
+  background: var(--bw-surface-sunken);
+}
+
+/* ── Pill / Badge ───────────────────────────────────────────────────────── */
+
+.bw-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--bw-radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.bw-pill--neutral {
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+}
+
+.bw-pill--outline {
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  color: var(--bw-muted-2);
+}
+
+.bw-pill--dark {
+  background: var(--bw-ink);
+  color: #fff;
+}
+
+.bw-pill--accent {
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent-deep);
+}
+
+.bw-pill--amber {
+  background: var(--bw-amber-tint);
+  color: var(--bw-amber-deep);
+}
+
+.bw-pill--teal {
+  background: var(--bw-teal-tint);
+  color: var(--bw-teal-deep);
+}
+
+.bw-pill--red {
+  background: var(--bw-red-tint);
+  color: var(--bw-red-deep);
+}
+
+/* ── StatusDot ──────────────────────────────────────────────────────────── */
+
+.bw-dot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.bw-dot--round {
+  border-radius: var(--bw-radius-pill);
+  width: 7px;
+  height: 7px;
+}
+
+.bw-dot--pulse {
+  animation: bwPulse 2s ease-in-out infinite;
+}
+
+/* ── SectionLabel ───────────────────────────────────────────────────────── */
+
+.bw-section-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bw-muted-3);
+}
+
+/* ── Shell layout (screen 03 proportions) ───────────────────────────────── */
+
+.bw-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bw-surface);
+}
+
+.bw-header {
+  height: 58px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--bw-border);
+}
+
+.bw-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.bw-main {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 18px;
+  overflow: auto;
+}
+
+.bw-rail {
+  width: 268px;
+  flex: none;
+  border-left: 1px solid var(--bw-border);
+  background: var(--bw-surface-sunken);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.bw-room-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bw-room-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 170px;
+}
+
+.bw-member-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: var(--bw-surface-sunken);
+}
+
+.bw-rail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--bw-border-faint);
+  border-radius: 9px;
+  background: var(--bw-surface);
+}
+
+.bw-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.bw-avatar--rail {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+
+.bw-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--bw-border-soft);
+  border-radius: var(--bw-radius-pill);
+}
+
+.bw-stepper button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  font-size: 12px;
+  cursor: pointer;
 }

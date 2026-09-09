@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import type { ApiResponse, SessionRecord } from "@/types/breakout";
+
 export default function ZoomClient() {
   const [meetingUUID, setMeetingUUID] = useState("");
-  const [backendMessage, setBackendMessage] = useState("");
+  const [sessionState, setSessionState] = useState("");
 
   useEffect(() => {
     async function initZoom() {
@@ -37,7 +39,8 @@ export default function ZoomClient() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          meetingUUID: result.meetingUUID,
+          parentUUID: result.meetingUUID,
+          declaredRole: "host",
         }),
       });
 
@@ -45,21 +48,36 @@ export default function ZoomClient() {
         throw new Error(`Backend returned ${response.status}`);
       }
 
-      const backendResult = await response.json();
+      const backendResult: ApiResponse<SessionRecord> = await response.json();
 
       console.log("Backend response:", backendResult);
 
-      setBackendMessage(backendResult.message + " " + backendResult.message2);
-        }
+      if (backendResult.success) {
+        setSessionState(backendResult.data.sessionState);
+      }
+    }
 
     initZoom().catch(console.error);
   }, []);
 
   return (
-    <div>
-      <p>Meeting UUID: {meetingUUID || "Loading..."}</p>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span
+        className="bw-mono"
+        style={{
+          fontSize: 10,
+          color: "var(--bw-muted-3)",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {meetingUUID || "no meeting uuid yet"}
+      </span>
 
-      {backendMessage && <p>Backend: {backendMessage}</p>}
+      {sessionState && (
+        <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+          Session {sessionState}
+        </span>
+      )}
     </div>
   );
 }
