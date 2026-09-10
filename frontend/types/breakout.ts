@@ -41,8 +41,20 @@ export type ZoomRole = "host" | "coHost" | "attendee";
  */
 export type HostState = "checking" | "host" | "participant" | "unsupported";
 
-/** Where a participant currently is, from the app's point of view. */
-export type ParticipantStatus = "in-room" | "unassigned" | "joining" | "not-joined";
+/**
+ * Where a participant currently is, from the app's point of view.
+ *
+ * "assigned" and "in-room" are different facts and must not be merged. Zoom
+ * keeps a room assignment after the rooms close, so a person can be assigned to
+ * a room while sitting in the main meeting. Collapsing the two would make the
+ * app claim somebody is in a room they left.
+ */
+export type ParticipantStatus =
+  | "in-room"
+  | "assigned"
+  | "unassigned"
+  | "joining"
+  | "not-joined";
 
 /** Lifecycle of the breakout session itself (slice 6). */
 export type SessionState = "planning" | "open" | "closed";

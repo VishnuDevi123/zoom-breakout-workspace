@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { fixtureSnapshot } from "../fixtures/breakout.ts";
+import { readSnapshot, saveSnapshot } from "../store/snapshots.ts";
 import type { ApiResponse, Room, RoomSnapshot } from "../types/breakout.ts";
 
 const router = Router();
@@ -12,24 +13,65 @@ const router = Router();
 
 /** Last stored breakout state for a meeting (slice 2). */
 router.get("/snapshot", (req, res) => {
-  const parentUUID =
-    typeof req.query.parentUUID === "string" ? req.query.parentUUID : undefined;
+  const parentUUID = req.query.parentUUID;
+
+  if (typeof parentUUID !== "string" || parentUUID.length === 0) {
+    const error: ApiResponse<never> = {
+      success: false,
+      error: "parentUUID is required.",
+    };
+
+    res.status(400).json(error);
+    return;
+  }
 
   const body: ApiResponse<RoomSnapshot> = {
     success: true,
-    data: fixtureSnapshot(parentUUID),
+    data: readSnapshot(parentUUID),
   };
 
   res.json(body);
 });
 
-/** Accept a normalized snapshot read from the Zoom client (slice 2, slice 7). */
+/**
+ * Accept a normalized snapshot read from the Zoom client (slice 2, slice 7).
+ *
+ * The response is not an acknowledgement, it is the stored snapshot with stable
+ * room ids applied. The client renders that rather than its own read, so the
+ * ids on screen are the ids later slices can rename and assign against.
+ */
 router.post("/snapshot", (req, res) => {
-  const parentUUID: string | undefined = req.body?.parentUUID;
+  const incoming = req.body as Partial<RoomSnapshot> | undefined;
+
+  if (typeof incoming?.parentUUID !== "string" || incoming.parentUUID.length === 0) {
+    const error: ApiResponse<never> = {
+      success: false,
+      error: "parentUUID is required.",
+    };
+
+    res.status(400).json(error);
+    return;
+  }
+
+  if (!Array.isArray(incoming.rooms) || !Array.isArray(incoming.unassigned)) {
+    const error: ApiResponse<never> = {
+      success: false,
+      error: "rooms and unassigned must both be arrays.",
+    };
+
+    res.status(400).json(error);
+    return;
+  }
 
   const body: ApiResponse<RoomSnapshot> = {
     success: true,
-    data: fixtureSnapshot(parentUUID),
+    data: saveSnapshot({
+      parentUUID: incoming.parentUUID,
+      rooms: incoming.rooms,
+      unassigned: incoming.unassigned,
+      sessionState: incoming.sessionState ?? "planning",
+      capturedAt: incoming.capturedAt ?? new Date().toISOString(),
+    }),
   };
 
   res.json(body);

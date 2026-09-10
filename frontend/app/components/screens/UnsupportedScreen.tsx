@@ -1,4 +1,4 @@
-import type { SdkErrorInfo } from "@/lib/host-gate";
+import type { SdkErrorInfo } from "@/lib/zoom-sdk";
 
 import { Pill, SectionLabel } from "../ui";
 

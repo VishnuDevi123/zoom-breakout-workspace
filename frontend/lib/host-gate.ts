@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import {
+  configureZoomSdk,
+  normalizeSdkError,
+  type SdkErrorInfo,
+  type ZoomSdk,
+} from "@/lib/zoom-sdk";
 import type {
   ApiResponse,
   HostState,
@@ -22,38 +28,16 @@ import type {
  * breakout rooms, passes question 1 and fails question 2. The gate keeps the
  * two answers apart so that person sees a named error instead of a workspace
  * whose buttons quietly do nothing.
+ *
+ * The SDK bootstrap itself lives in `lib/zoom-sdk.ts`, because slice 2 onwards
+ * needs the configured SDK too and `config()` may only run once per page.
  */
-
-/**
- * Capability list passed to `config()`. The Zoom client rejects any call that
- * is not requested here, so the list and the calls below must stay in step.
- */
-export const ZOOM_CAPABILITIES = [
-  "getMeetingUUID",
-  "getMeetingContext",
-  "getUserContext",
-  "onMyUserContextChange",
-  "getBreakoutRoomList",
-  "onBreakoutRoomChange",
-];
-
-/** Error code shown when the SDK is not on the page at all, e.g. a plain browser tab. */
-export const SDK_MISSING_CODE = "ZOOM_SDK_UNAVAILABLE";
-
-/** The SDK object once it is known to be present on the page. */
-type ZoomSdk = NonNullable<Window["zoomSdk"]>;
 
 interface ApplyRoleInput {
   sdk: ZoomSdk;
   role: ZoomRole;
   /** Display name from the SDK. Empty when a change event omits it. */
   screenName: string;
-}
-
-export interface SdkErrorInfo {
-  /** Machine-readable code, rendered verbatim so it can be searched in Zoom's docs. */
-  code: string;
-  message: string;
 }
 
 export interface HostGateValue {
@@ -80,26 +64,6 @@ const INITIAL: HostGateValue = {
 /** Host and co-host are treated identically. Everyone else gets the participant screen. */
 export function canManageRooms(role: ZoomRole | null): boolean {
   return role === "host" || role === "coHost";
-}
-
-/**
- * Pulls a code and a message out of whatever the SDK rejected with. The SDK is
- * not consistent about the shape, and a thrown value is not always an Error, so
- * this narrows defensively rather than trusting a cast.
- */
-function normalizeSdkError(error: unknown, fallbackCode: string): SdkErrorInfo {
-  const candidate = (error ?? {}) as ZoomSdkError;
-
-  const code =
-    candidate.code !== undefined && candidate.code !== null
-      ? String(candidate.code)
-      : (candidate.type ?? fallbackCode);
-
-  const message =
-    candidate.message ??
-    (error instanceof Error ? error.message : "No message returned by the SDK.");
-
-  return { code, message };
 }
 
 /**
@@ -144,8 +108,6 @@ export function useHostGate(): HostGateValue {
 
   useEffect(() => {
     aliveRef.current = true;
-
-    const zoomSdk = window.zoomSdk;
 
     /**
      * Runs the support probe. This is deliberately a separate call from the
@@ -215,10 +177,8 @@ export function useHostGate(): HostGateValue {
       const sdk = window.zoomSdk;
       if (!aliveRef.current || !sdk) return;
 
-      const role = event.role;
-
-      void applyRole({ sdk, role, screenName: event.screenName ?? "" });
-      void syncSession(role);
+      void applyRole({ sdk, role: event.role, screenName: event.screenName ?? "" });
+      void syncSession(event.role);
     }
 
     /**
@@ -228,61 +188,32 @@ export function useHostGate(): HostGateValue {
      */
     let listenerAttached = false;
 
-    async function init() {
-      // No SDK on the page means the app is not running inside the Zoom client.
-      // That is the unsupported path, not a role problem. The check lives inside
-      // the async function so the state write happens after an await boundary
-      // rather than synchronously in the effect body.
-      if (!zoomSdk) {
-        setValue({
-          ...INITIAL,
-          state: "unsupported",
-          sdkError: {
-            code: SDK_MISSING_CODE,
-            message:
-              "window.zoomSdk is not present. Open this app inside the Zoom client.",
-          },
-        });
-        return;
-      }
-
-      try {
-        await zoomSdk.config({ version: "0.16", capabilities: ZOOM_CAPABILITIES });
-      } catch (error) {
-        // A rejected config() means a capability is unavailable on this client,
-        // which is exactly the unsupported case the slice asks for.
-        if (!aliveRef.current) return;
-        setValue({
-          ...INITIAL,
-          state: "unsupported",
-          sdkError: normalizeSdkError(error, "CONFIG_FAILED"),
-        });
-        return;
-      }
-
-      // The effect can be cleaned up while config() is still in flight, which
-      // React does on every mount in strict mode. Attaching a listener after
-      // that point would leak it, because the cleanup has already run.
+    async function detectRole() {
+      const bootstrap = await configureZoomSdk();
       if (!aliveRef.current) return;
+
+      if (bootstrap.kind === "unavailable") {
+        setValue({ ...INITIAL, state: "unsupported", sdkError: bootstrap.error });
+        return;
+      }
+
+      const { sdk, meetingUUID } = bootstrap;
+
+      meetingUUIDRef.current = meetingUUID;
+      setValue((previous) => ({ ...previous, meetingUUID }));
 
       // Subscribed before the first role read, so a promotion that lands during
       // initialisation is not missed.
-      zoomSdk.onMyUserContextChange(handleUserContextChange);
+      sdk.onMyUserContextChange(handleUserContextChange);
       listenerAttached = true;
 
-      const { meetingUUID } = await zoomSdk.getMeetingUUID();
-      meetingUUIDRef.current = meetingUUID;
+      const context = await sdk.getUserContext();
 
-      if (!aliveRef.current) return;
-      setValue((previous) => ({ ...previous, meetingUUID }));
-
-      const context = await zoomSdk.getUserContext();
-
-      await applyRole({ sdk: zoomSdk, role: context.role, screenName: context.screenName });
+      await applyRole({ sdk, role: context.role, screenName: context.screenName });
       await syncSession(context.role);
     }
 
-    init().catch((error) => {
+    detectRole().catch((error) => {
       if (!aliveRef.current) return;
       setValue({
         ...INITIAL,
@@ -299,8 +230,8 @@ export function useHostGate(): HostGateValue {
       // The SDK has no offMyUserContextChange, so removeEventListener is the
       // only supported way to detach the handler. It returns undefined instead
       // of a promise on the paths where it declines the call, so the result is
-      // normalised before any rejection is swallowed.
-      const removal = zoomSdk?.removeEventListener(
+      // normalised before any rejection is reported.
+      const removal = window.zoomSdk?.removeEventListener(
         "onMyUserContextChange",
         handleUserContextChange,
       );

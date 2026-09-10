@@ -75,9 +75,4 @@ export const FIXTURE_SNAPSHOT: RoomSnapshot = {
 };
 
 /** Label shown at the right edge of an unassigned rail row. */
-export const STATUS_LABEL: Record<Participant["status"], string> = {
-  "in-room": "in room",
-  unassigned: "unassigned",
-  joining: "joining",
-  "not-joined": "not joined",
-};
+

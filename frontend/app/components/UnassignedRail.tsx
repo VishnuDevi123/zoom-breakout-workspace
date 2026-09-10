@@ -1,4 +1,4 @@
-import { STATUS_LABEL } from "@/lib/fixtures";
+import { STATUS_LABEL } from "@/lib/participant-status";
 import type { Participant } from "@/types/breakout";
 
 import { Pill, SectionLabel } from "./ui";

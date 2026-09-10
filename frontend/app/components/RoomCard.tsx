@@ -1,3 +1,4 @@
+import { STATUS_LABEL } from "@/lib/participant-status";
 import type { Room } from "@/types/breakout";
 
 import { Card, StatusDot } from "./ui";
@@ -32,6 +33,18 @@ export default function RoomCard({
               {participant.displayName}
               {participant.isHost ? " · host" : ""}
             </span>
+
+            {/*
+              Anything other than "in-room" is stated outright. Zoom keeps a
+              room assignment after the rooms close, so a person listed here may
+              be sitting in the main meeting, and the card must not imply
+              otherwise.
+            */}
+            {participant.status === "in-room" ? null : (
+              <span style={{ fontSize: 10, color: "var(--bw-muted-4)" }}>
+                {STATUS_LABEL[participant.status]}
+              </span>
+            )}
           </div>
         ))}
 
