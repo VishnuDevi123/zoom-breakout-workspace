@@ -23,6 +23,7 @@ export const ZOOM_CAPABILITIES = [
   "getUserContext",
   "onMyUserContextChange",
   "getBreakoutRoomList",
+  "createBreakoutRooms",
   "getMeetingParticipants",
   "onBreakoutRoomChange",
 ];

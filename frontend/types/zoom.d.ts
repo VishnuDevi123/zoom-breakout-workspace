@@ -87,6 +87,26 @@ declare global {
     participantStatus?: ZoomBreakoutParticipantStatus;
   }
 
+  /**
+   * How Zoom places people when rooms are created. The app creates rooms with
+   * "manually", because assignment is the host's job in slice 5 rather than
+   * something Zoom should decide at creation time.
+   */
+  type ZoomBreakoutAssignMethod = "automatically" | "manually" | "participantsChoose";
+
+  /**
+   * Options accepted by createBreakoutRooms(). `names` is index-aligned with the
+   * rooms Zoom creates, and its length must equal `numberOfRooms`; Zoom rejects
+   * the call with code 10122 otherwise.
+   */
+  interface ZoomCreateBreakoutRoomsOptions {
+    /** Between 1 and 50. */
+    numberOfRooms: number;
+    assign: ZoomBreakoutAssignMethod;
+    /** Requires Zoom desktop client 5.12.6 or newer. */
+    names?: string[];
+  }
+
   interface ZoomBreakoutRoom {
     breakoutRoomId: string;
     name: string;
@@ -123,6 +143,16 @@ declare global {
       getBreakoutRoomList: () => Promise<{
         rooms: ZoomBreakoutRoom[];
       }>;
+
+      /**
+       * Deletes every existing breakout room and creates the requested set in
+       * one call. There is no create-without-replacing variant, so any caller
+       * must treat this as destructive. The response has the same shape as
+       * getBreakoutRoomList().
+       */
+      createBreakoutRooms: (
+        options: ZoomCreateBreakoutRoomsOptions,
+      ) => Promise<{ rooms: ZoomBreakoutRoom[] }>;
 
       /**
        * Everybody in the parent meeting, whether or not they sit in a room.

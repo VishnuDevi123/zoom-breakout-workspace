@@ -1,4 +1,4 @@
-import type { Participant, Room, RoomSnapshot } from "../types/breakout.ts";
+import { ROOM_DOTS, type Participant, type Room, type RoomSnapshot } from "../types/breakout.ts";
 
 /**
  * In-memory snapshot store, keyed by parent meeting UUID.
@@ -16,6 +16,12 @@ import type { Participant, Room, RoomSnapshot } from "../types/breakout.ts";
 interface MeetingRecord {
   /** Internal room id per room name, so the same name keeps its id forever. */
   roomIdByName: Map<string, string>;
+  /**
+   * Names the host last asked for, in creation order. Zoom loses the naming
+   * whenever rooms are recreated, so this is what a later recreate restores
+   * from (slice 3).
+   */
+  plannedNames: string[];
   /** Increments per meeting, so ids read as room-1, room-2 in creation order. */
   nextRoomNumber: number;
   snapshot: RoomSnapshot;
@@ -39,6 +45,7 @@ function recordFor(parentUUID: string): MeetingRecord {
 
   const created: MeetingRecord = {
     roomIdByName: new Map(),
+    plannedNames: [],
     nextRoomNumber: 1,
     snapshot: emptySnapshot(parentUUID),
   };
@@ -49,8 +56,8 @@ function recordFor(parentUUID: string): MeetingRecord {
 
 /**
  * Returns the id this room name already has, or mints a new one. Names are
- * compared case-insensitively and trimmed, because the host types them and
- * "Table Amber" and "table amber " are the same room to a person.
+ * compared case-insensitively and trimmed, because "Room 1" and "room 1 " name
+ * the same room to a person.
  */
 function stableRoomId(record: MeetingRecord, name: string): string {
   const key = name.trim().toLowerCase();
@@ -108,4 +115,43 @@ export function saveSnapshot(incoming: RoomSnapshot): RoomSnapshot {
  */
 export function readSnapshot(parentUUID: string): RoomSnapshot {
   return meetings.get(parentUUID)?.snapshot ?? emptySnapshot(parentUUID);
+}
+
+/**
+ * Records the names the host asked to create, and returns them as rooms with
+ * stable ids and no members yet.
+ *
+ * The rooms are empty on purpose. Zoom has only just created them, so nobody is
+ * inside; the next snapshot read fills them in. Storing the names here is what
+ * lets a recreate in a later session hand the same room the same internal id.
+ */
+export function planRooms(parentUUID: string, names: string[]): RoomSnapshot {
+  const record = recordFor(parentUUID);
+
+  record.plannedNames = names;
+
+  const rooms: Room[] = names.map((name, index) => ({
+    id: stableRoomId(record, name),
+    name,
+    dot: ROOM_DOTS[index % ROOM_DOTS.length],
+    participants: [],
+  }));
+
+  // Everybody the previous snapshot placed in a room is back in the main
+  // meeting, because creating rooms deleted the rooms they were placed in.
+  const displaced: Participant[] = record.snapshot.rooms.flatMap((room) =>
+    room.participants.map((person) => ({ ...person, roomId: null, status: "unassigned" as const })),
+  );
+
+  const stored: RoomSnapshot = {
+    parentUUID,
+    rooms,
+    unassigned: [...record.snapshot.unassigned, ...displaced],
+    sessionState: "planning",
+    capturedAt: new Date().toISOString(),
+  };
+
+  record.snapshot = stored;
+
+  return stored;
 }

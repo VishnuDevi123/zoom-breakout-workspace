@@ -326,6 +326,9 @@ body {
   min-width: 0;
   padding: 16px 18px;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .bw-rail {
@@ -409,3 +412,9 @@ body {
   font-size: 12px;
   cursor: pointer;
 }
+
+.bw-stepper button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+

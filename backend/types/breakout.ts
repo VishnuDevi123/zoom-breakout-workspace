@@ -17,16 +17,6 @@ export const ROOM_DOTS = [
 
 export type RoomDot = (typeof ROOM_DOTS)[number];
 
-/** Default room names, index-aligned with ROOM_DOTS (slice 3). */
-export const DEFAULT_ROOM_NAMES = [
-  "Table Amber",
-  "Table Cobalt",
-  "Table Coral",
-  "Table Teal",
-  "Table Orchid",
-  "Table Slate",
-] as const;
-
 /**
  * Role reported by zoomSdk.getUserContext(). Values match the SDK literally, so
  * no mapping table can drift. "coHost" carries the same powers as "host" here.

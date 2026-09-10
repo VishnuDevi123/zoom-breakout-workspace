@@ -5,7 +5,6 @@
  */
 
 import {
-  DEFAULT_ROOM_NAMES,
   ROOM_DOTS,
   type Participant,
   type Room,
@@ -40,7 +39,7 @@ function person(
 const roomOne: Room = {
   id: "room-1",
   zoomRoomId: "zoom-room-1",
-  name: DEFAULT_ROOM_NAMES[0],
+  name: "Room 1",
   dot: ROOM_DOTS[0],
   participants: [
     person(1, "Priya Raman", "room-1", "in-room", true),
@@ -52,7 +51,7 @@ const roomOne: Room = {
 const roomTwo: Room = {
   id: "room-2",
   zoomRoomId: "zoom-room-2",
-  name: DEFAULT_ROOM_NAMES[1],
+  name: "Room 2",
   dot: ROOM_DOTS[1],
   participants: [
     person(4, "Devon Blake", "room-2", "in-room"),
@@ -63,7 +62,7 @@ const roomTwo: Room = {
 const roomThree: Room = {
   id: "room-3",
   zoomRoomId: "zoom-room-3",
-  name: DEFAULT_ROOM_NAMES[2],
+  name: "Room 3",
   dot: ROOM_DOTS[2],
   participants: [person(6, "Owen Pryce", "room-3", "in-room")],
 };

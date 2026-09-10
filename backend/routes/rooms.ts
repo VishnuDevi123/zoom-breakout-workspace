@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import { fixtureSnapshot } from "../fixtures/breakout.ts";
-import { readSnapshot, saveSnapshot } from "../store/snapshots.ts";
+import { planRooms, readSnapshot, saveSnapshot } from "../store/snapshots.ts";
 import type { ApiResponse, Room, RoomSnapshot } from "../types/breakout.ts";
 
 const router = Router();
@@ -77,13 +77,53 @@ router.post("/snapshot", (req, res) => {
   res.json(body);
 });
 
-/** Create rooms with the names the host typed (slice 3). */
+/**
+ * Record the names the host created rooms with (slice 3).
+ *
+ * The Zoom client is what actually creates the rooms; this route only persists
+ * the intended naming against stable ids, so a later recreate can restore the
+ * same names and the ids slices 4 and 5 address stay valid.
+ */
 router.post("/", (req, res) => {
-  const parentUUID: string | undefined = req.body?.parentUUID;
+  const incoming = req.body as { parentUUID?: unknown; names?: unknown } | undefined;
+
+  if (typeof incoming?.parentUUID !== "string" || incoming.parentUUID.length === 0) {
+    const error: ApiResponse<never> = {
+      success: false,
+      error: "parentUUID is required.",
+    };
+
+    res.status(400).json(error);
+    return;
+  }
+
+  const names = incoming.names;
+
+  if (!Array.isArray(names) || names.length === 0) {
+    const error: ApiResponse<never> = {
+      success: false,
+      error: "names must be a non-empty array.",
+    };
+
+    res.status(400).json(error);
+    return;
+  }
+
+  const cleaned = names.map((name) => (typeof name === "string" ? name.trim() : ""));
+
+  if (cleaned.some((name) => name.length === 0)) {
+    const error: ApiResponse<never> = {
+      success: false,
+      error: "Every room name must be a non-empty string.",
+    };
+
+    res.status(400).json(error);
+    return;
+  }
 
   const body: ApiResponse<RoomSnapshot> = {
     success: true,
-    data: fixtureSnapshot(parentUUID),
+    data: planRooms(incoming.parentUUID, cleaned),
   };
 
   res.status(201).json(body);
