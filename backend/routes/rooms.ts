@@ -1,8 +1,12 @@
 import { Router } from "express";
 
 import { fixtureSnapshot } from "../fixtures/breakout.ts";
-import { planRooms, readSnapshot, saveSnapshot } from "../store/snapshots.ts";
-import type { ApiResponse, Room, RoomSnapshot } from "../types/breakout.ts";
+import {
+  readSnapshot,
+  recordIntendedCreationNames,
+  saveSnapshot,
+} from "../store/snapshots.ts";
+import type { ApiResponse, RoomSnapshot } from "../types/breakout.ts";
 
 const router = Router();
 
@@ -36,9 +40,8 @@ router.get("/snapshot", (req, res) => {
 /**
  * Accept a normalized snapshot read from the Zoom client (slice 2, slice 7).
  *
- * The response is not an acknowledgement, it is the stored snapshot with stable
- * room ids applied. The client renders that rather than its own read, so the
- * ids on screen are the ids later slices can rename and assign against.
+ * The response carries observation ids scoped to the current native room set.
+ * Draft room ids remain separate and Slice 6 will map them during application.
  */
 router.post("/snapshot", (req, res) => {
   const incoming = req.body as Partial<RoomSnapshot> | undefined;
@@ -78,11 +81,8 @@ router.post("/snapshot", (req, res) => {
 });
 
 /**
- * Record the names the host created rooms with (slice 3).
- *
- * The Zoom client is what actually creates the rooms; this route only persists
- * the intended naming against stable ids, so a later recreate can restore the
- * same names and the ids slices 4 and 5 address stay valid.
+ * Record names used by the Slice 3 execution adapter. This metadata never
+ * replaces the live snapshot and never acts as a round draft.
  */
 router.post("/", (req, res) => {
   const incoming = req.body as { parentUUID?: unknown; names?: unknown } | undefined;
@@ -123,58 +123,10 @@ router.post("/", (req, res) => {
 
   const body: ApiResponse<RoomSnapshot> = {
     success: true,
-    data: planRooms(incoming.parentUUID, cleaned),
+    data: recordIntendedCreationNames(incoming.parentUUID, cleaned),
   };
 
   res.status(201).json(body);
-});
-
-/** Rename a room against its stable id (slice 4). */
-router.patch("/:roomId", (req, res) => {
-  const snapshot = fixtureSnapshot();
-
-  const room = snapshot.rooms.find((entry) => entry.id === req.params.roomId);
-
-  if (!room) {
-    const missing: ApiResponse<Room> = {
-      success: false,
-      error: `No room with id ${req.params.roomId}`,
-    };
-
-    res.status(404).json(missing);
-    return;
-  }
-
-  const body: ApiResponse<Room> = {
-    success: true,
-    data: { ...room, name: req.body?.name ?? room.name },
-  };
-
-  res.json(body);
-});
-
-/** Soft delete a room, its members return to unassigned (slice 4). */
-router.delete("/:roomId", (req, res) => {
-  const snapshot = fixtureSnapshot();
-
-  const room = snapshot.rooms.find((entry) => entry.id === req.params.roomId);
-
-  if (!room) {
-    const missing: ApiResponse<Room> = {
-      success: false,
-      error: `No room with id ${req.params.roomId}`,
-    };
-
-    res.status(404).json(missing);
-    return;
-  }
-
-  const body: ApiResponse<Room> = {
-    success: true,
-    data: { ...room, participants: [], deleted: true },
-  };
-
-  res.json(body);
 });
 
 /** Record assignment intent per stable room id (slice 5). */

@@ -3,7 +3,7 @@ import type { Participant } from "@/types/breakout";
 
 import { Pill, SectionLabel } from "./ui";
 
-/** "Not yet placed" right rail from screen 03. */
+/** Live roster members not assigned by participant ID in selected draft. */
 export default function UnassignedRail({
   participants,
 }: {
@@ -36,7 +36,7 @@ export default function UnassignedRail({
             borderRadius: 9,
           }}
         >
-          Everyone in the meeting has a room.
+          Everyone in the live roster has a draft room.
         </div>
       )}
     </div>

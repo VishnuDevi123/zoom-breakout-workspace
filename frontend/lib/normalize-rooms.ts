@@ -94,8 +94,7 @@ export function normalizeRoomSnapshot({
   const placedUUIDs = new Set<string>();
 
   const rooms: Room[] = zoomRooms.map((zoomRoom, index) => {
-    // The internal id is provisional here. The backend replaces it with a
-    // stable id matched on room name when the snapshot is stored.
+    // Provisional only. Backend replaces it with identity scoped to Zoom's ID.
     const id = `room-${index + 1}`;
 
     const participants = (zoomRoom.participants ?? []).map((member, memberIndex) => {

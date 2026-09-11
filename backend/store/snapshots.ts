@@ -1,28 +1,9 @@
-import { ROOM_DOTS, type Participant, type Room, type RoomSnapshot } from "../types/breakout.ts";
+import { type Participant, type Room, type RoomSnapshot } from "../types/breakout.ts";
 
-/**
- * In-memory snapshot store, keyed by parent meeting UUID.
- *
- * Its real job is minting stable internal room ids. Zoom re-issues its own
- * breakout room id whenever rooms are recreated, so a rename in slice 4 or an
- * assignment in slice 5 cannot be addressed by Zoom's id and survive. Room name
- * is the one property that persists across a recreate, so names are the key the
- * internal ids are matched on.
- *
- * The store is a process-local Map. It is deliberately not a database: week 3
- * only needs the state to outlive a single request.
- */
-
+/** Process-local live snapshot state, separate from every saved round draft. */
 interface MeetingRecord {
-  /** Internal room id per room name, so the same name keeps its id forever. */
-  roomIdByName: Map<string, string>;
-  /**
-   * Names the host last asked for, in creation order. Zoom loses the naming
-   * whenever rooms are recreated, so this is what a later recreate restores
-   * from (slice 3).
-   */
-  plannedNames: string[];
-  /** Increments per meeting, so ids read as room-1, room-2 in creation order. */
+  roomIdByZoomId: Map<string, string>;
+  intendedCreationNames: string[];
   nextRoomNumber: number;
   snapshot: RoomSnapshot;
 }
@@ -44,51 +25,44 @@ function recordFor(parentUUID: string): MeetingRecord {
   if (existing) return existing;
 
   const created: MeetingRecord = {
-    roomIdByName: new Map(),
-    plannedNames: [],
+    roomIdByZoomId: new Map(),
+    intendedCreationNames: [],
     nextRoomNumber: 1,
     snapshot: emptySnapshot(parentUUID),
   };
-
   meetings.set(parentUUID, created);
   return created;
 }
 
-/**
- * Returns the id this room name already has, or mints a new one. Names are
- * compared case-insensitively and trimmed, because "Room 1" and "room 1 " name
- * the same room to a person.
- */
-function stableRoomId(record: MeetingRecord, name: string): string {
-  const key = name.trim().toLowerCase();
-
-  const existing = record.roomIdByName.get(key);
-  if (existing) return existing;
-
-  const minted = `room-${record.nextRoomNumber}`;
-
+function mintRoomId(record: MeetingRecord): string {
+  const id = `room-${record.nextRoomNumber}`;
   record.nextRoomNumber += 1;
-  record.roomIdByName.set(key, minted);
-
-  return minted;
+  return id;
 }
 
-/** Rewrites a participant so its roomId points at the stable id, not the client's guess. */
+/** A native rename keeps identity because Zoom's room ID did not change. */
+function observedRoomId(record: MeetingRecord, zoomRoomId: string | undefined): string {
+  if (!zoomRoomId) return mintRoomId(record);
+  const existing = record.roomIdByZoomId.get(zoomRoomId);
+  if (existing) return existing;
+
+  const created = mintRoomId(record);
+  record.roomIdByZoomId.set(zoomRoomId, created);
+  return created;
+}
+
 function withRoomId(participant: Participant, roomId: string | null): Participant {
   return { ...participant, roomId };
 }
 
-/**
- * Stores a normalized snapshot and returns it with stable ids applied. The
- * returned value is what the client renders, so the ids on screen are always
- * the ids later slices can address.
- */
+/** Stores one full live read. Names never reconnect externally recreated rooms. */
 export function saveSnapshot(incoming: RoomSnapshot): RoomSnapshot {
   const record = recordFor(incoming.parentUUID);
+  const currentZoomIds = new Set<string>();
 
   const rooms: Room[] = incoming.rooms.map((room) => {
-    const id = stableRoomId(record, room.name);
-
+    if (room.zoomRoomId) currentZoomIds.add(room.zoomRoomId);
+    const id = observedRoomId(record, room.zoomRoomId);
     return {
       ...room,
       id,
@@ -96,62 +70,32 @@ export function saveSnapshot(incoming: RoomSnapshot): RoomSnapshot {
     };
   });
 
+  // A missing Zoom ID belongs to an old room set and cannot identify future rooms.
+  for (const zoomRoomId of record.roomIdByZoomId.keys()) {
+    if (!currentZoomIds.has(zoomRoomId)) record.roomIdByZoomId.delete(zoomRoomId);
+  }
+
   const stored: RoomSnapshot = {
     ...incoming,
     rooms,
     unassigned: incoming.unassigned.map((person) => withRoomId(person, null)),
     capturedAt: new Date().toISOString(),
   };
-
   record.snapshot = stored;
-
-  return stored;
+  return structuredClone(stored);
 }
 
-/**
- * Last stored snapshot for a meeting. An unknown meeting returns an empty
- * snapshot rather than an error: nothing has been read yet, which is a normal
- * state and not a failure.
- */
 export function readSnapshot(parentUUID: string): RoomSnapshot {
-  return meetings.get(parentUUID)?.snapshot ?? emptySnapshot(parentUUID);
+  const snapshot = meetings.get(parentUUID)?.snapshot ?? emptySnapshot(parentUUID);
+  return structuredClone(snapshot);
 }
 
-/**
- * Records the names the host asked to create, and returns them as rooms with
- * stable ids and no members yet.
- *
- * The rooms are empty on purpose. Zoom has only just created them, so nobody is
- * inside; the next snapshot read fills them in. Storing the names here is what
- * lets a recreate in a later session hand the same room the same internal id.
- */
-export function planRooms(parentUUID: string, names: string[]): RoomSnapshot {
+/** Compatibility for Slice 3 execution; records names without changing live state. */
+export function recordIntendedCreationNames(
+  parentUUID: string,
+  names: string[],
+): RoomSnapshot {
   const record = recordFor(parentUUID);
-
-  record.plannedNames = names;
-
-  const rooms: Room[] = names.map((name, index) => ({
-    id: stableRoomId(record, name),
-    name,
-    dot: ROOM_DOTS[index % ROOM_DOTS.length],
-    participants: [],
-  }));
-
-  // Everybody the previous snapshot placed in a room is back in the main
-  // meeting, because creating rooms deleted the rooms they were placed in.
-  const displaced: Participant[] = record.snapshot.rooms.flatMap((room) =>
-    room.participants.map((person) => ({ ...person, roomId: null, status: "unassigned" as const })),
-  );
-
-  const stored: RoomSnapshot = {
-    parentUUID,
-    rooms,
-    unassigned: [...record.snapshot.unassigned, ...displaced],
-    sessionState: "planning",
-    capturedAt: new Date().toISOString(),
-  };
-
-  record.snapshot = stored;
-
-  return stored;
+  record.intendedCreationNames = [...names];
+  return structuredClone(record.snapshot);
 }

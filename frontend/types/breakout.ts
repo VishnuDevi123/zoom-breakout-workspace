@@ -31,6 +31,41 @@ export type ZoomRole = "host" | "coHost" | "attendee";
  */
 export type HostState = "checking" | "host" | "participant" | "unsupported";
 
+export interface PlannedRoom {
+  /** App-owned ID: preserve on rename; generate a new ID when copying a room. */
+  id: string;
+  name: string;
+  dot: RoomDot;
+  /** Intended membership, independent of where people currently are in Zoom. */
+  participantUUIDs: string[];
+}
+
+/** Saved configuration for one round, separate from the live RoomSnapshot. */
+export interface RoundPlan {
+  parentUUID: string;
+  roundId: string;
+  title: string;
+  /** Server-owned version: first save is 1; each successful update adds 1. */
+  revision: number;
+  rooms: PlannedRoom[];
+}
+
+export type RoundPlanDraft = Omit<RoundPlan, "revision">;
+
+/** PUT body. Use 0 to create; otherwise send the last read/saved revision. */
+export interface SaveRoundPlanRequest extends RoundPlanDraft {
+  expectedRevision: number;
+}
+
+/** Slice 6 will populate this after it verifies one explicit Zoom application. */
+export interface AppliedRoundRecord {
+  parentUUID: string;
+  roundId: string;
+  revision: number;
+  roomSetGeneration: number;
+  appliedAt: string;
+  roomMappings: Array<{ plannedRoomId: string; zoomRoomId: string }>;
+}
 /**
  * Where a participant currently is, from the app's point of view.
  *
@@ -67,7 +102,7 @@ export interface Participant {
 }
 
 export interface Room {
-  /** Internal stable id, minted by the backend and matched on room name. */
+  /** Observation ID: stable while Zoom's room ID survives, never matched by name. */
   id: string;
   /** Zoom's own room id. Changes whenever rooms are recreated. */
   zoomRoomId?: string;
