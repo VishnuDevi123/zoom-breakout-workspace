@@ -6,11 +6,16 @@ import {
   ROOM_DOTS,
   type ApiResponse,
   type PlannedRoom,
-  type Room,
   type RoundPlan,
   type RoundPlanDraft,
   type SaveRoundPlanRequest,
 } from "@/types/breakout";
+import {
+  assignParticipantToRoom,
+  autoAssignParticipantsEvenly,
+  clearParticipantPlacement,
+  keepParticipantInMain as keepInMain,
+} from "@/lib/room-plan-assignments";
 
 const MAX_ROOMS = 50;
 const SAVE_DELAY_MS = 500;
@@ -67,6 +72,7 @@ function draftFromPlan(plan: RoundPlan): RoundPlanDraft {
     roundId: plan.roundId,
     title: plan.title,
     rooms: plan.rooms,
+    stayInMainParticipantUUIDs: plan.stayInMainParticipantUUIDs ?? [],
   };
 }
 
@@ -291,6 +297,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
             roundId: selectedRound.roundId,
             title: selectedRound.title,
             rooms: [],
+            stayInMainParticipantUUIDs: [],
           };
           draft.rooms = [newRoom(draft.rooms)];
           revision = 0;
@@ -340,14 +347,13 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
     };
   }, [autosaveBlocked, draftForAutosave]);
 
-  const updateRooms = useCallback(
-    (change: (rooms: PlannedRoom[]) => PlannedRoom[]) => {
+  const updateDraft = useCallback(
+    (change: (draft: RoundPlanDraft) => RoundPlanDraft) => {
       setState((current) => {
         if (current.kind !== "ready") return current;
-        const rooms = change(current.draft.rooms);
-        if (rooms === current.draft.rooms) return current;
+        const draft = change(current.draft);
+        if (draft === current.draft) return current;
 
-        const draft = { ...current.draft, rooms };
         const save: DraftSaveState = { kind: "saving" };
         draftRef.current = draft;
         draftCache.set(keyRef.current, {
@@ -360,6 +366,16 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
       });
     },
     [],
+  );
+
+  const updateRooms = useCallback(
+    (change: (rooms: PlannedRoom[]) => PlannedRoom[]) => {
+      updateDraft((draft) => {
+        const rooms = change(draft.rooms);
+        return rooms === draft.rooms ? draft : { ...draft, rooms };
+      });
+    },
+    [updateDraft],
   );
 
   const addRoom = useCallback(() => {
@@ -397,28 +413,32 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
     [updateRooms],
   );
 
-  const importLiveRooms = useCallback(
-    (liveRooms: Room[]): string | null => {
-      if (liveRooms.length < 1 || liveRooms.length > MAX_ROOMS) {
-        return `Zoom room list must contain 1 to ${MAX_ROOMS} rooms.`;
-      }
-      const names = liveRooms.map((room) => room.name.trim());
-      if (names.some((name) => !name)) return "Every Zoom room needs a name.";
-      if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) {
-        return "Zoom room names must be unique before importing.";
-      }
-
-      updateRooms(() =>
-        liveRooms.map((room, index) => ({
-          id: crypto.randomUUID(),
-          name: names[index],
-          dot: ROOM_DOTS[index % ROOM_DOTS.length],
-          participantUUIDs: [],
-        })),
-      );
-      return null;
+  const assignParticipant = useCallback(
+    ({ participantUUID, roomId }: { participantUUID: string; roomId: string }) => {
+      updateDraft((draft) => assignParticipantToRoom(draft, { participantUUID, roomId }));
     },
-    [updateRooms],
+    [updateDraft],
+  );
+
+  const unassignParticipant = useCallback(
+    (participantUUID: string) => {
+      updateDraft((draft) => clearParticipantPlacement(draft, participantUUID));
+    },
+    [updateDraft],
+  );
+
+  const keepParticipantInMain = useCallback(
+    (participantUUID: string) => {
+      updateDraft((draft) => keepInMain(draft, participantUUID));
+    },
+    [updateDraft],
+  );
+
+  const autoAssignParticipants = useCallback(
+    (participantUUIDs: string[]) => {
+      updateDraft((draft) => autoAssignParticipantsEvenly(draft, participantUUIDs));
+    },
+    [updateDraft],
   );
 
   const flushSave = useCallback(async (): Promise<boolean> => {
@@ -436,7 +456,10 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
     addRoom,
     removeRoom,
     renameRoom,
-    importLiveRooms,
+    assignParticipant,
+    unassignParticipant,
+    keepParticipantInMain,
+    autoAssignParticipants,
     flushSave,
     reloadDraft,
     canAdd: state.kind === "ready" && state.draft.rooms.length < MAX_ROOMS,

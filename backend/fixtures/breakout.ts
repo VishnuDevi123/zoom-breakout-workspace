@@ -23,6 +23,7 @@ function person(
 ): Participant {
   return {
     participantUUID: `fixture-participant-${n}`,
+    assignmentEligible: true,
     participantId: String(1000 + n),
     displayName,
     initials: displayName

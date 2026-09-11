@@ -28,15 +28,17 @@ export default function HostWorkspace({
   sessionState: SessionState | null;
   role: ZoomRole | null;
 }) {
-  const { state: snapshotState, refresh, isRefreshing } = useRoomSnapshot();
+  const { state: snapshotState, refresh, isRefreshing, knownRoster } = useRoomSnapshot();
   const plan = useRoomPlan(meetingUUID, ROUND_ONE);
   const snapshot = snapshotState.kind === "ready" ? snapshotState.snapshot : null;
+  const currentRoster = rosterFrom(snapshot);
   const rosterError =
     snapshotState.kind === "error"
       ? snapshotState.error.code
       : snapshotState.kind === "ready"
         ? snapshotState.rosterError?.code
         : undefined;
+  const rosterKnown = snapshotState.kind === "ready" && !snapshotState.rosterError;
 
   if (plan.state.kind !== "ready") {
     return (
@@ -81,8 +83,9 @@ export default function HostWorkspace({
   return (
     <Rooms
       round={plan.state.draft}
-      roster={rosterFrom(snapshot)}
-      liveRooms={snapshot?.rooms}
+      roster={currentRoster}
+      knownParticipants={knownRoster}
+      rosterKnown={rosterKnown}
       save={plan.state.save}
       canAdd={plan.canAdd}
       isRefreshing={isRefreshing}
@@ -90,10 +93,13 @@ export default function HostWorkspace({
       onAddRoom={plan.addRoom}
       onRemoveRoom={plan.removeRoom}
       onRenameRoom={plan.renameRoom}
+      onAssignParticipant={plan.assignParticipant}
+      onUnassignParticipant={plan.unassignParticipant}
+      onKeepParticipantInMain={plan.keepParticipantInMain}
+      onAutoAssign={plan.autoAssignParticipants}
       onRefresh={() => void refresh()}
       onRetrySave={plan.retrySave}
       onReloadDraft={plan.reloadDraft}
-      onImportLiveRooms={plan.importLiveRooms}
       onBeforeNavigate={plan.flushSave}
       railFooter={
         <>

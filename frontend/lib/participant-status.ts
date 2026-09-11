@@ -38,3 +38,12 @@ export const STATUS_LABEL: Record<ParticipantStatus, string> = {
   joining: "joining",
   "not-joined": "not joined",
 };
+
+/** Live Zoom fact shown beside somebody already placed in the round draft. */
+export const DRAFT_MEMBER_STATUS_LABEL: Record<ParticipantStatus, string> = {
+  "in-room": "planned · in room",
+  assigned: "planned · Zoom assigned",
+  unassigned: "planned · in main",
+  joining: "planned · joining",
+  "not-joined": "planned · not joined",
+};

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
+import { useDismissibleMenus } from "@/lib/use-dismissible-menus";
 import type { DraftSaveState } from "@/lib/use-room-plan";
-import type { Participant, Room, RoundPlanDraft } from "@/types/breakout";
+import type { Participant, RoundPlanDraft } from "@/types/breakout";
 
 import RoomCard from "./RoomCard";
 import UnassignedRail from "./UnassignedRail";
@@ -12,7 +13,8 @@ import { Button, Card, Pill, SectionLabel } from "./ui";
 export interface RoomsProps {
   round: RoundPlanDraft;
   roster: Participant[];
-  liveRooms?: Room[];
+  knownParticipants?: Participant[];
+  rosterKnown: boolean;
   save: DraftSaveState;
   canAdd: boolean;
   isRefreshing: boolean;
@@ -20,10 +22,13 @@ export interface RoomsProps {
   onAddRoom: () => void;
   onRemoveRoom: (roomId: string) => void;
   onRenameRoom: (roomId: string, name: string) => string | null;
+  onAssignParticipant: (assignment: { participantUUID: string; roomId: string }) => void;
+  onUnassignParticipant: (participantUUID: string) => void;
+  onKeepParticipantInMain: (participantUUID: string) => void;
+  onAutoAssign: (participantUUIDs: string[]) => void;
   onRefresh: () => void;
   onRetrySave: () => void;
   onReloadDraft?: () => void;
-  onImportLiveRooms?: (rooms: Room[]) => string | null;
   onBeforeNavigate?: () => Promise<boolean>;
   onBack?: () => void;
   onNext?: () => void;
@@ -36,7 +41,8 @@ export interface RoomsProps {
 export default function Rooms({
   round,
   roster,
-  liveRooms = [],
+  knownParticipants = [],
+  rosterKnown,
   save,
   canAdd,
   isRefreshing,
@@ -44,10 +50,13 @@ export default function Rooms({
   onAddRoom,
   onRemoveRoom,
   onRenameRoom,
+  onAssignParticipant,
+  onUnassignParticipant,
+  onKeepParticipantInMain,
+  onAutoAssign,
   onRefresh,
   onRetrySave,
   onReloadDraft,
-  onImportLiveRooms,
   onBeforeNavigate,
   onBack,
   onNext,
@@ -55,10 +64,37 @@ export default function Rooms({
   headerActions,
   railFooter,
 }: RoomsProps) {
-  const [importError, setImportError] = useState<string | null>(null);
-  const rosterById = new Map(roster.map((participant) => [participant.participantUUID, participant]));
+  const menuRootRef = useDismissibleMenus();
+  const rosterById = new Map(
+    [...knownParticipants, ...roster].map((participant) => [
+      participant.participantUUID,
+      participant,
+    ]),
+  );
+  const currentRosterIds = new Set(
+    roster.map((participant) => participant.participantUUID),
+  );
   const assignedIds = new Set(round.rooms.flatMap((room) => room.participantUUIDs));
-  const unassigned = roster.filter((participant) => !assignedIds.has(participant.participantUUID));
+  const stayInMainIds = new Set(round.stayInMainParticipantUUIDs ?? []);
+  const placementRoster = rosterKnown ? roster : knownParticipants;
+  const unassigned = placementRoster.filter(
+    (participant) =>
+      !assignedIds.has(participant.participantUUID) &&
+      !stayInMainIds.has(participant.participantUUID),
+  );
+  const stayingInMain = [...stayInMainIds].map(
+    (participantUUID) => rosterById.get(participantUUID) ?? unavailableParticipant(participantUUID),
+  );
+  const eligibleForAutoAssign = rosterKnown
+    ? unassigned.filter(
+        (participant) => participant.assignmentEligible && !participant.isHost,
+      )
+    : [];
+  const autoAssignDisabledReason = !rosterKnown
+    ? "Live roster is unknown. Refresh before auto-assigning."
+    : eligibleForAutoAssign.length === 0
+      ? "No eligible unassigned attendees remain."
+      : null;
   const lastRoom = round.rooms.at(-1);
 
   function remove(roomId: string) {
@@ -75,24 +111,6 @@ export default function Rooms({
     onRemoveRoom(room.id);
   }
 
-  function importRooms() {
-    const assignments = round.rooms.reduce(
-      (total, room) => total + room.participantUUIDs.length,
-      0,
-    );
-    const assignmentText = assignments
-      ? ` ${assignments} planned participant assignment${assignments === 1 ? "" : "s"} will be cleared.`
-      : "";
-    if (
-      !window.confirm(
-        `Replace ${round.title}'s ${round.rooms.length} draft room${round.rooms.length === 1 ? "" : "s"} with ${liveRooms.length} current Zoom room${liveRooms.length === 1 ? "" : "s"}?${assignmentText} Zoom will not change.`,
-      )
-    ) {
-      return;
-    }
-    setImportError(onImportLiveRooms?.(liveRooms) ?? null);
-  }
-
   async function navigate(callback: (() => void) | undefined) {
     if (!callback) return;
     if (onBeforeNavigate && !(await onBeforeNavigate())) return;
@@ -100,18 +118,22 @@ export default function Rooms({
   }
 
   return (
-    <div className="bw-shell">
+    <div ref={menuRootRef} className="bw-shell">
       <header className="bw-header">
         <span className="bw-brand-mark">B</span>
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Rooms &amp; people — {round.title}</span>
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
-            Draft plan · changes save automatically
+          <span style={{ fontSize: 15, fontWeight: 600 }}>
+            Rooms &amp; people - {round.title}
           </span>
         </div>
         <div className="bw-header-spacer" />
 
-        <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+        >
           {isRefreshing ? "Refreshing…" : "Refresh live roster"}
         </Button>
 
@@ -126,9 +148,32 @@ export default function Rooms({
             −
           </button>
           <span className="bw-room-count">{round.rooms.length} rooms</span>
-          <button type="button" aria-label="Add room" onClick={onAddRoom} disabled={!canAdd}>
+          <button
+            type="button"
+            aria-label="Add room"
+            onClick={onAddRoom}
+            disabled={!canAdd}
+          >
             +
           </button>
+        </div>
+
+        <div className="bw-auto-assign relative group inline-block">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onAutoAssign(
+                eligibleForAutoAssign.map(
+                  (participant) => participant.participantUUID,
+                ),
+              )
+            }
+            disabled={Boolean(autoAssignDisabledReason)}
+            title={autoAssignDisabledReason || undefined}
+          >
+            Auto-assign evenly
+          </Button>
         </div>
 
         {headerActions}
@@ -136,42 +181,34 @@ export default function Rooms({
 
       <div className="bw-body">
         <main className="bw-main">
-          {onImportLiveRooms && liveRooms.length > 0 ? (
-            <Card tone="sunken" className="bw-import-banner">
-              <div>
-                <span style={{ display: "block", fontSize: 12.5, fontWeight: 600 }}>
-                  Current Zoom rooms available
-                </span>
-                <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
-                  Import room names and order into this draft. Live assignments are not copied.
-                </span>
-              </div>
-              <Button variant="outline" size="sm" onClick={importRooms}>
-                Use current Zoom rooms
-              </Button>
-            </Card>
-          ) : null}
-
-          {importError ? (
-            <Card tone="dashed" className="bw-field-error" role="alert">
-              {importError}
-            </Card>
-          ) : null}
-
           <div className="bw-room-grid">
             {round.rooms.map((room) => {
-              const participants = room.participantUUIDs.flatMap((id) => {
-                const participant = rosterById.get(id);
-                return participant ? [participant] : [];
-              });
+              const participants = room.participantUUIDs.map(
+                (participantUUID) =>
+                  rosterById.get(participantUUID) ??
+                  unavailableParticipant(participantUUID),
+              );
               return (
                 <RoomCard
                   key={room.id}
                   room={room}
                   participants={participants}
+                  rooms={round.rooms}
+                  unassignedParticipants={
+                    rosterKnown
+                      ? unassigned.filter(
+                          (participant) => participant.assignmentEligible,
+                        )
+                      : []
+                  }
+                  currentRosterIds={currentRosterIds}
+                  rosterKnown={rosterKnown}
                   canRemove={round.rooms.length > 1}
                   onRename={(name) => onRenameRoom(room.id, name)}
                   onRemove={() => remove(room.id)}
+                  onAssignParticipant={onAssignParticipant}
+                  onUnassignParticipant={onUnassignParticipant}
+                  onKeepParticipantInMain={onKeepParticipantInMain}
                 />
               );
             })}
@@ -179,15 +216,41 @@ export default function Rooms({
         </main>
 
         <aside className="bw-rail">
-          <SaveFeedback save={save} onRetry={onRetrySave} onReload={onReloadDraft} />
-          <UnassignedRail participants={unassigned} />
+          <SaveFeedback
+            save={save}
+            onRetry={onRetrySave}
+            onReload={onReloadDraft}
+          />
+          <UnassignedRail
+            participants={unassigned}
+            stayingInMain={stayingInMain}
+            rooms={round.rooms}
+            currentRosterIds={currentRosterIds}
+            rosterKnown={rosterKnown}
+            onAssignParticipant={onAssignParticipant}
+            onUnassignParticipant={onUnassignParticipant}
+            onKeepParticipantInMain={onKeepParticipantInMain}
+          />
 
           {rosterError ? (
-            <Card tone="dashed" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--bw-muted-2)", lineHeight: 1.45 }}>
-                Live roster read failed. Draft assignments remain unchanged; this list may be incomplete.
+            <Card
+              tone="dashed"
+              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--bw-muted-2)",
+                  lineHeight: 1.45,
+                }}
+              >
+                Live roster read failed. Draft assignments remain unchanged;
+                this list may be incomplete.
               </span>
-              <span className="bw-mono" style={{ fontSize: 10, color: "var(--bw-muted-4)" }}>
+              <span
+                className="bw-mono"
+                style={{ fontSize: 10, color: "var(--bw-muted-4)" }}
+              >
                 {rosterError}
               </span>
             </Card>
@@ -198,10 +261,14 @@ export default function Rooms({
           {onBack || onNext ? (
             <div className="bw-navigation">
               {onBack ? (
-                <Button variant="outline" onClick={() => void navigate(onBack)}>Back</Button>
+                <Button variant="outline" onClick={() => void navigate(onBack)}>
+                  Back
+                </Button>
               ) : null}
               {onNext ? (
-                <Button onClick={() => void navigate(onNext)}>{nextLabel}</Button>
+                <Button onClick={() => void navigate(onNext)}>
+                  {nextLabel}
+                </Button>
               ) : null}
             </div>
           ) : null}
@@ -209,6 +276,18 @@ export default function Rooms({
       </div>
     </div>
   );
+}
+
+function unavailableParticipant(participantUUID: string): Participant {
+  return {
+    participantUUID,
+    assignmentEligible: true,
+    displayName: "Unavailable participant",
+    initials: "?",
+    status: "not-joined",
+    roomId: null,
+    isHost: false,
+  };
 }
 
 function SaveFeedback({

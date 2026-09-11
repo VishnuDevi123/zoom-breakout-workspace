@@ -1,6 +1,5 @@
 import { Router } from "express";
 
-import { fixtureSnapshot } from "../fixtures/breakout.ts";
 import {
   readSnapshot,
   recordIntendedCreationNames,
@@ -127,18 +126,6 @@ router.post("/", (req, res) => {
   };
 
   res.status(201).json(body);
-});
-
-/** Record assignment intent per stable room id (slice 5). */
-router.post("/assignments", (req, res) => {
-  const parentUUID: string | undefined = req.body?.parentUUID;
-
-  const body: ApiResponse<RoomSnapshot> = {
-    success: true,
-    data: fixtureSnapshot(parentUUID),
-  };
-
-  res.json(body);
 });
 
 export default router;

@@ -93,7 +93,32 @@ function validateDraft(input: unknown): RoundPlanDraft {
     return { id, name, dot: value.dot as RoomDot, participantUUIDs };
   });
 
-  return { parentUUID, roundId, title, rooms };
+  // Accept an omitted list while older Slice 4 clients finish migrating. New
+  // saves always return the explicit field, so the stored shape converges.
+  const stayInMainInput = input.stayInMainParticipantUUIDs ?? [];
+  if (!Array.isArray(stayInMainInput)) {
+    throw new RoundPlanError("stayInMainParticipantUUIDs must be an array.", 400);
+  }
+  const stayInMainParticipants = new Set<string>();
+  const stayInMainParticipantUUIDs = stayInMainInput.map((participant: unknown) => {
+    const uuid = requiredString(participant, "stayInMainParticipantUUIDs entry");
+    if (assignedParticipants.has(uuid)) {
+      throw new RoundPlanError(
+        "A participant cannot be assigned to a room and stay in the main meeting.",
+        400,
+      );
+    }
+    if (stayInMainParticipants.has(uuid)) {
+      throw new RoundPlanError(
+        "A participant can be marked to stay in the main meeting only once.",
+        400,
+      );
+    }
+    stayInMainParticipants.add(uuid);
+    return uuid;
+  });
+
+  return { parentUUID, roundId, title, rooms, stayInMainParticipantUUIDs };
 }
 
 /** GET does not create a default. Undefined means this round has no saved draft yet. */

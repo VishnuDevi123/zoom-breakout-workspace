@@ -66,6 +66,8 @@ export interface RoundPlan {
   /** Server-owned version: first save is 1; each successful update adds 1. */
   revision: number;
   rooms: PlannedRoom[];
+  /** People deliberately left in the main meeting, not unresolved placements. */
+  stayInMainParticipantUUIDs: string[];
 }
 
 export type RoundPlanDraft = Omit<RoundPlan, "revision">;
@@ -91,6 +93,8 @@ export interface Participant {
    * which Zoom re-issues when a person leaves and comes back.
    */
   participantUUID: string;
+  /** False when this row has only an observation key and cannot be saved safely. */
+  assignmentEligible: boolean;
   /** Zoom's per-meeting id. Present for SDK calls only; never used as a key. */
   participantId?: string;
   displayName: string;

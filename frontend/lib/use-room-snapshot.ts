@@ -10,7 +10,7 @@ import {
   type SdkErrorInfo,
   type ZoomSdk,
 } from "@/lib/zoom-sdk";
-import type { ApiResponse, RoomSnapshot } from "@/types/breakout";
+import type { ApiResponse, Participant, RoomSnapshot } from "@/types/breakout";
 
 /**
  * Slice 2 room read.
@@ -80,8 +80,21 @@ async function storeSnapshot(snapshot: RoomSnapshot): Promise<RoomSnapshot> {
   }
 }
 
+function participantsFrom(snapshot: RoomSnapshot): Participant[] {
+  const observed = [
+    ...snapshot.unassigned,
+    ...snapshot.rooms.flatMap((room) => room.participants),
+  ];
+  return [
+    ...new Map(
+      observed.map((participant) => [participant.participantUUID, participant]),
+    ).values(),
+  ];
+}
+
 export function useRoomSnapshot() {
   const [state, setState] = useState<RoomSnapshotState>({ kind: "loading" });
+  const [knownRoster, setKnownRoster] = useState<Participant[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   /** Stops a resolved read from writing into an unmounted component. */
@@ -125,6 +138,14 @@ export function useRoomSnapshot() {
       const stored = await storeSnapshot(local);
 
       if (!aliveRef.current) return;
+      setKnownRoster((known) => [
+        ...new Map(
+          [...known, ...participantsFrom(stored)].map((participant) => [
+            participant.participantUUID,
+            participant,
+          ]),
+        ).values(),
+      ]);
       setState({ kind: "ready", snapshot: stored, rosterError: roster.error });
     } catch (error) {
       // Kept raw as well as normalised, because the SDK sometimes carries
@@ -160,5 +181,5 @@ export function useRoomSnapshot() {
     };
   }, [read]);
 
-  return { state, refresh, isRefreshing };
+  return { state, refresh, isRefreshing, knownRoster };
 }

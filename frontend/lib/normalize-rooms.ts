@@ -107,6 +107,7 @@ export function normalizeRoomSnapshot({
         // A member with no id at all still needs a stable React key, so the
         // room id and position stand in for one.
         participantUUID: uuid ?? `${id}-member-${memberIndex}`,
+        assignmentEligible: uuid !== null,
         participantId:
           typeof member === "string" ? undefined : idAsString(member.participantId),
         displayName,
@@ -135,6 +136,7 @@ export function normalizeRoomSnapshot({
 
       return {
         participantUUID: person.participantUUID,
+        assignmentEligible: true,
         participantId: idAsString(person.participantId),
         displayName,
         initials: initialsFrom(displayName),
