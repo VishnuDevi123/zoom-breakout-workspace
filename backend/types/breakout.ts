@@ -47,7 +47,12 @@ export type ParticipantStatus =
   | "not-joined";
 
 /** Lifecycle of the breakout session itself (slice 6). */
-export type SessionState = "planning" | "open" | "closed";
+export type SessionState = "planning" | "opening" | "open" | "closing" | "closed" | "unknown";
+
+export interface SessionTransition {
+  state: "open" | "closed";
+  observedAt: string;
+}
 
 export interface PlannedRoom {
   /** App-owned ID: preserve on rename; generate a new ID when copying a room. */
@@ -77,14 +82,33 @@ export interface SaveRoundPlanRequest extends RoundPlanDraft {
   expectedRevision: number;
 }
 
-/** Slice 6 will populate this after it verifies one explicit Zoom application. */
+/** Recorded only after one explicit Zoom application passes live readback. */
 export interface AppliedRoundRecord {
   parentUUID: string;
   roundId: string;
   revision: number;
   roomSetGeneration: number;
   appliedAt: string;
+  verifiedAt: string;
   roomMappings: Array<{ plannedRoomId: string; zoomRoomId: string }>;
+}
+
+export type MeetingOperationKind = "apply" | "open" | "close" | "live-edit";
+
+export interface MeetingOperationLease {
+  token: string;
+  clientId: string;
+  kind: MeetingOperationKind;
+  expiresAt: string;
+}
+
+export interface MeetingExecutionState {
+  parentUUID: string;
+  appliedRound: AppliedRoundRecord | null;
+  mappingValid: boolean;
+  liveDiverged: boolean;
+  draftChanged: boolean;
+  operation: Omit<MeetingOperationLease, "token"> | null;
 }
 
 export interface Participant {
@@ -126,6 +150,8 @@ export interface RoomSnapshot {
   /** Everybody Zoom has not placed into a room yet. */
   unassigned: Participant[];
   sessionState: SessionState;
+  /** Participant membership is hidden from co-host reads in some clients. */
+  membershipVisibility: "full" | "rooms-only" | "unknown";
   /** ISO 8601 timestamp of when this snapshot was taken. */
   capturedAt: string;
 }
@@ -139,6 +165,7 @@ export interface SessionRecord {
   updatedAt: string;
   openedAt?: string;
   closedAt?: string;
+  transitions: SessionTransition[];
 }
 
 /** Envelope every Week 3 route answers with. */
@@ -150,4 +177,23 @@ export interface HealthResponse {
   status: "ok";
   service: string;
   uptimeSeconds: number;
+}
+
+
+export interface LiveParticipant {
+  participantUUID: string;
+  name: string;
+  location: "main" | "left"| string;
+}
+ 
+
+export interface LiveRound {
+  roundId: string;
+  roomUUIDs: Record<string, string | null>;
+}
+
+export interface LiveState {
+  parentUUID: string;
+  round: LiveRound | null;
+  participants: LiveParticipant[];
 }
