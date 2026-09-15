@@ -1,6 +1,8 @@
 import {Router} from "express";
 import { createHmac } from "crypto";
 import dotenv from "dotenv";
+import {applyEvent} from "../store/live.ts";
+
 
 dotenv.config();
 const router = Router();
@@ -17,8 +19,8 @@ router.post("/zoom", (req, res) => {
     res.json({ plainToken, encryptedToken });
     return;
   }
+  applyEvent(req.body);
   console.log("webhook:", req.body.event);
-  console.log(JSON.stringify(req.body, null, 2));
   res.sendStatus(200);
 });
 

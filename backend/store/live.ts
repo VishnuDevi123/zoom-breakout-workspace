@@ -11,7 +11,7 @@ interface LiveMeeting{
     round: LiveRound | null;
     participants: Map<string, LiveParticipant>;
 }
-
+// live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
 const listeners = new Map<string, Set<(state: LiveState) => void>>();
 
@@ -49,8 +49,9 @@ export function subscribe(parentUUID: string, fn: (state: LiveState) => void): (
 
 }
 
-export function launchRound(parentUUID: string, roundId: string): LiveState | null {
+export function markLaunchedRound(parentUUID: string, roundId: string): LiveState | null {
     const plan = getRoundPlan(parentUUID, roundId)
+    // if getRoundPlan returns undefined, it means the round plan does not exist for the given parentUUID and roundId. In that case return null to indicate that there is no live round to mark as lauched
     if (!plan) {
         return null
     }
@@ -64,7 +65,7 @@ export function launchRound(parentUUID: string, roundId: string): LiveState | nu
     return getLive(parentUUID)
 }
 
-export function closeRound(parentUUID: string): LiveState {
+export function markClosedRound(parentUUID: string): LiveState {
     const meeting = meetingFor(parentUUID)
     meeting.round = null
     notify(parentUUID)
@@ -88,6 +89,8 @@ interface WebhookBody {
 }
 
 // First person from a planned room to enter a Zoom room tells us that room's webhook uuid.
+
+// applyEvent will use learnRoom to update the live state with the roomUUID for a planned room when the first participant joins a breakout room. This is important because the live state needs to know which Zoom room corresponds to each planned room in order to accurately track participant locations and manage the breakout session effectively.
 function learnRoom(meeting: LiveMeeting, parentUUID: string, participantUUID: string, roomUUID: string): void {
     if (!meeting.round) return
     const plan = getRoundPlan(parentUUID, meeting.round.roundId)

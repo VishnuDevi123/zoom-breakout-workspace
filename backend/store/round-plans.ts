@@ -6,9 +6,7 @@ import {
   type RoundPlanDraft,
 } from "../types/breakout.ts";
 
-// Week 3 storage survives browser reloads, but not a backend restart.
-// A database can replace this Map without changing the frontend's API.
-// Draft storage deliberately never imports or writes to the live snapshot store.
+//storage survives browser reloads, but not a backend restart.
 const plans = new Map<string, RoundPlan>();
 
 // Match the current editor's limit. Apply must still check the Zoom client.
@@ -133,10 +131,12 @@ export function saveRoundPlan(input: unknown, expectedRevision: unknown): RoundP
   if (
     typeof expectedRevision !== "number" ||
     !Number.isSafeInteger(expectedRevision) ||
-    expectedRevision < 0 ||
-    expectedRevision >= Number.MAX_SAFE_INTEGER
+    expectedRevision < 0
   ) {
-    throw new RoundPlanError("expectedRevision must be a non-negative safe integer below the maximum.", 400);
+    throw new RoundPlanError(
+      "expectedRevision must be a non-negative safe integer below the maximum.",
+      400,
+    );
   }
 
   const key = planKey(draft.parentUUID, draft.roundId);
