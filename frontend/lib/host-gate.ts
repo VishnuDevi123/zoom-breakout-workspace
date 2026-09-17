@@ -6,35 +6,21 @@ import {
   configureZoomSdk,
   normalizeSdkError,
   type SdkErrorInfo,
-  type ZoomSdk,
 } from "@/lib/zoom-sdk";
-import type {
-  ApiResponse,
-  HostState,
-  SessionRecord,
-  SessionState,
-  ZoomRole,
-} from "@/types/breakout";
+import type { HostState, ZoomRole } from "@/types/breakout";
 
 /**
  * Slice 1 host gate.
  *
- * The hook answers two questions that look like one question but are not:
- *
- *   1. What is this user allowed to do?   -> getUserContext().role
- *   2. Can this client drive breakouts?   -> getBreakoutRoomList() probe
- *
- * A host on an old desktop build, or on an account where the admin disabled
- * breakout rooms, passes question 1 and fails question 2. The gate keeps the
- * two answers apart so that person sees a named error instead of a workspace
- * whose buttons quietly do nothing.
+ * Answers one question: what is this user allowed to do? -> getUserContext().role
+ * Whether the client can actually drive breakouts is learned when a launch is
+ * attempted; the SDK error is shown then, not guessed at on load.
  *
  * The SDK bootstrap itself lives in `lib/zoom-sdk.ts`, because slice 2 onwards
  * needs the configured SDK too and `config()` may only run once per page.
  */
 
 interface ApplyRoleInput {
-  sdk: ZoomSdk;
   role: ZoomRole;
   /** Display name from the SDK. Empty when a change event omits it. */
   screenName: string;
@@ -46,8 +32,6 @@ export interface HostGateValue {
   role: ZoomRole | null;
   screenName: string;
   meetingUUID: string;
-  /** Session lifecycle as the backend reports it. Null before the first POST returns. */
-  sessionState: SessionState | null;
   /** Populated only in the "unsupported" state. */
   sdkError: SdkErrorInfo | null;
 }
@@ -57,37 +41,12 @@ const INITIAL: HostGateValue = {
   role: null,
   screenName: "",
   meetingUUID: "",
-  sessionState: null,
   sdkError: null,
 };
 
 /** Host and co-host are treated identically. Everyone else gets the participant screen. */
 export function canManageRooms(role: ZoomRole | null): boolean {
   return role === "host" || role === "coHost";
-}
-
-/**
- * Tells the backend which meeting this is and which role the client claims.
- * The role is a claim only: the backend stores it and must never let it
- * authorize a destructive action in a later slice.
- */
-async function postSession(
-  parentUUID: string,
-  declaredRole: ZoomRole,
-): Promise<SessionState | null> {
-  const response = await fetch("/api/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ parentUUID, declaredRole }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Backend returned ${response.status}`);
-  }
-
-  const result: ApiResponse<SessionRecord> = await response.json();
-
-  return result.success ? result.data.sessionState : null;
 }
 
 export function useHostGate(): HostGateValue {
@@ -109,27 +68,8 @@ export function useHostGate(): HostGateValue {
   useEffect(() => {
     aliveRef.current = true;
 
-    /**
-     * Runs the support probe. This is deliberately a separate call from the
-     * role read: it answers whether the client can drive breakouts at all.
-     * Returns null on success, or the error to display on failure.
-     */
-    async function probeBreakoutSupport(sdk: ZoomSdk): Promise<SdkErrorInfo | null> {
-      try {
-        await sdk.getBreakoutRoomList();
-        return null;
-      } catch (error) {
-        return normalizeSdkError(error, "GET_BREAKOUT_ROOM_LIST_FAILED");
-      }
-    }
-
-    /**
-     * Turns a role into a screen. The probe only gates the host path, because
-     * an attendee is not expected to be able to read the room list, and
-     * treating that refusal as "unsupported" would show the wrong error to
-     * every attendee in the meeting.
-     */
-    async function applyRole({ sdk, role, screenName }: ApplyRoleInput) {
+    /** Turns a role into a screen. */
+    function applyRole({ role, screenName }: ApplyRoleInput) {
       if (!canManageRooms(role)) {
         if (!aliveRef.current) return;
         setValue((previous) => ({
@@ -142,31 +82,14 @@ export function useHostGate(): HostGateValue {
         return;
       }
 
-      const probeError = await probeBreakoutSupport(sdk);
       if (!aliveRef.current) return;
-
       setValue((previous) => ({
         ...previous,
-        state: probeError ? "unsupported" : "host",
+        state: "host",
         role,
         screenName,
-        sdkError: probeError,
+        sdkError: null,
       }));
-    }
-
-    /** Reports the current role to the backend without breaking the UI if it fails. */
-    async function syncSession(role: ZoomRole) {
-      const parentUUID = meetingUUIDRef.current;
-      if (!parentUUID) return;
-
-      try {
-        const sessionState = await postSession(parentUUID, role);
-        if (!aliveRef.current || sessionState === null) return;
-        setValue((previous) => ({ ...previous, sessionState }));
-      } catch (error) {
-        // A backend hiccup must not blank the screen the user already has.
-        console.error("Session sync failed:", error);
-      }
     }
 
     /**
@@ -174,11 +97,8 @@ export function useHostGate(): HostGateValue {
      * reload happens: the state change alone swaps the screen.
      */
     function handleUserContextChange(event: ZoomUserContextChangeEvent) {
-      const sdk = window.zoomSdk;
-      if (!aliveRef.current || !sdk) return;
-
-      void applyRole({ sdk, role: event.role, screenName: event.screenName ?? "" });
-      void syncSession(event.role);
+      if (!aliveRef.current) return;
+      applyRole({ role: event.role, screenName: event.screenName ?? "" });
     }
 
     /**
@@ -209,8 +129,7 @@ export function useHostGate(): HostGateValue {
 
       const context = await sdk.getUserContext();
 
-      await applyRole({ sdk, role: context.role, screenName: context.screenName });
-      await syncSession(context.role);
+      applyRole({ role: context.role, screenName: context.screenName });
     }
 
     detectRole().catch((error) => {

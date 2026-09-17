@@ -22,10 +22,10 @@ export const ZOOM_CAPABILITIES = [
   "getMeetingContext",
   "getUserContext",
   "onMyUserContextChange",
-  "getBreakoutRoomList",
   "createBreakoutRooms",
-  "getMeetingParticipants",
-  "onBreakoutRoomChange",
+  "assignParticipantToBreakoutRoom",
+  "openBreakoutRooms",
+  "closeBreakoutRooms",
 ];
 
 /** Error code shown when the SDK is not on the page at all, e.g. a plain browser tab. */

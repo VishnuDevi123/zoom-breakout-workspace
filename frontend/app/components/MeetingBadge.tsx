@@ -1,5 +1,3 @@
-import type { SessionState } from "@/types/breakout";
-
 import { SectionLabel } from "./ui";
 
 /**
@@ -9,11 +7,9 @@ import { SectionLabel } from "./ui";
  */
 export default function MeetingBadge({
   meetingUUID,
-  sessionState,
   role,
 }: {
   meetingUUID: string;
-  sessionState: SessionState | null;
   /** Shown so a co-host can tell at a glance why they have host controls. */
   role?: string;
 }) {
@@ -32,12 +28,6 @@ export default function MeetingBadge({
         >
           {meetingUUID || "no meeting uuid yet"}
         </span>
-
-        {sessionState && (
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
-            Session {sessionState}
-          </span>
-        )}
 
         {role && (
           <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>

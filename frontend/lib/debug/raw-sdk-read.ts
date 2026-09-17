@@ -35,6 +35,7 @@ function getServerSnapshot() {
 
 /** Records a payload for display. Anything not serialisable is reported as such. */
 export function recordRawSdkRead(label: string, payload: unknown) {
+  if (process.env.NODE_ENV !== "development") return;
   try {
     lastRead = `${label}\n${JSON.stringify(payload, null, 2)}`;
   } catch {
@@ -49,6 +50,7 @@ export function recordRawSdkRead(label: string, payload: unknown) {
  * their own property names are listed explicitly.
  */
 export function recordRawSdkError(label: string, error: unknown) {
+  if (process.env.NODE_ENV !== "development") return;
   const own = Object.getOwnPropertyNames(Object(error));
 
   try {

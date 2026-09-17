@@ -1,44 +1,43 @@
 "use client";
 
-import { useRoomPlan, type SelectedRound } from "@/lib/use-room-plan";
-import { useRoomSnapshot } from "@/lib/use-room-snapshot";
-import type { Participant, RoomSnapshot, SessionState, ZoomRole } from "@/types/breakout";
+import { useState } from "react";
 
+import { initialsFrom, type Participant } from "@/lib/participant-status";
+import { useLiveRoomController } from "@/lib/use-live-room-controller";
+import { useLiveState } from "@/lib/use-live-state";
+import { useRoomPlan, type SelectedRound } from "@/lib/use-room-plan";
+import type { LiveState, ZoomRole } from "@/types/breakout";
+
+import LiveRound from "../LiveRound";
 import MeetingBadge from "../MeetingBadge";
 import Rooms from "../Rooms";
 import RawSdkPanel from "../debug/RawSdkPanel";
 import { Button, Card, SectionLabel } from "../ui";
 
-// Temporary selection until round navigation supplies this data.
 const ROUND_ONE: SelectedRound = { roundId: "round-1", title: "Round 1" };
 
-function rosterFrom(snapshot: RoomSnapshot | null): Participant[] {
-  if (!snapshot) return [];
-  const participants = [...snapshot.unassigned, ...snapshot.rooms.flatMap((room) => room.participants)];
-  return [...new Map(participants.map((participant) => [participant.participantUUID, participant])).values()];
+/** Adapt webhook-fed live participants to the shape the draft editor renders. */
+function rosterFrom(live: LiveState | null): Participant[] {
+  if (!live) return [];
+  return live.participants.map((p) => ({
+    participantUUID: p.participantUUID,
+    assignmentEligible: p.location !== "left",
+    displayName: p.name,
+    initials: initialsFrom(p.name),
+    status: p.location === "main" ? "unassigned" : p.location === "left" ? "left" : "in-room",
+    roomId: null,
+    isHost: p.isHost,
+  }));
 }
 
-/** Week 3 wrapper: one draft round plus independent live Zoom roster reads. */
 export default function HostWorkspace({
   meetingUUID,
-  sessionState,
   role,
 }: {
   meetingUUID: string;
-  sessionState: SessionState | null;
   role: ZoomRole | null;
 }) {
-  const { state: snapshotState, refresh, isRefreshing, knownRoster } = useRoomSnapshot();
   const plan = useRoomPlan(meetingUUID, ROUND_ONE);
-  const snapshot = snapshotState.kind === "ready" ? snapshotState.snapshot : null;
-  const currentRoster = rosterFrom(snapshot);
-  const rosterError =
-    snapshotState.kind === "error"
-      ? snapshotState.error.code
-      : snapshotState.kind === "ready"
-        ? snapshotState.rosterError?.code
-        : undefined;
-  const rosterKnown = snapshotState.kind === "ready" && !snapshotState.rosterError;
 
   if (plan.state.kind !== "ready") {
     return (
@@ -46,13 +45,10 @@ export default function HostWorkspace({
         <header className="bw-header">
           <span className="bw-brand-mark">B</span>
           <div className="bw-round-heading">
-            <span style={{ fontSize: 15, fontWeight: 600 }}>Rooms &amp; people — Round 1</span>
+            <span style={{ fontSize: 15, fontWeight: 600 }}>Rooms &amp; people - Round 1</span>
             <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>Draft room plan</span>
           </div>
           <div className="bw-header-spacer" />
-          <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={isRefreshing}>
-            {isRefreshing ? "Refreshing…" : "Refresh live roster"}
-          </Button>
         </header>
         <div className="bw-body">
           <main className="bw-main">
@@ -63,16 +59,14 @@ export default function HostWorkspace({
             ) : (
               <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
                 <SectionLabel>Draft load failed</SectionLabel>
-                <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
-                  {plan.state.message}
-                </span>
+                <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>{plan.state.message}</span>
                 <Button variant="outline" size="sm" onClick={plan.retryLoad}>Retry load</Button>
               </Card>
             )}
           </main>
           <aside className="bw-rail">
             <div style={{ marginTop: "auto" }}>
-              <MeetingBadge meetingUUID={meetingUUID} sessionState={sessionState} role={role ?? undefined} />
+              <MeetingBadge meetingUUID={meetingUUID} role={role ?? undefined} />
             </div>
           </aside>
         </div>
@@ -81,15 +75,60 @@ export default function HostWorkspace({
   }
 
   return (
+    <ReadyHostWorkspace
+      meetingUUID={meetingUUID}
+      role={role}
+      plan={plan}
+      readyState={plan.state}
+    />
+  );
+}
+
+function ReadyHostWorkspace({
+  meetingUUID,
+  role,
+  plan,
+  readyState,
+}: {
+  meetingUUID: string;
+  role: ZoomRole | null;
+  plan: ReturnType<typeof useRoomPlan>;
+  readyState: Extract<ReturnType<typeof useRoomPlan>["state"], { kind: "ready" }>;
+}) {
+  const [view, setView] = useState<"draft" | "live">("draft");
+  const round = readyState.draft;
+  const controller = useLiveRoomController({
+    parentUUID: meetingUUID,
+    role,
+    round,
+    flushSave: plan.flushSave,
+  });
+  const { liveState, isConnected } = useLiveState(meetingUUID);
+  const roster = rosterFrom(liveState);
+  const launched = liveState?.round?.roundId === round.roundId;
+  const busy = controller.operation.kind === "running";
+
+  if (view === "live") {
+    return (
+      <LiveRound
+        round={round}
+        live={liveState}
+        connected={isConnected}
+        operation={controller.operation}
+        onShowDraft={() => setView("draft")}
+        onLaunch={controller.launch}
+        onClose={controller.close}
+      />
+    );
+  }
+
+  return (
     <Rooms
-      round={plan.state.draft}
-      roster={currentRoster}
-      knownParticipants={knownRoster}
-      rosterKnown={rosterKnown}
-      save={plan.state.save}
+      round={round}
+      roster={roster}
+      rosterKnown={liveState !== null}
+      save={readyState.save}
       canAdd={plan.canAdd}
-      isRefreshing={isRefreshing}
-      rosterError={rosterError}
       onAddRoom={plan.addRoom}
       onRemoveRoom={plan.removeRoom}
       onRenameRoom={plan.renameRoom}
@@ -97,15 +136,36 @@ export default function HostWorkspace({
       onUnassignParticipant={plan.unassignParticipant}
       onKeepParticipantInMain={plan.keepParticipantInMain}
       onAutoAssign={plan.autoAssignParticipants}
-      onRefresh={() => void refresh()}
       onRetrySave={plan.retrySave}
       onReloadDraft={plan.reloadDraft}
       onBeforeNavigate={plan.flushSave}
+      headerActions={
+        <div className="bw-execution-actions">
+          <Button variant="outline" size="sm" onClick={() => setView("live")}>Live rooms</Button>
+          {launched ? (
+            <Button size="sm" disabled={busy} onClick={controller.close}>Close {round.title}</Button>
+          ) : (
+            <Button variant="accent" size="sm" disabled={busy} onClick={controller.launch}>
+              Launch {round.title}
+            </Button>
+          )}
+        </div>
+      }
       railFooter={
         <>
-          <RawSdkPanel />
+          {controller.operation.kind !== "idle" ? (
+            <Card className={`bw-operation bw-operation--${controller.operation.kind}`}>
+              <SectionLabel>{controller.operation.kind}</SectionLabel>
+              <span>
+                {controller.operation.kind === "running"
+                  ? controller.operation.step
+                  : controller.operation.message}
+              </span>
+            </Card>
+          ) : null}
+          {process.env.NODE_ENV === "development" ? <RawSdkPanel /> : null}
           <div style={{ marginTop: "auto" }}>
-            <MeetingBadge meetingUUID={meetingUUID} sessionState={sessionState} role={role ?? undefined} />
+            <MeetingBadge meetingUUID={meetingUUID} role={role ?? undefined} />
           </div>
         </>
       }

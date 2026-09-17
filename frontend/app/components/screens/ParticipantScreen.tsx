@@ -5,7 +5,7 @@ import { SectionLabel } from "../ui";
  *
  * It carries no room controls at all: no room stepper, no auto-assign and no
  * open-rooms button. Hiding the controls is not a styling choice, it is the
- * gate. Slice 7 replaces this with the real participant view.
+ * gate. Participant tasks and activities replace this in later weeks.
  */
 export default function ParticipantScreen({
   screenName,

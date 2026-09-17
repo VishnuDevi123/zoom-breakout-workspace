@@ -1,5 +1,5 @@
 /**
- * Shared Week 3 contract types.
+ * Shared contract types.
  *
  * This file is mirrored by `frontend/types/breakout.ts`. Any change here must be
  * applied there as well, otherwise the frontend and the backend drift apart.
@@ -31,9 +31,6 @@ export type ZoomRole = "host" | "coHost" | "attendee";
  */
 export type HostState = "checking" | "host" | "participant" | "unsupported";
 
-/** Lifecycle of the breakout session itself (slice 6). */
-export type SessionState = "planning" | "open" | "closed";
-
 export interface PlannedRoom {
   /** App-owned ID: preserve on rename; generate a new ID when copying a room. */
   id: string;
@@ -43,7 +40,7 @@ export interface PlannedRoom {
   participantUUIDs: string[];
 }
 
-/** Saved configuration for one round, separate from the live RoomSnapshot. */
+/** Saved configuration for one round, separate from live Zoom state. */
 export interface RoundPlan {
   parentUUID: string;
   roundId: string;
@@ -62,7 +59,7 @@ export interface SaveRoundPlanRequest extends RoundPlanDraft {
   expectedRevision: number;
 }
 
-/** Envelope every Week 3 route answers with. */
+/** Envelope every route answers with. */
 export type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; error: string };
@@ -76,6 +73,7 @@ export interface HealthResponse {
 export interface LiveParticipant {
   participantUUID: string;
   name: string;
+  isHost: boolean;
   location: "main" | "left"| string;
 }
  

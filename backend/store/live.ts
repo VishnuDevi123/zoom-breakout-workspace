@@ -78,8 +78,10 @@ interface WebhookBody {
     payload?: {
         object?: {
             uuid?: string;
+            host_id?: string;
             breakout_room_uuid?: string;
             participant?: {
+                id?: string;
                 participant_uuid?: string;
                 user_name?: string;
                 leave_reason?: string;
@@ -117,6 +119,7 @@ export function applyEvent(body: unknown): void {
     const entry: LiveParticipant = meeting.participants.get(participantUUID) ?? {
         participantUUID,
         name: participant?.user_name ?? "",
+        isHost: Boolean(participant?.id) && participant?.id === object?.host_id,
         location: "main",
     }
 

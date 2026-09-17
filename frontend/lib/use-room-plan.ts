@@ -107,6 +107,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
       : { kind: "loading" },
   );
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [savedRevision, setSavedRevision] = useState(preservedInitial?.revision ?? 0);
 
   const keyRef = useRef(key);
   const draftRef = useRef<RoundPlanDraft | null>(preservedInitial?.draft ?? null);
@@ -208,6 +209,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
 
             if (keyRef.current !== requestKey) return false;
             revisionRef.current = result.data.revision;
+            setSavedRevision(result.data.revision);
             savedFingerprintRef.current = requestFingerprint;
 
             if (draftRef.current && fingerprint(draftRef.current) === requestFingerprint) {
@@ -267,6 +269,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
       savedFingerprintRef.current = cached.savedFingerprint;
       void Promise.resolve().then(() => {
         if (!controller.signal.aborted && keyRef.current === key) {
+          setSavedRevision(cached.revision);
           setState({ kind: "ready", draft: cached.draft, save: cached.save });
         }
       });
@@ -278,6 +281,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
     savedFingerprintRef.current = "";
     void Promise.resolve().then(() => {
       if (!controller.signal.aborted && keyRef.current === key) {
+        setSavedRevision(0);
         setState({ kind: "loading" });
       }
     });
@@ -314,6 +318,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
         const save: DraftSaveState = revision === 0 ? { kind: "saving" } : { kind: "saved" };
         draftRef.current = draft;
         revisionRef.current = revision;
+        setSavedRevision(revision);
         savedFingerprintRef.current = savedFingerprint;
         draftCache.set(key, { draft, revision, savedFingerprint, save });
         setState({ kind: "ready", draft, save });
@@ -460,6 +465,7 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
     unassignParticipant,
     keepParticipantInMain,
     autoAssignParticipants,
+    savedRevision,
     flushSave,
     reloadDraft,
     canAdd: state.kind === "ready" && state.draft.rooms.length < MAX_ROOMS,

@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 
 import { useDismissibleMenus } from "@/lib/use-dismissible-menus";
 import type { DraftSaveState } from "@/lib/use-room-plan";
-import type { Participant, RoundPlanDraft } from "@/types/breakout";
+import type { Participant } from "@/lib/participant-status";
+import type { RoundPlanDraft } from "@/types/breakout";
 
 import RoomCard from "./RoomCard";
 import UnassignedRail from "./UnassignedRail";
@@ -13,12 +14,9 @@ import { Button, Card, Pill, SectionLabel } from "./ui";
 export interface RoomsProps {
   round: RoundPlanDraft;
   roster: Participant[];
-  knownParticipants?: Participant[];
   rosterKnown: boolean;
   save: DraftSaveState;
   canAdd: boolean;
-  isRefreshing: boolean;
-  rosterError?: string;
   onAddRoom: () => void;
   onRemoveRoom: (roomId: string) => void;
   onRenameRoom: (roomId: string, name: string) => string | null;
@@ -26,7 +24,6 @@ export interface RoomsProps {
   onUnassignParticipant: (participantUUID: string) => void;
   onKeepParticipantInMain: (participantUUID: string) => void;
   onAutoAssign: (participantUUIDs: string[]) => void;
-  onRefresh: () => void;
   onRetrySave: () => void;
   onReloadDraft?: () => void;
   onBeforeNavigate?: () => Promise<boolean>;
@@ -41,12 +38,9 @@ export interface RoomsProps {
 export default function Rooms({
   round,
   roster,
-  knownParticipants = [],
   rosterKnown,
   save,
   canAdd,
-  isRefreshing,
-  rosterError,
   onAddRoom,
   onRemoveRoom,
   onRenameRoom,
@@ -54,7 +48,6 @@ export default function Rooms({
   onUnassignParticipant,
   onKeepParticipantInMain,
   onAutoAssign,
-  onRefresh,
   onRetrySave,
   onReloadDraft,
   onBeforeNavigate,
@@ -66,18 +59,14 @@ export default function Rooms({
 }: RoomsProps) {
   const menuRootRef = useDismissibleMenus();
   const rosterById = new Map(
-    [...knownParticipants, ...roster].map((participant) => [
-      participant.participantUUID,
-      participant,
-    ]),
+    roster.map((participant) => [participant.participantUUID, participant]),
   );
   const currentRosterIds = new Set(
     roster.map((participant) => participant.participantUUID),
   );
   const assignedIds = new Set(round.rooms.flatMap((room) => room.participantUUIDs));
   const stayInMainIds = new Set(round.stayInMainParticipantUUIDs ?? []);
-  const placementRoster = rosterKnown ? roster : knownParticipants;
-  const unassigned = placementRoster.filter(
+  const unassigned = roster.filter(
     (participant) =>
       !assignedIds.has(participant.participantUUID) &&
       !stayInMainIds.has(participant.participantUUID),
@@ -91,7 +80,7 @@ export default function Rooms({
       )
     : [];
   const autoAssignDisabledReason = !rosterKnown
-    ? "Live roster is unknown. Refresh before auto-assigning."
+    ? "Waiting for live roster."
     : eligibleForAutoAssign.length === 0
       ? "No eligible unassigned attendees remain."
       : null;
@@ -127,15 +116,6 @@ export default function Rooms({
           </span>
         </div>
         <div className="bw-header-spacer" />
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? "Refreshing…" : "Refresh live roster"}
-        </Button>
 
         <div className="bw-stepper">
           <button
@@ -232,30 +212,6 @@ export default function Rooms({
             onKeepParticipantInMain={onKeepParticipantInMain}
           />
 
-          {rosterError ? (
-            <Card
-              tone="dashed"
-              style={{ display: "flex", flexDirection: "column", gap: 4 }}
-            >
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--bw-muted-2)",
-                  lineHeight: 1.45,
-                }}
-              >
-                Live roster read failed. Draft assignments remain unchanged;
-                this list may be incomplete.
-              </span>
-              <span
-                className="bw-mono"
-                style={{ fontSize: 10, color: "var(--bw-muted-4)" }}
-              >
-                {rosterError}
-              </span>
-            </Card>
-          ) : null}
-
           {railFooter}
 
           {onBack || onNext ? (
@@ -284,7 +240,7 @@ function unavailableParticipant(participantUUID: string): Participant {
     assignmentEligible: true,
     displayName: "Unavailable participant",
     initials: "?",
-    status: "not-joined",
+    status: "left",
     roomId: null,
     isHost: false,
   };

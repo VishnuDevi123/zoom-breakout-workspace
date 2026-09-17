@@ -1,7 +1,7 @@
 /**
- * Shared Week 3 contract types.
+ * Shared contract types.
  *
- * This file is mirrored by `backend/types/breakout.ts`. Any change here must be
+ * This file is mirrored by `frontend/types/breakout.ts`. Any change here must be
  * applied there as well, otherwise the frontend and the backend drift apart.
  */
 
@@ -40,7 +40,7 @@ export interface PlannedRoom {
   participantUUIDs: string[];
 }
 
-/** Saved configuration for one round, separate from the live RoomSnapshot. */
+/** Saved configuration for one round, separate from live Zoom state. */
 export interface RoundPlan {
   parentUUID: string;
   roundId: string;
@@ -59,88 +59,7 @@ export interface SaveRoundPlanRequest extends RoundPlanDraft {
   expectedRevision: number;
 }
 
-/** Slice 6 will populate this after it verifies one explicit Zoom application. */
-export interface AppliedRoundRecord {
-  parentUUID: string;
-  roundId: string;
-  revision: number;
-  roomSetGeneration: number;
-  appliedAt: string;
-  roomMappings: Array<{ plannedRoomId: string; zoomRoomId: string }>;
-}
-/**
- * Where a participant currently is, from the app's point of view.
- *
- * "assigned" and "in-room" are different facts and must not be merged. Zoom
- * keeps a room assignment after the rooms close, so a person can be assigned to
- * a room while sitting in the main meeting. Collapsing the two would make the
- * app claim somebody is in a room they left.
- */
-export type ParticipantStatus =
-  | "in-room"
-  | "assigned"
-  | "unassigned"
-  | "joining"
-  | "not-joined";
-
-/** Lifecycle of the breakout session itself (slice 6). */
-export type SessionState = "planning" | "open" | "closed";
-
-export interface Participant {
-  /**
-   * Stable identifier across rejoins. Always prefer this over `participantId`,
-   * which Zoom re-issues when a person leaves and comes back.
-   */
-  participantUUID: string;
-  /** False when this row has only an observation key and cannot be saved safely. */
-  assignmentEligible: boolean;
-  /** Zoom's per-meeting id. Present for SDK calls only; never used as a key. */
-  participantId?: string;
-  displayName: string;
-  /** Uppercase initials rendered in the avatar chip. */
-  initials: string;
-  status: ParticipantStatus;
-  /** Internal id of the room the person sits in, or null when unassigned. */
-  roomId: string | null;
-  isHost: boolean;
-}
-
-export interface Room {
-  /** Observation ID: stable while Zoom's room ID survives, never matched by name. */
-  id: string;
-  /** Zoom's own room id. Changes whenever rooms are recreated. */
-  zoomRoomId?: string;
-  name: string;
-  dot: RoomDot;
-  participants: Participant[];
-  /** Soft delete, so later slices can still reason about history (slice 4). */
-  deleted?: boolean;
-}
-
-/** One complete read of breakout state at a point in time. */
-export interface RoomSnapshot {
-  /** UUID of the parent (main) meeting the rooms belong to. */
-  parentUUID: string;
-  rooms: Room[];
-  /** Everybody Zoom has not placed into a room yet. */
-  unassigned: Participant[];
-  sessionState: SessionState;
-  /** ISO 8601 timestamp of when this snapshot was taken. */
-  capturedAt: string;
-}
-
-export interface SessionRecord {
-  parentUUID: string;
-  /** Role the client claims. Never trusted for destructive operations. */
-  declaredRole: ZoomRole;
-  sessionState: SessionState;
-  createdAt: string;
-  updatedAt: string;
-  openedAt?: string;
-  closedAt?: string;
-}
-
-/** Envelope every Week 3 route answers with. */
+/** Envelope every route answers with. */
 export type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; error: string };
@@ -149,4 +68,23 @@ export interface HealthResponse {
   status: "ok";
   service: string;
   uptimeSeconds: number;
+}
+
+export interface LiveParticipant {
+  participantUUID: string;
+  name: string;
+  isHost: boolean;
+  location: "main" | "left"| string;
+}
+ 
+
+export interface LiveRound {
+  roundId: string;
+  roomUUIDs: Record<string, string | null>;
+}
+
+export interface LiveState {
+  parentUUID: string;
+  round: LiveRound | null;
+  participants: LiveParticipant[];
 }

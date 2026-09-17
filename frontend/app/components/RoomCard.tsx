@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 
-import { DRAFT_MEMBER_STATUS_LABEL } from "@/lib/participant-status";
-import type { Participant, PlannedRoom } from "@/types/breakout";
+import { DRAFT_MEMBER_STATUS_LABEL, type Participant } from "@/lib/participant-status";
+import type { PlannedRoom } from "@/types/breakout";
 
 import { Button, Card, StatusDot } from "./ui";
 

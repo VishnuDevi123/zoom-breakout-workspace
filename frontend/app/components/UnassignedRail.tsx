@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { STATUS_LABEL } from "@/lib/participant-status";
-import type { Participant, PlannedRoom } from "@/types/breakout";
+import { STATUS_LABEL, type Participant } from "@/lib/participant-status";
+import type { PlannedRoom } from "@/types/breakout";
 
 import { Pill, SectionLabel } from "./ui";
 

@@ -1,49 +1,37 @@
-import type { ParticipantStatus } from "@/types/breakout";
+/** Where a participant is from the draft editor's point of view. */
+export type ParticipantStatus = "in-room" | "unassigned" | "left";
 
-/**
- * Zoom's breakout status vocabulary, translated into the app's own.
- *
- * The distinction that matters is "assigned" against "in-room". Zoom keeps a
- * room assignment after the rooms close, so the room list still reports a
- * person under a room once they are back in the main meeting. Treating that as
- * presence is what made members look stuck in a card they had left.
- */
-export function participantStatusFromSdk(
-  sdkStatus: ZoomBreakoutParticipantStatus | undefined,
-): ParticipantStatus {
-  switch (sdkStatus) {
-    case "joined":
-    case "in_room":
-    case "in-room":
-      return "in-room";
-    case "joining":
-      return "joining";
-    case "not_joined":
-    case "not-joined":
-      return "not-joined";
-    case "assigned":
-      return "assigned";
-    default:
-      // Anything unrecognised still came back inside a room, so the weakest
-      // true statement is that the person is allotted to it.
-      return "assigned";
-  }
+/** Roster row the draft editor renders; built from LiveState by the host workspace. */
+export interface Participant {
+  participantUUID: string;
+  /** False when this row has only an observation key and cannot be saved safely. */
+  assignmentEligible: boolean;
+  displayName: string;
+  /** Uppercase initials rendered in the avatar chip. */
+  initials: string;
+  status: ParticipantStatus;
+  /** Internal id of the room the person sits in, or null when unassigned. */
+  roomId: string | null;
+  isHost: boolean;
 }
 
+/** "Ada Lovelace" -> "AL". Falls back to the first character for single words. */
+export function initialsFrom(displayName: string): string {
+  const words = displayName.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const letters = words.length === 1 ? [words[0][0]] : [words[0][0], words.at(-1)![0]];
+  return letters.join("").toUpperCase();
+}
 
 export const STATUS_LABEL: Record<ParticipantStatus, string> = {
   "in-room": "in room",
-  assigned: "assigned",
-  unassigned: "unassigned",
-  joining: "joining",
-  "not-joined": "not joined",
+  unassigned: "in main",
+  left: "left meeting",
 };
 
 /** Live Zoom fact shown beside somebody already placed in the round draft. */
 export const DRAFT_MEMBER_STATUS_LABEL: Record<ParticipantStatus, string> = {
   "in-room": "planned · in room",
-  assigned: "planned · Zoom assigned",
   unassigned: "planned · in main",
-  joining: "planned · joining",
-  "not-joined": "planned · not joined",
+  left: "planned · left meeting",
 };

@@ -7,13 +7,14 @@ import { useRawSdkRead } from "@/lib/debug/raw-sdk-read";
  *
  * It reads the payload from the module store rather than from props, so no
  * component between the SDK call and this panel has to know it exists. Render
- * it anywhere; remove it, `lib/debug/raw-sdk-read.ts`, and the record calls in
- * `lib/use-room-snapshot.ts` once the SDK shapes are settled.
+ * it anywhere; remove it and `lib/debug/raw-sdk-read.ts` once the SDK shapes
+ * are settled. Nothing records into it right now; call `recordRawSdkRead` from
+ * `lib/launch-round.ts` when a payload needs inspecting.
  */
 export default function RawSdkPanel() {
   const rawRead = useRawSdkRead();
 
-  if (!rawRead) return null;
+  if (process.env.NODE_ENV !== "development" || !rawRead) return null;
 
   return (
     <details style={{ fontSize: 10.5 }}>

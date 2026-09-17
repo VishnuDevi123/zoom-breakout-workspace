@@ -50,43 +50,6 @@ declare global {
     timestamp?: number;
   }
 
-  interface ZoomMeetingParticipant {
-    participantUUID: string;
-    participantId?: string | number;
-    /** Optional for the same reason as the breakout member fields below. */
-    screenName?: string;
-    /** Present on the roster, and the only reliable way to identify the host. */
-    role?: ZoomSdkRole;
-  }
-
-  /**
-   * One member of a breakout room.
-   *
-   * Every field is optional on purpose. The payload is not consistent between
-   * SDK versions: some builds name the person with `screenName`, others with
-   * `displayName`, and some list membership as bare UUID strings with no name
-   * at all. Declaring the optimistic shape made TypeScript vouch for fields
-   * that are not always there, so the normalizer read undefined at run time.
-   */
-  /**
-   * How Zoom describes a person's relationship to a breakout room. Observed
-   * value: "assigned". It means the person is allotted to the room, which is
-   * not the same as being inside it, so it is carried through rather than
-   * assumed to mean presence.
-   */
-  type ZoomBreakoutParticipantStatus = "assigned" | "joined" | "not_joined" | (string & {});
-
-  interface ZoomBreakoutMember {
-    participantUUID?: string;
-    /** A number here, though the meeting roster reports the same id as a string. */
-    participantId?: string | number;
-    /** The breakout list names people with displayName; the roster uses screenName. */
-    displayName?: string;
-    screenName?: string;
-    name?: string;
-    participantStatus?: ZoomBreakoutParticipantStatus;
-  }
-
   /**
    * How Zoom places people when rooms are created. The app creates rooms with
    * "manually", because assignment is the host's job in slice 5 rather than
@@ -110,8 +73,11 @@ declare global {
   interface ZoomBreakoutRoom {
     breakoutRoomId: string;
     name: string;
-    /** A bare string is a participantUUID with no name attached. */
-    participants?: (ZoomBreakoutMember | string)[];
+  }
+
+  interface ZoomBreakoutRoomsResponse {
+    rooms: ZoomBreakoutRoom[];
+    state: "open" | "closed";
   }
 
   /**
@@ -140,28 +106,17 @@ declare global {
 
       getUserContext: () => Promise<ZoomUserContext>;
 
-      getBreakoutRoomList: () => Promise<{
-        rooms: ZoomBreakoutRoom[];
-      }>;
-
-      /**
-       * Deletes every existing breakout room and creates the requested set in
-       * one call. There is no create-without-replacing variant, so any caller
-       * must treat this as destructive. The response has the same shape as
-       * getBreakoutRoomList().
-       */
       createBreakoutRooms: (
         options: ZoomCreateBreakoutRoomsOptions,
-      ) => Promise<{ rooms: ZoomBreakoutRoom[] }>;
+      ) => Promise<ZoomBreakoutRoomsResponse>;
 
-      /**
-       * Everybody in the parent meeting, whether or not they sit in a room.
-       * getBreakoutRoomList() reports room membership only, so this is the only
-       * way to learn who has not been placed yet.
-       */
-      getMeetingParticipants: () => Promise<{
-        participants: ZoomMeetingParticipant[];
-      }>;
+      /** Omit `uuid` to send the person back to the main meeting. */
+      assignParticipantToBreakoutRoom: (options: {
+        participantUUID: string;
+        uuid?: string;
+      }) => Promise<ZoomBreakoutRoomsResponse>;
+      openBreakoutRooms: () => Promise<unknown>;
+      closeBreakoutRooms: () => Promise<unknown>;
 
       /**
        * Fires only for the current user's own context. The SDK has no matching
@@ -173,17 +128,6 @@ declare global {
         callback: (event: ZoomUserContextChangeEvent) => void,
       ) => void;
 
-      onBreakoutRoomChange: (callback: (event: unknown) => void) => void;
-
-      /**
-       * Generic listener pair. `removeEventListener` is the only supported way
-       * to detach a handler: the SDK exposes `on<Event>` shorthands but no
-       * `off<Event>` counterparts.
-       */
-      addEventListener: (
-        event: string,
-        callback: (event: never) => void,
-      ) => Promise<unknown>;
       /**
        * Returns undefined instead of a promise when the SDK declines the call,
        * for example when config() has not resolved yet, so callers must not
