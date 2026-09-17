@@ -59,12 +59,4 @@ jobs:
         run: npm ci
 
       - name: Type check
-        run: >-
-          npx tsc --noEmit
-          --target ES2022
-          --module NodeNext
-          --moduleResolution NodeNext
-          --allowImportingTsExtensions
-          --esModuleInterop
-          --skipLibCheck
-          server.ts routes/tests.ts
+        run: npx tsc --noEmit -p tsconfig.json
