@@ -62,13 +62,6 @@ export interface SaveRoundPlanRequest extends RoundPlanDraft {
   expectedRevision: number;
 }
 
-export interface SessionRecord {
-  parentUUID: string;
-  /** Role the client claims. Never trusted for destructive operations. */
-  declaredRole: ZoomRole;
-  createdAt: string;
-}
-
 /** Envelope every Week 3 route answers with. */
 export type ApiResponse<T> =
   | { success: true; data: T }
@@ -79,7 +72,6 @@ export interface HealthResponse {
   service: string;
   uptimeSeconds: number;
 }
-
 
 export interface LiveParticipant {
   participantUUID: string;
