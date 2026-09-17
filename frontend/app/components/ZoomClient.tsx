@@ -1,65 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useHostGate } from "@/lib/host-gate";
 
+import CheckingScreen from "./screens/CheckingScreen";
+import HostWorkspace from "./screens/HostWorkspace";
+import ParticipantScreen from "./screens/ParticipantScreen";
+import UnsupportedScreen from "./screens/UnsupportedScreen";
+
+/**
+ * Slice 1 gate.
+ *
+ * ZoomClient owns the only Zoom SDK conversation on the page and picks one of
+ * the four states from it: checking, host, participant, unsupported. Because
+ * the choice is state and not navigation, a promotion to co-host swaps the
+ * screen with no reload, and a demotion takes the controls back the same way.
+ *
+ * The whole page hangs off this component, so page.tsx stays a thin server
+ * component and no host control is ever rendered before the role is known.
+ */
 export default function ZoomClient() {
-  const [meetingUUID, setMeetingUUID] = useState("");
-  const [backendMessage, setBackendMessage] = useState("");
+  const { state, role, screenName, meetingUUID, sdkError } = useHostGate();
 
-  useEffect(() => {
-    async function initZoom() {
-      const zoomSdk = window.zoomSdk;
+  switch (state) {
+    case "host":
+      return (
+        <HostWorkspace meetingUUID={meetingUUID} role={role} />
+      );
 
-      if (!zoomSdk) {
-        console.log("Zoom SDK not available");
-        return;
-      }
+    case "participant":
+      return <ParticipantScreen screenName={screenName} meetingUUID={meetingUUID} />;
 
-      await zoomSdk.config({
-        version: "0.16",
-        capabilities: [
-          "getMeetingUUID",
-          "getMeetingContext",
-          "getBreakoutRoomList",
-          "onBreakoutRoomChange",
-        ],
-      });
+    case "unsupported":
+      return <UnsupportedScreen error={sdkError} />;
 
-      const result = await zoomSdk.getMeetingUUID();
-
-      console.log("Zoom result:", result);
-
-      setMeetingUUID(result.meetingUUID);
-
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          meetingUUID: result.meetingUUID,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Backend returned ${response.status}`);
-      }
-
-      const backendResult = await response.json();
-
-      console.log("Backend response:", backendResult);
-
-      setBackendMessage(backendResult.message + " " + backendResult.message2);
-        }
-
-    initZoom().catch(console.error);
-  }, []);
-
-  return (
-    <div>
-      <p>Meeting UUID: {meetingUUID || "Loading..."}</p>
-
-      {backendMessage && <p>Backend: {backendMessage}</p>}
-    </div>
-  );
+    case "checking":
+    default:
+      return <CheckingScreen />;
+  }
 }

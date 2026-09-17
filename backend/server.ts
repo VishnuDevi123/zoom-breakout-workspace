@@ -3,6 +3,10 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 
 import testRoutes from "./routes/tests.ts";
+import roundPlanRoutes from "./routes/round-plans.ts";
+import type { ApiResponse, HealthResponse } from "./types/breakout.ts";
+import webhookRoutes from "./routes/webhooks.ts";
+import liveRoutes from "./routes/live.ts";
 
 dotenv.config();
 
@@ -25,8 +29,10 @@ app.use(
 );
 
 app.use("/api/test", testRoutes);
-app.use("/api", testRoutes);
-
+// The router adds /:roundId/rooms. Draft saves never change actual Zoom rooms.
+app.use("/api/rounds", roundPlanRoutes);
+app.use("/api/webhooks", webhookRoutes);
+app.use("/api/live", liveRoutes);
 // zoom OAuth callback route, only backend should handle this
 app.get("/auth/callback", (req, res) => {
   console.log("Auth callback received");
@@ -35,8 +41,23 @@ app.get("/auth/callback", (req, res) => {
   res.send("Zoom OAuth callback reached backend.");
 });
 
+function health(): ApiResponse<HealthResponse> {
+  return {
+    success: true,
+    data: {
+      status: "ok",
+      service: "breakout-workspace-backend",
+      uptimeSeconds: Math.round(process.uptime()),
+    },
+  };
+}
+
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json(health());
+});
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json(health());
 });
 
 app.listen(PORT, () => {
