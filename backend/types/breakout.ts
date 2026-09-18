@@ -32,11 +32,9 @@ export type ZoomRole = "host" | "coHost" | "attendee";
 export type HostState = "checking" | "host" | "participant" | "unsupported";
 
 export interface PlannedRoom {
-  /** App-owned ID: preserve on rename; generate a new ID when copying a room. */
   id: string;
   name: string;
   dot: RoomDot;
-  /** Intended membership, independent of where people currently are in Zoom. */
   participantUUIDs: string[];
 }
 
@@ -45,21 +43,19 @@ export interface RoundPlan {
   parentUUID: string;
   roundId: string;
   title: string;
-  /** Server-owned version: first save is 1; each successful update adds 1. */
   revision: number;
   rooms: PlannedRoom[];
-  /** People deliberately left in the main meeting, not unresolved placements. */
   stayInMainParticipantUUIDs: string[];
 }
 
 export type RoundPlanDraft = Omit<RoundPlan, "revision">;
 
-/** PUT body. Use 0 to create; otherwise send the last read/saved revision. */
+
 export interface SaveRoundPlanRequest extends RoundPlanDraft {
   expectedRevision: number;
 }
 
-/** Envelope every route answers with. */
+
 export type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; error: string };
@@ -87,4 +83,43 @@ export interface LiveState {
   parentUUID: string;
   round: LiveRound | null;
   participants: LiveParticipant[];
+}
+
+export type RoundStatus = "planned" | "launched" | "closed";
+
+/** Per-round metadata. Room lists live in RoundPlan, keyed by the same roundId. */
+export interface RoundMeta {
+  roundId: string;
+  title: string | null;
+  durationSec: number;
+  /** Server-owned: assigned on add, never by PUT. */
+  dot: RoomDot;
+  /** Server-owned: set by /api/live/launch and /close, never by PUT. */
+  status: RoundStatus;
+}
+
+/** One record per meeting. Order of `rounds` is display order. */
+export interface Workspace {
+  parentUUID: string;
+  title: string;
+  sameRoomsEveryRound: boolean;
+  rounds: RoundMeta[];
+  /** Server-owned version: first save is 1; each successful update adds 1. */
+  revision: number;
+}
+
+/** PUT body. Use 0 to create. Round set must match stored roundIds; add/remove via /rounds. */
+export interface SaveWorkspaceRequest {
+  parentUUID: string;
+  title: string;
+  sameRoomsEveryRound: boolean;
+  rounds: Omit<RoundMeta, "status" | "dot">[];
+  expectedRevision: number;
+}
+
+/** POST /api/workspace/rounds body. Server assigns roundId, dot, status. */
+export interface AddRoundRequest {
+  parentUUID: string;
+  title?: string;
+  durationSec?: number;
 }

@@ -13,7 +13,10 @@ const plans = new Map<string, RoundPlan>();
 const MAX_PLANNED_ROOMS = 50;
 
 export class RoundPlanError extends Error {
-  constructor(message: string, readonly status: 400 | 409) {
+  constructor(
+    message: string,
+    readonly status: 400 | 409,
+  ) {
     super(message);
     this.name = "RoundPlanError";
   }
@@ -47,86 +50,129 @@ function validateDraft(input: unknown): RoundPlanDraft {
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const roundId = requiredString(input.roundId, "roundId");
   const title = requiredString(input.title, "title").trim();
-  if (!Array.isArray(input.rooms) || input.rooms.length < 1 || input.rooms.length > MAX_PLANNED_ROOMS) {
-    throw new RoundPlanError(`rooms must contain 1 to ${MAX_PLANNED_ROOMS} rooms.`, 400);
+  if (
+    !Array.isArray(input.rooms) ||
+    input.rooms.length < 1 ||
+    input.rooms.length > MAX_PLANNED_ROOMS
+  ) {
+    throw new RoundPlanError(
+      `rooms must contain 1 to ${MAX_PLANNED_ROOMS} rooms.`,
+      400,
+    );
   }
 
   const roomIds = new Set<string>();
   const roomNames = new Set<string>();
   const assignedParticipants = new Set<string>();
-  const rooms: PlannedRoom[] = input.rooms.map((value: unknown, index: number) => {
-    const field = `rooms[${index}]`;
-    if (!isRecord(value)) {
-      throw new RoundPlanError(`${field} must be an object.`, 400);
-    }
-
-    const id = requiredString(value.id, `${field}.id`);
-    const name = requiredString(value.name, `${field}.name`).trim();
-    if (roomIds.has(id)) {
-      throw new RoundPlanError("Room IDs must be unique within a round.", 400);
-    }
-    if (roomNames.has(name.toLowerCase())) {
-      throw new RoundPlanError("Room names must be unique within a round.", 400);
-    }
-    roomIds.add(id);
-    roomNames.add(name.toLowerCase());
-
-    if (!ROOM_DOTS.some((dot) => dot === value.dot)) {
-      throw new RoundPlanError(`${field}.dot must be a supported room color.`, 400);
-    }
-    if (!Array.isArray(value.participantUUIDs)) {
-      throw new RoundPlanError(`${field}.participantUUIDs must be an array.`, 400);
-    }
-    const participantUUIDs = value.participantUUIDs.map((participant: unknown) => {
-      const uuid = requiredString(participant, `${field}.participantUUIDs entry`);
-      if (assignedParticipants.has(uuid)) {
-        throw new RoundPlanError("A participant can be assigned only once per round.", 400);
+  const rooms: PlannedRoom[] = input.rooms.map(
+    (value: unknown, index: number) => {
+      const field = `rooms[${index}]`;
+      if (!isRecord(value)) {
+        throw new RoundPlanError(`${field} must be an object.`, 400);
       }
-      assignedParticipants.add(uuid);
-      return uuid;
-    });
 
-    // Copy only draft fields. Extra inputs such as zoomRoomId/live presence are
-    // not saved; fresh arrays also prevent caller mutations bypassing revisions.
-    return { id, name, dot: value.dot as RoomDot, participantUUIDs };
-  });
+      const id = requiredString(value.id, `${field}.id`);
+      const name = requiredString(value.name, `${field}.name`).trim();
+      if (roomIds.has(id)) {
+        throw new RoundPlanError(
+          "Room IDs must be unique within a round.",
+          400,
+        );
+      }
+      if (roomNames.has(name.toLowerCase())) {
+        throw new RoundPlanError(
+          "Room names must be unique within a round.",
+          400,
+        );
+      }
+      roomIds.add(id);
+      roomNames.add(name.toLowerCase());
+
+      if (!ROOM_DOTS.some((dot) => dot === value.dot)) {
+        throw new RoundPlanError(
+          `${field}.dot must be a supported room color.`,
+          400,
+        );
+      }
+      if (!Array.isArray(value.participantUUIDs)) {
+        throw new RoundPlanError(
+          `${field}.participantUUIDs must be an array.`,
+          400,
+        );
+      }
+      const participantUUIDs = value.participantUUIDs.map(
+        (participant: unknown) => {
+          const uuid = requiredString(
+            participant,
+            `${field}.participantUUIDs entry`,
+          );
+          if (assignedParticipants.has(uuid)) {
+            throw new RoundPlanError(
+              "A participant can be assigned only once per round.",
+              400,
+            );
+          }
+          assignedParticipants.add(uuid);
+          return uuid;
+        },
+      );
+
+      // Copy only draft fields. Extra inputs such as zoomRoomId/live presence are
+      // not saved; fresh arrays also prevent caller mutations bypassing revisions.
+      return { id, name, dot: value.dot as RoomDot, participantUUIDs };
+    },
+  );
 
   // Accept an omitted list while older Slice 4 clients finish migrating. New
   // saves always return the explicit field, so the stored shape converges.
   const stayInMainInput = input.stayInMainParticipantUUIDs ?? [];
   if (!Array.isArray(stayInMainInput)) {
-    throw new RoundPlanError("stayInMainParticipantUUIDs must be an array.", 400);
+    throw new RoundPlanError(
+      "stayInMainParticipantUUIDs must be an array.",
+      400,
+    );
   }
   const stayInMainParticipants = new Set<string>();
-  const stayInMainParticipantUUIDs = stayInMainInput.map((participant: unknown) => {
-    const uuid = requiredString(participant, "stayInMainParticipantUUIDs entry");
-    if (assignedParticipants.has(uuid)) {
-      throw new RoundPlanError(
-        "A participant cannot be assigned to a room and stay in the main meeting.",
-        400,
+  const stayInMainParticipantUUIDs = stayInMainInput.map(
+    (participant: unknown) => {
+      const uuid = requiredString(
+        participant,
+        "stayInMainParticipantUUIDs entry",
       );
-    }
-    if (stayInMainParticipants.has(uuid)) {
-      throw new RoundPlanError(
-        "A participant can be marked to stay in the main meeting only once.",
-        400,
-      );
-    }
-    stayInMainParticipants.add(uuid);
-    return uuid;
-  });
+      if (assignedParticipants.has(uuid)) {
+        throw new RoundPlanError(
+          "A participant cannot be assigned to a room and stay in the main meeting.",
+          400,
+        );
+      }
+      if (stayInMainParticipants.has(uuid)) {
+        throw new RoundPlanError(
+          "A participant can be marked to stay in the main meeting only once.",
+          400,
+        );
+      }
+      stayInMainParticipants.add(uuid);
+      return uuid;
+    },
+  );
 
   return { parentUUID, roundId, title, rooms, stayInMainParticipantUUIDs };
 }
 
 /** GET does not create a default. Undefined means this round has no saved draft yet. */
-export function getRoundPlan(parentUUID: unknown, roundId: unknown): RoundPlan | undefined {
+export function getRoundPlan(
+  parentUUID: unknown,
+  roundId: unknown,
+): RoundPlan | undefined {
   const plan = plans.get(planKey(parentUUID, roundId));
   return plan ? structuredClone(plan) : undefined;
 }
 
 /** Save a whole draft; removing a room also removes its nested assignment intent. */
-export function saveRoundPlan(input: unknown, expectedRevision: unknown): RoundPlan {
+export function saveRoundPlan(
+  input: unknown,
+  expectedRevision: unknown,
+): RoundPlan {
   const draft = validateDraft(input);
   if (
     typeof expectedRevision !== "number" ||
@@ -153,4 +199,8 @@ export function saveRoundPlan(input: unknown, expectedRevision: unknown): RoundP
   const saved: RoundPlan = { ...draft, revision: currentRevision + 1 };
   plans.set(key, saved);
   return structuredClone(saved);
+}
+
+export function deleteRoundPlan(parentUUID: string, roundId: string) {
+  plans.delete(planKey(parentUUID, roundId));
 }
