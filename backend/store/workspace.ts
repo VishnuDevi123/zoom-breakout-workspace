@@ -191,7 +191,7 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
   return structuredClone(stored);
 }
 
-/** Called by /api/live/launch and /close. No-op when workspace or round is unknown: launch never gates on the workspace. */
+/** Called by /api/live/launch and /close. No operatuions when workspace or round is unknown: launch never gates on the workspace. */
 export function markRoundStatus(parentUUID: string, roundId: string, status: RoundStatus): void {
   const round = workspaces.get(parentUUID)?.rounds.find((r) => r.roundId === roundId);
   if (!round) return;

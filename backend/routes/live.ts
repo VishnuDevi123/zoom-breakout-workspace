@@ -1,5 +1,5 @@
 import { Router } from "express";
-
+import {markRoundStatus} from "../store/workspace.ts"
 import { getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
 import type { ApiResponse, LiveState } from "../types/breakout.ts";
 
@@ -37,6 +37,7 @@ router.post("/launch", (req, res) => {
     return;
   }
   const body: ApiResponse<LiveState> = { success: true, data: state };
+  markRoundStatus(parentUUID, roundId, "launched");
   res.json(body);
 });
 
@@ -48,7 +49,10 @@ router.post("/close", (req, res) => {
     res.status(400).json(body);
     return;
   }
-  const body: ApiResponse<LiveState> = { success: true, data: markClosedRound(parentUUID) };
+  const roundId = getLive(parentUUID).round?.roundId;
+  const state = markClosedRound(parentUUID);
+  if (roundId) markRoundStatus(parentUUID, roundId, "closed");
+  const body: ApiResponse<LiveState> = { success: true, data: state };
   res.json(body);
 });
 
