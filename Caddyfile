@@ -1,4 +1,4 @@
-:8080 {
+localhost:8080 {
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
@@ -7,7 +7,7 @@
     }
 
     handle /api/* {
-        reverse_proxy localhost:4000{
+        reverse_proxy localhost:4000 {
             flush_interval -1
         }
     }

@@ -9,7 +9,7 @@ import type { RoundPlanDraft } from "@/types/breakout";
 
 import RoomCard from "./RoomCard";
 import UnassignedRail from "./UnassignedRail";
-import { Button, Card, Pill, SectionLabel } from "./ui";
+import { BrandMark, Button, Card, Pill, SectionLabel } from "./ui";
 
 export interface RoomsProps {
   round: RoundPlanDraft;
@@ -28,6 +28,7 @@ export interface RoomsProps {
   onReloadDraft?: () => void;
   onBeforeNavigate?: () => Promise<boolean>;
   onBack?: () => void;
+  onHome?: () => void;
   onNext?: () => void;
   nextLabel?: string;
   headerActions?: ReactNode;
@@ -52,6 +53,7 @@ export default function Rooms({
   onReloadDraft,
   onBeforeNavigate,
   onBack,
+  onHome,
   onNext,
   nextLabel = "Next",
   headerActions,
@@ -109,7 +111,7 @@ export default function Rooms({
   return (
     <div ref={menuRootRef} className="bw-shell">
       <header className="bw-header">
-        <span className="bw-brand-mark">B</span>
+        <BrandMark onHome={onHome ? () => void navigate(onHome) : undefined} />
         <div className="bw-round-heading">
           <span style={{ fontSize: 15, fontWeight: 600 }}>
             Rooms &amp; people - {round.title}

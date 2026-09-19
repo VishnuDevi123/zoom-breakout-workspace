@@ -102,7 +102,10 @@ declare global {
         meetingUUID: string;
       }>;
 
-      getMeetingContext: () => Promise<unknown>;
+      getMeetingContext: () => Promise<{
+        meetingTopic: string;
+        meetingID: string;
+      }>;
 
       getUserContext: () => Promise<ZoomUserContext>;
 

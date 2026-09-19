@@ -19,7 +19,14 @@ export async function launchRoundInZoom(
   const created = await withZoomTimeout(
     "Create breakout rooms",
     sdk.createBreakoutRooms({ numberOfRooms: names.length, assign: "manually", names }),
-  );
+  ).catch((error: unknown) => {
+    // Zoom refuses to create rooms while earlier ones are still open or counting down after close.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("Can not edit the Breakout Room")) {
+      throw new Error("Zoom still has rooms open or closing. Wait for the countdown to finish, then launch again.");
+    }
+    throw error;
+  });
 
   // Zoom returns rooms with its own IDs; names are index-aligned with the request.
   const zoomIdByName = new Map(created.rooms.map((room) => [room.name, room.breakoutRoomId]));

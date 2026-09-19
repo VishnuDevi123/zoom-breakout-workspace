@@ -4,7 +4,7 @@ import { initialsFrom } from "@/lib/participant-status";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
 import type { LiveParticipant, LiveState, RoundPlanDraft } from "@/types/breakout";
 
-import { Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
+import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 
 /**
  * Live view of one round, fed by the backend SSE stream. Room names and dots
@@ -16,6 +16,7 @@ export default function LiveRound({
   connected,
   operation,
   onShowDraft,
+  onHome,
   onLaunch,
   onClose,
 }: {
@@ -24,6 +25,7 @@ export default function LiveRound({
   connected: boolean;
   operation: LiveOperationState;
   onShowDraft: () => void;
+  onHome: () => void;
   onLaunch: () => void;
   onClose: () => void;
 }) {
@@ -41,7 +43,7 @@ export default function LiveRound({
   return (
     <div className="bw-shell">
       <header className="bw-header bw-live-header">
-        <span className="bw-brand-mark">B</span>
+        <BrandMark onHome={onHome} />
         <div className="bw-round-heading">
           <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title} · live</span>
           <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
@@ -89,15 +91,6 @@ export default function LiveRound({
             <SectionLabel>Round</SectionLabel>
             <Pill tone={launched ? "teal" : "neutral"}>{launched ? "open" : "not open"}</Pill>
           </div>
-
-          {operation.kind !== "idle" ? (
-            <Card className={`bw-operation bw-operation--${operation.kind}`}>
-              <SectionLabel>
-                {operation.kind === "running" ? operation.operation : operation.kind}
-              </SectionLabel>
-              <span>{operation.kind === "running" ? operation.step : operation.message}</span>
-            </Card>
-          ) : null}
 
           <div className="bw-placement-rail">
             <div className="bw-section-heading">

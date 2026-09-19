@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { markRoundClosed, markRoundLaunched, readSavedRoundPlan } from "@/lib/execution-api";
 import { canManageRooms } from "@/lib/host-gate";
@@ -59,19 +60,21 @@ export function useLiveRoomController(input: ControllerInput) {
   async function run(kind: "launch" | "close", task: (step: (s: string) => void) => Promise<string>) {
     if (operation.kind === "running") return;
     let lastStep = "Checking Zoom…";
+    const toastId = toast.loading(lastStep);
     const step = (s: string) => {
       lastStep = s;
+      toast.loading(s, { id: toastId });
       setOperation({ kind: "running", operation: kind, step: s });
     };
     step(lastStep);
     try {
       const message = await task(step);
+      toast.success(message, { id: toastId });
       if (aliveRef.current) setOperation({ kind: "success", message });
     } catch (error) {
-      if (aliveRef.current) {
-        const reason = error instanceof Error ? error.message : "Zoom operation failed.";
-        setOperation({ kind: "error", message: `${lastStep} ${reason}` });
-      }
+      const reason = error instanceof Error ? error.message : "Zoom operation failed.";
+      toast.error(lastStep, { id: toastId, description: reason });
+      if (aliveRef.current) setOperation({ kind: "error", message: `${lastStep} ${reason}` });
     }
   }
 
