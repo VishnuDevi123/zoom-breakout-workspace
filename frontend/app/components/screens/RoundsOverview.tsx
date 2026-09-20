@@ -38,7 +38,9 @@ export default function RoundsOverview({
   onAddRound: () => Promise<void>;
   onDeleteRound: (roundId: string) => Promise<void>;
   onUpdateRound: (roundId: string, patch: Partial<Pick<RoundMeta, "title" | "durationSec">>) => Promise<void>;
-  onUpdateWorkspace: (patch: Partial<Pick<Workspace, "title" | "sameRoomsEveryRound">>) => Promise<void>;
+  onUpdateWorkspace: (
+    patch: Partial<Pick<Workspace, "title" | "sameRoomsEveryRound" | "samePeopleEveryRound">>,
+  ) => Promise<void>;
   onEditRound: (roundId: string) => void;
 }) {
   const totalSec = workspace.rounds.reduce((sum, round) => sum + round.durationSec, 0);
@@ -55,13 +57,24 @@ export default function RoundsOverview({
   return (
     <div className="bw-shell">
       <header className="bw-header">
-        <button type="button" className="bw-back" aria-label="Back to start" onClick={onHome}>←</button>
+        <button
+          type="button"
+          className="bw-back"
+          aria-label="Back to start"
+          onClick={onHome}
+        >
+          ←
+        </button>
         <div className="bw-round-heading">
           <EditableName
             value={workspace.title}
             placeholder="Sample Workflow"
             className="bw-workspace-title"
-            onSave={(title) => void run(() => onUpdateWorkspace({ title: title ?? "Sample Workflow" }))}
+            onSave={(title) =>
+              void run(() =>
+                onUpdateWorkspace({ title: title ?? "Sample Workflow" }),
+              )
+            }
           />
           <span style={{ fontSize: 11, color: "var(--bw-ink)" }}>
             {anyLaunched ? "A round is live" : "Draft workspace · not launched"}
@@ -82,7 +95,8 @@ export default function RoundsOverview({
         <main className="bw-main">
           <div className="bw-section-heading">
             <span style={{ fontSize: 12, color: "var(--bw-ink)" }}>
-              Click a round to plan its rooms. Come back any time to change one round.
+              Click a round to plan its rooms. Come back any time to change one
+              round.
             </span>
           </div>
 
@@ -92,13 +106,21 @@ export default function RoundsOverview({
                 key={round.roundId}
                 round={round}
                 position={index + 1}
-                onRename={(title) => run(() => onUpdateRound(round.roundId, { title }))}
-                onDuration={(durationSec) => run(() => onUpdateRound(round.roundId, { durationSec }))}
+                onRename={(title) =>
+                  run(() => onUpdateRound(round.roundId, { title }))
+                }
+                onDuration={(durationSec) =>
+                  run(() => onUpdateRound(round.roundId, { durationSec }))
+                }
                 onDelete={() => run(() => onDeleteRound(round.roundId))}
                 onEdit={() => onEditRound(round.roundId)}
               />
             ))}
-            <button type="button" className="bw-add-round" onClick={() => void run(onAddRound)}>
+            <button
+              type="button"
+              className="bw-add-round"
+              onClick={() => void run(onAddRound)}
+            >
               + Add round
             </button>
           </div>
@@ -114,14 +136,38 @@ export default function RoundsOverview({
           </dl>
 
           <SectionLabel>Applies to every round</SectionLabel>
-          <Card tone="sunken">
+          <Card tone="sunken" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label className="bw-switch-row">
               <input
                 type="checkbox"
+                style={{ accentColor: "#0d9488" }}
                 checked={workspace.sameRoomsEveryRound}
-                onChange={(event) => void run(() => onUpdateWorkspace({ sameRoomsEveryRound: event.target.checked }))}
+                onChange={(event) =>
+                  void run(() =>
+                    onUpdateWorkspace({
+                      sameRoomsEveryRound: event.target.checked,
+                      samePeopleEveryRound: event.target.checked && workspace.samePeopleEveryRound,
+                    }),
+                  )
+                }
               />
               <span>Same rooms every round</span>
+            </label>
+            <label className="bw-switch-row">
+              <input
+                type="checkbox"
+                style={{ accentColor: "#0d9488" }}
+                checked={workspace.samePeopleEveryRound}
+                onChange={(event) =>
+                  void run(() =>
+                    onUpdateWorkspace({
+                      samePeopleEveryRound: event.target.checked,
+                      sameRoomsEveryRound: workspace.sameRoomsEveryRound || event.target.checked,
+                    }),
+                  )
+                }
+              />
+              <span>Same people in rooms every round</span>
             </label>
           </Card>
         </aside>

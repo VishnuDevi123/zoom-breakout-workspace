@@ -106,6 +106,7 @@ export interface Workspace {
   rounds: RoundMeta[];
   /** Server-owned version: first save is 1; each successful update adds 1. */
   revision: number;
+  samePeopleEveryRound: boolean;
 }
 
 /** PUT body. Use 0 to create. Round set must match stored roundIds; add/remove via /rounds. */
@@ -115,6 +116,7 @@ export interface SaveWorkspaceRequest {
   sameRoomsEveryRound: boolean;
   rounds: Omit<RoundMeta, "status" | "dot">[];
   expectedRevision: number;
+  samePeopleEveryRound: boolean;
 }
 
 /** POST /api/workspace/rounds body. Server assigns roundId, dot, status. */

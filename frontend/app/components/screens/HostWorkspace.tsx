@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { readSavedRoundPlan } from "@/lib/execution-api";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
+import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
 import { useRoomPlan } from "@/lib/use-room-plan";
@@ -198,13 +200,35 @@ function RoundEditor({
   onChangeView: (view: HostView) => void;
 }) {
   const label = roundLabel(workspace, selectedRound.roundId);
-  const plan = useRoomPlan(meetingUUID, { roundId: selectedRound.roundId, title: label });
+  const firstRound = workspace.rounds[0];
+  const carry = workspace.sameRoomsEveryRound || workspace.samePeopleEveryRound;
+  const seedSource = carry && firstRound.roundId !== selectedRound.roundId ? firstRound : null;
+  const seedLabel = seedSource ? roundLabel(workspace, seedSource.roundId) : null;
+
+  // Only runs when this round has no saved draft yet. A missing first-round draft means an empty start.
+  async function seedFromFirstRound() {
+    if (!seedSource) return null;
+    try {
+      const source = await readSavedRoundPlan(meetingUUID, seedSource.roundId);
+      return copyRooms(
+        source,
+        { parentUUID: meetingUUID, roundId: selectedRound.roundId, title: label },
+        { withPeople: workspace.samePeopleEveryRound },
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  const plan = useRoomPlan(meetingUUID, { roundId: selectedRound.roundId, title: label }, seedFromFirstRound);
 
   if (plan.state.kind !== "ready") {
     return (
       <HostShell meetingUUID={meetingUUID} role={role} heading={`Rooms & people - ${label}`}>
         {plan.state.kind === "loading" ? (
-          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading {label} draft…</Card>
+          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
+            {seedLabel ? `Configuring ${label} from ${seedLabel}…` : `Loading ${label} draft…`}
+          </Card>
         ) : (
           <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
             <SectionLabel>Draft load failed</SectionLabel>

@@ -96,9 +96,17 @@ async function isConfirmedMissing(response: Response): Promise<boolean> {
   }
 }
 
-/** Loads and autosaves one round draft without touching live Zoom rooms. */
-export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
+/**
+ * Loads and autosaves one round draft without touching live Zoom rooms.
+ * `seed` runs only when no draft is saved yet; null falls back to one empty room.
+ */
+export function useRoomPlan(
+  parentUUID: string,
+  selectedRound: SelectedRound,
+  seed?: () => Promise<RoundPlanDraft | null>,
+) {
   const key = `${parentUUID}\u0000${selectedRound.roundId}`;
+  const seedRef = useRef(seed);
   const initialCache = draftCache.get(key);
   const preservedInitial = initialCache && isDirty(initialCache) ? initialCache : null;
   const [state, setState] = useState<RoomPlanState>(() =>
@@ -255,6 +263,10 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
   }, [saveNow]);
 
   useEffect(() => {
+    seedRef.current = seed;
+  }, [seed]);
+
+  useEffect(() => {
     const controller = new AbortController();
     keyRef.current = key;
     queuedRef.current = false;
@@ -296,14 +308,14 @@ export function useRoomPlan(parentUUID: string, selectedRound: SelectedRound) {
         let draft: RoundPlanDraft;
         let revision: number;
         if (await isConfirmedMissing(response)) {
-          draft = {
+          draft = (await seedRef.current?.()) ?? {
             parentUUID,
             roundId: selectedRound.roundId,
             title: selectedRound.title,
             rooms: [],
             stayInMainParticipantUUIDs: [],
           };
-          draft.rooms = [newRoom(draft.rooms)];
+          if (draft.rooms.length === 0) draft.rooms = [newRoom(draft.rooms)];
           revision = 0;
         } else {
           if (!response.ok) throw new Error(await readError(response));
