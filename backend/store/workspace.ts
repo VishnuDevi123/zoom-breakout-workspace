@@ -75,6 +75,10 @@ function validateSaveRequest(input: unknown): Omit<SaveWorkspaceRequest, "expect
   if (typeof input.samePeopleEveryRound !== "boolean") {
     throw new WorkspaceError("samePeopleEveryRound must be a boolean.", 400);
   }
+  if (typeof input.autoStartNextRound !== "boolean") {
+    throw new WorkspaceError("autoSaveNextRound must be a boolean.", 400);
+  }
+
   if (!Array.isArray(input.rounds) || input.rounds.length > MAX_ROUNDS) {
     throw new WorkspaceError(`rounds must contain 0 to ${MAX_ROUNDS} rounds.`, 400);
   }
@@ -98,7 +102,14 @@ function validateSaveRequest(input: unknown): Omit<SaveWorkspaceRequest, "expect
     };
   });
 
-  return { parentUUID, title, sameRoomsEveryRound: input.sameRoomsEveryRound, rounds , samePeopleEveryRound: input.samePeopleEveryRound};
+  return {
+    parentUUID,
+    title,
+    sameRoomsEveryRound: input.sameRoomsEveryRound,
+    rounds,
+    samePeopleEveryRound: input.samePeopleEveryRound,
+    autoStartNextRound: input.autoStartNextRound,
+  };
 }
 
 function checkRevision(stored: Workspace | undefined, expectedRevision: unknown): number {

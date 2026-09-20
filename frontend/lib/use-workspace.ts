@@ -92,6 +92,7 @@ export function useWorkspace(parentUUID: string) {
       title,
       sameRoomsEveryRound: false,
       samePeopleEveryRound: false,
+      autoStartNextRound: true,
       rounds: rounds.map((round, index) => ({ roundId: `round-${index + 1}`, ...round })),
       expectedRevision: 0,
     });
@@ -142,6 +143,7 @@ export function useWorkspace(parentUUID: string) {
       title: workspace.title,
       sameRoomsEveryRound: workspace.sameRoomsEveryRound,
       samePeopleEveryRound: workspace.samePeopleEveryRound,
+      autoStartNextRound: workspace.autoStartNextRound,
       rounds: workspace.rounds.map(({ roundId: id, title, durationSec }) =>
         id === roundId ? { roundId: id, title, durationSec, ...patch } : { roundId: id, title, durationSec },
       ),
@@ -151,18 +153,28 @@ export function useWorkspace(parentUUID: string) {
 
   /** Edit workspace-level fields; rounds are resent unchanged. */
   async function updateWorkspace(
-    patch: Partial<Pick<Workspace, "title" | "sameRoomsEveryRound" | "samePeopleEveryRound">>,
+    patch: Partial<
+      Pick<Workspace, "title" | "sameRoomsEveryRound" | "samePeopleEveryRound" | "autoStartNextRound">
+    >,
   ): Promise<void> {
     if (state.kind !== "ready") return;
     const { workspace } = state;
-    await saveWorkspace({
-      title: workspace.title,
-      sameRoomsEveryRound: workspace.sameRoomsEveryRound,
-      samePeopleEveryRound: workspace.samePeopleEveryRound,
-      ...patch,
-      rounds: workspace.rounds.map(({ roundId, title, durationSec }) => ({ roundId, title, durationSec })),
-      expectedRevision: workspace.revision,
-    });
+    // Show the new value at once; a checkbox that waits for the PUT flickers back first.
+    apply({ ...workspace, ...patch });
+    try {
+      await saveWorkspace({
+        title: workspace.title,
+        sameRoomsEveryRound: workspace.sameRoomsEveryRound,
+        samePeopleEveryRound: workspace.samePeopleEveryRound,
+        autoStartNextRound: workspace.autoStartNextRound,
+        ...patch,
+        rounds: workspace.rounds.map(({ roundId, title, durationSec }) => ({ roundId, title, durationSec })),
+        expectedRevision: workspace.revision,
+      });
+    } catch (error) {
+      apply(workspace);
+      throw error;
+    }
   }
 
   const selectedRound: RoundMeta | null =

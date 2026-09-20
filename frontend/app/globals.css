@@ -376,6 +376,39 @@ body {
   gap: 13px;
 }
 
+/* Live view puts the session plan on the left of the room grid. */
+.bw-rail--left {
+  border-left: none;
+  border-right: 1px solid var(--bw-border);
+}
+
+.bw-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+}
+
+.bw-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.bw-timer__clock {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.bw-timer__label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bw-muted-2);
+}
+
 .bw-room-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -386,12 +419,6 @@ body {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-}
-
-.bw-execution-actions {
-  display: flex;
-  align-items: center;
   gap: 7px;
 }
 
@@ -979,11 +1006,6 @@ body {
 
   .bw-round-heading {
     flex: 1;
-  }
-
-  .bw-execution-actions {
-    width: 100%;
-    flex-wrap: wrap;
   }
 
   .bw-room-grid {

@@ -1,65 +1,133 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { initialsFrom } from "@/lib/participant-status";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
-import type { LiveParticipant, LiveState, RoundPlanDraft } from "@/types/breakout";
+import { roundLabel } from "@/lib/use-workspace";
+import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace } from "@/types/breakout";
 
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 
+function formatClock(totalSec: number): string {
+  const safe = Math.max(0, totalSec);
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+/** Seconds left on the round, recomputed every second from the server's endsAt. */
+function useRemainingSec(endsAt: number): number | null {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!endsAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+
+  return endsAt ? Math.max(0, Math.round((endsAt - now) / 1000)) : null;
+}
+
 /**
- * Live view of one round, fed by the backend SSE stream. Room names and dots
- * come from the draft; who is where comes from Zoom webhooks via LiveState.
+ * The running round. Room names and dots come from the round's draft; who is
+ * where comes from Zoom webhooks via LiveState. The timer counts down to the
+ * backend's endsAt, and the backend decides when the round is actually over.
  */
 export default function LiveRound({
+  workspace,
   round,
   live,
   connected,
   operation,
-  onShowDraft,
+  nextRound,
   onHome,
-  onLaunch,
-  onClose,
+  onEndRound,
+  onLaunchNext,
 }: {
+  workspace: Workspace;
   round: RoundPlanDraft;
-  live: LiveState | null;
+  live: LiveState;
   connected: boolean;
   operation: LiveOperationState;
-  onShowDraft: () => void;
+  nextRound: RoundMeta | null;
   onHome: () => void;
-  onLaunch: () => void;
-  onClose: () => void;
+  onEndRound: () => void;
+  onLaunchNext: () => void;
 }) {
   const busy = operation.kind === "running";
-  const launched = live?.round?.roundId === round.roundId;
-  const participants = live?.participants ?? [];
+  const open = live.round !== null;
+  const remainingSec = useRemainingSec(live.round?.endsAt ?? 0);
+  const participants = live.participants;
 
   function membersOf(roomId: string): LiveParticipant[] {
-    const uuid = live?.round?.roomUUIDs[roomId];
+    const uuid = live.round?.roomUUIDs[roomId];
     return uuid ? participants.filter((p) => p.location === uuid) : [];
   }
-  const inMain = participants.filter((p) => p.location === "main");
-  const left = participants.filter((p) => p.location === "left");
 
   return (
     <div className="bw-shell">
       <header className="bw-header bw-live-header">
         <BrandMark onHome={onHome} />
+        <Pill tone={open ? "teal" : "neutral"}>{open ? "Live" : "Closed"}</Pill>
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title} · live</span>
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title}</span>
+          <span style={{ fontSize: 11, color: "var(--bw-ink)" }}>
             {connected ? "Receiving Zoom updates" : "Reconnecting…"}
           </span>
         </div>
         <div className="bw-header-spacer" />
-        <Button variant="outline" size="sm" onClick={onShowDraft}>Draft plan</Button>
-        {launched ? (
-          <Button size="sm" onClick={onClose} disabled={busy}>Close {round.title}</Button>
-        ) : (
-          <Button variant="accent" size="sm" onClick={onLaunch} disabled={busy}>Launch {round.title}</Button>
-        )}
+
+        {remainingSec !== null ? (
+          <div className="bw-timer">
+            <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
+            <span className="bw-timer__label">remaining</span>
+          </div>
+        ) : null}
+
+        <Button variant="outline" size="sm" disabled={!open || busy} onClick={onEndRound}>
+          End round
+        </Button>
+        {nextRound ? (
+          <Button
+            variant="accent"
+            size="sm"
+            disabled={open || busy}
+            title={open ? "End this round first." : undefined}
+            onClick={onLaunchNext}
+          >
+            Launch {roundLabel(workspace, nextRound.roundId)} -&gt;
+          </Button>
+        ) : null}
       </header>
 
       <div className="bw-body">
+        <aside className="bw-rail bw-rail--left">
+          <SectionLabel>Session plan</SectionLabel>
+          {workspace.rounds.map((meta) => (
+            <Card
+              key={meta.roundId}
+              tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
+              className="bw-plan-row"
+            >
+              <StatusDot color={meta.dot} />
+              <span className="bw-member-name">{roundLabel(workspace, meta.roundId)}</span>
+              <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-ink)" }}>
+                {meta.status === "closed" ? "✓" : formatClock(meta.durationSec)}
+              </span>
+            </Card>
+          ))}
+
+          <SectionLabel>Rooms</SectionLabel>
+          {round.rooms.map((room) => (
+            <div className="bw-rail-row" key={room.id}>
+              <StatusDot color={room.dot} />
+              <span className="bw-member-name">{room.name}</span>
+              <span className="bw-mono" style={{ fontSize: 11 }}>
+                {membersOf(room.id).length}/{room.participantUUIDs.length}
+              </span>
+            </div>
+          ))}
+        </aside>
+
         <main className="bw-main">
           <div className="bw-room-grid">
             {round.rooms.map((room) => {
@@ -77,7 +145,7 @@ export default function LiveRound({
                   ))}
                   {members.length === 0 ? (
                     <span style={{ fontSize: 11.5, color: "var(--bw-muted-3)" }}>
-                      {launched ? "Nobody here yet" : "Round not open"}
+                      {open ? "Nobody here yet" : "Round closed"}
                     </span>
                   ) : null}
                 </Card>
@@ -85,46 +153,15 @@ export default function LiveRound({
             })}
           </div>
         </main>
-
-        <aside className="bw-rail">
-          <div className="bw-section-heading">
-            <SectionLabel>Round</SectionLabel>
-            <Pill tone={launched ? "teal" : "neutral"}>{launched ? "open" : "not open"}</Pill>
-          </div>
-
-          <div className="bw-placement-rail">
-            <div className="bw-section-heading">
-              <SectionLabel>In main meeting</SectionLabel>
-              <Pill tone="outline">{inMain.length}</Pill>
-            </div>
-            {inMain.map((p) => (
-              <MemberRow key={p.participantUUID} participant={p} rail />
-            ))}
-          </div>
-
-          {left.length > 0 ? (
-            <div className="bw-placement-rail">
-              <div className="bw-section-heading">
-                <SectionLabel>Left meeting</SectionLabel>
-                <Pill tone="outline">{left.length}</Pill>
-              </div>
-              {left.map((p) => (
-                <MemberRow key={p.participantUUID} participant={p} rail />
-              ))}
-            </div>
-          ) : null}
-        </aside>
       </div>
     </div>
   );
 }
 
-function MemberRow({ participant, rail }: { participant: LiveParticipant; rail?: boolean }) {
+function MemberRow({ participant }: { participant: LiveParticipant }) {
   return (
-    <div className={rail ? "bw-rail-row" : "bw-member-row"}>
-      <span className={rail ? "bw-avatar bw-avatar--rail" : "bw-avatar"}>
-        {initialsFrom(participant.name)}
-      </span>
+    <div className="bw-member-row">
+      <span className="bw-avatar">{initialsFrom(participant.name)}</span>
       <span className="bw-member-name">{participant.name}</span>
     </div>
   );

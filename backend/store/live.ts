@@ -10,6 +10,8 @@ import {getRoundPlan } from "./round-plans.ts";
 interface LiveMeeting{
     round: LiveRound | null;
     participants: Map<string, LiveParticipant>;
+    // Undefined rather than null so clearTimeout() needs no guard.
+    timer?: ReturnType<typeof setTimeout>;
 }
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
@@ -49,7 +51,7 @@ export function subscribe(parentUUID: string, fn: (state: LiveState) => void): (
 
 }
 
-export function markLaunchedRound(parentUUID: string, roundId: string): LiveState | null {
+export function markLaunchedRound(parentUUID: string, roundId: string, durationSec: number): LiveState | null {
     const plan = getRoundPlan(parentUUID, roundId)
     // if getRoundPlan returns undefined, it means the round plan does not exist for the given parentUUID and roundId. In that case return null to indicate that there is no live round to mark as lauched
     if (!plan) {
@@ -60,14 +62,30 @@ export function markLaunchedRound(parentUUID: string, roundId: string): LiveStat
         roomUUIDs[room.id] = null
     }
     const meeting = meetingFor(parentUUID)
-    meeting.round = { roundId, roomUUIDs }
+    clearTimeout(meeting.timer)
+    // endsAt 0 means no timer: the round runs until the host closes it.
+    const endsAt = durationSec > 0 ? Date.now() + durationSec * 1000 : 0
+    meeting.round = { roundId, roomUUIDs, endsAt, timerEnded: false }
+    // The app owns the round timer: Zoom reports nothing when its own closeAfter fires.
+    if (endsAt) {
+        meeting.timer = setTimeout(() => {
+            if (!meeting.round) return
+            meeting.round.timerEnded = true
+            notify(parentUUID)
+        }, durationSec * 1000)
+    }
     notify(parentUUID)
     return getLive(parentUUID)
 }
 
 export function markClosedRound(parentUUID: string): LiveState {
     const meeting = meetingFor(parentUUID)
+    clearTimeout(meeting.timer)
     meeting.round = null
+    // Zoom sends no participant_left_breakout_room on host close, only ghost joined/left pairs.
+    for (const p of meeting.participants.values()) {
+        if (p.location !== "main" && p.location !== "left") p.location = "main"
+    }
     notify(parentUUID)
     return getLive(parentUUID)
 }

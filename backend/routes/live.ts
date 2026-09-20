@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {markRoundStatus} from "../store/workspace.ts"
+import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
 import { getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
 import type { ApiResponse, LiveState } from "../types/breakout.ts";
 
@@ -30,7 +30,13 @@ router.post("/launch", (req, res) => {
     res.status(400).json(body);
     return;
   }
-  const state = markLaunchedRound(parentUUID, roundId);
+  // Duration is workspace-owned. An unknown round means no timer: launch never gates on the workspace.
+  const activeRound = getWorkspace(parentUUID)?.rounds.find(
+    (round) => round.roundId === roundId,
+  );
+  const durationSec = activeRound?.durationSec ?? 0;
+
+  const state = markLaunchedRound(parentUUID, roundId, durationSec);
   if (!state) {
     const body: ApiResponse<never> = { success: false, error: "Round plan not found." };
     res.status(404).json(body);

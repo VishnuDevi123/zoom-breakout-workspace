@@ -2,7 +2,9 @@
 
 import { toast } from "sonner";
 
-import type { RoundMeta, RoundStatus, Workspace } from "@/types/breakout";
+import { useLiveRoomController } from "@/lib/use-live-room-controller";
+import { roundLabel } from "@/lib/use-workspace";
+import type { RoundMeta, RoundPlan, RoundStatus, Workspace, ZoomRole } from "@/types/breakout";
 
 import { Button, Card, EditableName, Pill, SectionLabel } from "../ui";
 
@@ -26,6 +28,10 @@ const STATUS_PILL: Record<RoundStatus, { label: string; tone: "neutral" | "teal"
 /** Rounds overview: order, titles and timing. Rooms are planned per round in the editor. */
 export default function RoundsOverview({
   workspace,
+  parentUUID,
+  plans,
+  role,
+  onLaunched,
   onHome,
   onAddRound,
   onDeleteRound,
@@ -34,17 +40,26 @@ export default function RoundsOverview({
   onEditRound,
 }: {
   workspace: Workspace;
+  parentUUID: string;
+  /** Saved draft per round, fetched once by HostWorkspace. Null means never configured. */
+  plans: Record<string, RoundPlan | null>;
+  role: ZoomRole | null;
+  onLaunched: (roundId: string) => void;
   onHome: () => void;
   onAddRound: () => Promise<void>;
   onDeleteRound: (roundId: string) => Promise<void>;
   onUpdateRound: (roundId: string, patch: Partial<Pick<RoundMeta, "title" | "durationSec">>) => Promise<void>;
   onUpdateWorkspace: (
-    patch: Partial<Pick<Workspace, "title" | "sameRoomsEveryRound" | "samePeopleEveryRound">>,
+    patch: Partial<
+      Pick<Workspace, "title" | "sameRoomsEveryRound" | "samePeopleEveryRound" | "autoStartNextRound">
+    >,
   ) => Promise<void>;
   onEditRound: (roundId: string) => void;
 }) {
   const totalSec = workspace.rounds.reduce((sum, round) => sum + round.durationSec, 0);
   const anyLaunched = workspace.rounds.some((round) => round.status === "launched");
+  // The round the host would start now: the first one Zoom has not run yet.
+  const target = workspace.rounds.find((round) => round.status !== "closed") ?? null;
 
   async function run(action: () => Promise<void>) {
     try {
@@ -106,6 +121,7 @@ export default function RoundsOverview({
                 key={round.roundId}
                 round={round}
                 position={index + 1}
+                roomCount={plans[round.roundId]?.rooms.length ?? null}
                 onRename={(title) =>
                   run(() => onUpdateRound(round.roundId, { title }))
                 }
@@ -143,12 +159,7 @@ export default function RoundsOverview({
                 style={{ accentColor: "#0d9488" }}
                 checked={workspace.sameRoomsEveryRound}
                 onChange={(event) =>
-                  void run(() =>
-                    onUpdateWorkspace({
-                      sameRoomsEveryRound: event.target.checked,
-                      samePeopleEveryRound: event.target.checked && workspace.samePeopleEveryRound,
-                    }),
-                  )
+                  void run(() => onUpdateWorkspace({ sameRoomsEveryRound: event.target.checked }))
                 }
               />
               <span>Same rooms every round</span>
@@ -159,26 +170,87 @@ export default function RoundsOverview({
                 style={{ accentColor: "#0d9488" }}
                 checked={workspace.samePeopleEveryRound}
                 onChange={(event) =>
-                  void run(() =>
-                    onUpdateWorkspace({
-                      samePeopleEveryRound: event.target.checked,
-                      sameRoomsEveryRound: workspace.sameRoomsEveryRound || event.target.checked,
-                    }),
-                  )
+                  void run(() => onUpdateWorkspace({ samePeopleEveryRound: event.target.checked }))
                 }
               />
               <span>Same people in rooms every round</span>
             </label>
           </Card>
+
+          <SectionLabel>When a round ends</SectionLabel>
+          <Card tone="sunken">
+            <label className="bw-switch-row">
+              <input
+                type="checkbox"
+                style={{ accentColor: "#0d9488" }}
+                checked={workspace.autoStartNextRound}
+                onChange={(event) =>
+                  void run(() => onUpdateWorkspace({ autoStartNextRound: event.target.checked }))
+                }
+              />
+              <span>Start the next round when the timer ends</span>
+            </label>
+          </Card>
+
+          {target ? (
+            <LaunchWorkflow
+              workspace={workspace}
+              parentUUID={parentUUID}
+              role={role}
+              target={target}
+              plan={plans[target.roundId] ?? null}
+              onLaunched={onLaunched}
+            />
+          ) : null}
         </aside>
       </div>
     </div>
   );
 }
 
+/** Starts the first round that has not run yet. Nothing reaches Zoom until this is pressed. */
+function LaunchWorkflow({
+  workspace,
+  parentUUID,
+  role,
+  target,
+  plan,
+  onLaunched,
+}: {
+  workspace: Workspace;
+  parentUUID: string;
+  role: ZoomRole | null;
+  target: RoundMeta;
+  plan: RoundPlan | null;
+  onLaunched: (roundId: string) => void;
+}) {
+  const label = roundLabel(workspace, target.roundId);
+  const controller = useLiveRoomController({
+    parentUUID,
+    role,
+    round: plan ?? { parentUUID, roundId: target.roundId, title: label, rooms: [], stayInMainParticipantUUIDs: [] },
+    // Drafts are saved by the editor; the overview has no pending edits to flush.
+    flushSave: () => Promise.resolve(true),
+    onLaunched,
+  });
+  const ready = (plan?.rooms.length ?? 0) > 0;
+
+  return (
+    <Button
+      variant="accent"
+      disabled={!ready || controller.operation.kind === "running"}
+      title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
+      onClick={() => controller.launch()}
+    >
+      Launch Workflow
+    </Button>
+  );
+}
+
 function RoundRow({
   round,
   position,
+  roomCount,
   onRename,
   onDuration,
   onDelete,
@@ -186,6 +258,7 @@ function RoundRow({
 }: {
   round: RoundMeta;
   position: number;
+  roomCount: number | null;
   onRename: (title: string | null) => void;
   onDuration: (durationSec: number) => void;
   onDelete: () => void;
@@ -201,6 +274,9 @@ function RoundRow({
       </div>
 
       <div className="bw-round-row-side">
+        <span style={{ fontSize: 11.5, color: "var(--bw-ink)" }}>
+          {roomCount === null ? "Not set yet" : `${roomCount} rooms`}
+        </span>
         <div className="bw-stepper">
           <button
             type="button"

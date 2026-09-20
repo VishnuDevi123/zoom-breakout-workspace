@@ -28,6 +28,7 @@ export interface RoomsProps {
   onReloadDraft?: () => void;
   onBeforeNavigate?: () => Promise<boolean>;
   onBack?: () => void;
+  backLabel?: string;
   onHome?: () => void;
   onNext?: () => void;
   nextLabel?: string;
@@ -53,6 +54,7 @@ export default function Rooms({
   onReloadDraft,
   onBeforeNavigate,
   onBack,
+  backLabel = "Back",
   onHome,
   onNext,
   nextLabel = "Next",
@@ -220,7 +222,7 @@ export default function Rooms({
             <div className="bw-navigation">
               {onBack ? (
                 <Button variant="outline" onClick={() => void navigate(onBack)}>
-                  Back
+                  {backLabel}
                 </Button>
               ) : null}
               {onNext ? (

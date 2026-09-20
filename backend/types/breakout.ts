@@ -77,6 +77,8 @@ export interface LiveParticipant {
 export interface LiveRound {
   roundId: string;
   roomUUIDs: Record<string, string | null>;
+  endsAt: number;
+  timerEnded: boolean;
 }
 
 export interface LiveState {
@@ -84,6 +86,7 @@ export interface LiveState {
   round: LiveRound | null;
   participants: LiveParticipant[];
 }
+
 
 export type RoundStatus = "planned" | "launched" | "closed";
 
@@ -107,6 +110,7 @@ export interface Workspace {
   /** Server-owned version: first save is 1; each successful update adds 1. */
   revision: number;
   samePeopleEveryRound: boolean;
+  autoStartNextRound: boolean;
 }
 
 /** PUT body. Use 0 to create. Round set must match stored roundIds; add/remove via /rounds. */
@@ -117,6 +121,7 @@ export interface SaveWorkspaceRequest {
   rounds: Omit<RoundMeta, "status" | "dot">[];
   expectedRevision: number;
   samePeopleEveryRound: boolean;
+  autoStartNextRound: boolean;
 }
 
 /** POST /api/workspace/rounds body. Server assigns roundId, dot, status. */

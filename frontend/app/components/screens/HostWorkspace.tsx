@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { readSavedRoundPlan } from "@/lib/execution-api";
@@ -9,6 +9,7 @@ import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
 import { useRoomPlan } from "@/lib/use-room-plan";
+import { useRoundSummaries } from "@/lib/use-round-summaries";
 import type { RoundTemplate } from "@/lib/round-templates";
 import { roundLabel, useWorkspace } from "@/lib/use-workspace";
 import type { LiveState, RoundMeta, Workspace, ZoomRole } from "@/types/breakout";
@@ -91,6 +92,61 @@ export default function HostWorkspace({
   const live = useLiveState(meetingUUID);
   const [view, setView] = useState<HostView>("landing");
   const [starting, setStarting] = useState(false);
+  // The round the host just launched. It keeps the live view on screen after the
+  // round closes, when live.round is already null.
+  const [launchedRoundId, setLaunchedRoundId] = useState<string | null>(null);
+  const closedByTimer = useRef(false);
+  const reconciled = useRef(false);
+
+  // SSE is the authority on which round is running: a reopened app must find its
+  // way back to the live view, not to the landing screen with a round still open.
+  const runningRoundId = live.liveState?.round?.roundId ?? null;
+  const liveRoundId = runningRoundId ?? launchedRoundId;
+  const currentView: HostView = view === "landing" && runningRoundId ? "live" : view;
+
+  const rounds = workspace.state.kind === "ready" ? workspace.state.workspace.rounds : [];
+  const plans = useRoundSummaries(meetingUUID, rounds.map((round) => round.roundId), view);
+  const livePlan = liveRoundId ? (plans[liveRoundId] ?? null) : null;
+  const nextRound = rounds[rounds.findIndex((round) => round.roundId === liveRoundId) + 1] ?? null;
+
+  const controller = useLiveRoomController({
+    parentUUID: meetingUUID,
+    role,
+    round: livePlan ?? {
+      parentUUID: meetingUUID,
+      roundId: liveRoundId ?? "",
+      title: "This round",
+      rooms: [],
+      stayInMainParticipantUUIDs: [],
+    },
+    // Launching happens from saved drafts; the live view has no pending edits.
+    flushSave: () => Promise.resolve(true),
+    onLaunched: (roundId) => {
+      setLaunchedRoundId(roundId);
+      setView("live");
+    },
+    onClosed: () => {
+      if (!closedByTimer.current) return;
+      closedByTimer.current = false;
+      if (nextRound) controller.launch(nextRound.roundId);
+    },
+  });
+
+  // A round the backend still calls live may already be over in Zoom. Check once.
+  useEffect(() => {
+    if (!runningRoundId || reconciled.current) return;
+    reconciled.current = true;
+    controller.reconcile();
+  }, [runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The backend owns the clock: it flips timerEnded and pushes it over SSE.
+  const timerEnded = live.liveState?.round?.timerEnded ?? false;
+  const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;
+  useEffect(() => {
+    if (!timerEnded) return;
+    closedByTimer.current = autoStart;
+    controller.close();
+  }, [timerEnded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const workspaceTitle = "Sample Workflow";
 
@@ -138,7 +194,7 @@ export default function HostWorkspace({
       </HostShell>
     );
   }
-  if (view === "landing" || workspace.state.kind === "missing") {
+  if (currentView === "landing" || workspace.state.kind === "missing") {
     return (
       <LandingScreen
         meetingTopic={meetingTopic}
@@ -152,10 +208,39 @@ export default function HostWorkspace({
       />
     );
   }
-  if (view === "rounds" || !workspace.selectedRound) {
+  if (currentView === "live" && liveRoundId) {
+    if (!livePlan || !live.liveState) {
+      return (
+        <HostShell meetingUUID={meetingUUID} role={role} heading="Live round">
+          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading live round…</Card>
+        </HostShell>
+      );
+    }
+    return (
+      <LiveRound
+        workspace={workspace.state.workspace}
+        round={livePlan}
+        live={live.liveState}
+        connected={live.isConnected}
+        operation={controller.operation}
+        nextRound={nextRound}
+        onHome={() => setView("rounds")}
+        onEndRound={controller.close}
+        onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
+      />
+    );
+  }
+  if (currentView === "rounds" || !workspace.selectedRound) {
     return (
       <RoundsOverview
         workspace={workspace.state.workspace}
+        parentUUID={meetingUUID}
+        plans={plans}
+        role={role}
+        onLaunched={(roundId) => {
+          setLaunchedRoundId(roundId);
+          setView("live");
+        }}
         onHome={() => setView("landing")}
         onAddRound={workspace.addRound}
         onDeleteRound={workspace.deleteRound}
@@ -175,8 +260,8 @@ export default function HostWorkspace({
       role={role}
       workspace={workspace.state.workspace}
       selectedRound={workspace.selectedRound}
+      onSelectRound={workspace.selectRound}
       live={live}
-      view={view}
       onChangeView={setView}
     />
   );
@@ -187,16 +272,16 @@ function RoundEditor({
   role,
   workspace,
   selectedRound,
+  onSelectRound,
   live,
-  view,
   onChangeView,
 }: {
   meetingUUID: string;
   role: ZoomRole | null;
   workspace: Workspace;
   selectedRound: RoundMeta;
+  onSelectRound: (roundId: string) => void;
   live: ReturnType<typeof useLiveState>;
-  view: HostView;
   onChangeView: (view: HostView) => void;
 }) {
   const label = roundLabel(workspace, selectedRound.roundId);
@@ -221,6 +306,8 @@ function RoundEditor({
   }
 
   const plan = useRoomPlan(meetingUUID, { roundId: selectedRound.roundId, title: label }, seedFromFirstRound);
+  const nextRound =
+    workspace.rounds[workspace.rounds.findIndex((r) => r.roundId === selectedRound.roundId) + 1] ?? null;
 
   if (plan.state.kind !== "ready") {
     return (
@@ -247,8 +334,9 @@ function RoundEditor({
       plan={plan}
       readyState={plan.state}
       live={live}
-      view={view}
       onChangeView={onChangeView}
+      onNext={nextRound ? () => onSelectRound(nextRound.roundId) : () => onChangeView("rounds")}
+      nextLabel={nextRound ? `Next: ${roundLabel(workspace, nextRound.roundId)} ->` : "Review & launch ->"}
     />
   );
 }
@@ -259,43 +347,22 @@ function ReadyRoundEditor({
   plan,
   readyState,
   live,
-  view,
   onChangeView,
+  onNext,
+  nextLabel,
 }: {
   meetingUUID: string;
   role: ZoomRole | null;
   plan: ReturnType<typeof useRoomPlan>;
   readyState: Extract<ReturnType<typeof useRoomPlan>["state"], { kind: "ready" }>;
   live: ReturnType<typeof useLiveState>;
-  view: HostView;
   onChangeView: (view: HostView) => void;
+  onNext: () => void;
+  nextLabel: string;
 }) {
   const round = readyState.draft;
-  const controller = useLiveRoomController({
-    parentUUID: meetingUUID,
-    role,
-    round,
-    flushSave: plan.flushSave,
-  });
-  const { liveState, isConnected } = live;
+  const { liveState } = live;
   const roster = rosterFrom(liveState);
-  const launched = liveState?.round?.roundId === round.roundId;
-  const busy = controller.operation.kind === "running";
-
-  if (view === "live") {
-    return (
-      <LiveRound
-        round={round}
-        live={liveState}
-        connected={isConnected}
-        operation={controller.operation}
-        onShowDraft={() => onChangeView("draft")}
-        onHome={() => onChangeView("landing")}
-        onLaunch={controller.launch}
-        onClose={controller.close}
-      />
-    );
-  }
 
   return (
     <Rooms
@@ -316,18 +383,9 @@ function ReadyRoundEditor({
       onBeforeNavigate={plan.flushSave}
       onHome={() => onChangeView("landing")}
       onBack={() => onChangeView("rounds")}
-      headerActions={
-        <div className="bw-execution-actions">
-          <Button variant="outline" size="sm" onClick={() => onChangeView("live")}>Live rooms</Button>
-          {launched ? (
-            <Button size="sm" disabled={busy} onClick={controller.close}>Close {round.title}</Button>
-          ) : (
-            <Button variant="accent" size="sm" disabled={busy} onClick={controller.launch}>
-              Launch {round.title}
-            </Button>
-          )}
-        </div>
-      }
+      backLabel="Back to rounds"
+      onNext={onNext}
+      nextLabel={nextLabel}
       railFooter={
         <div style={{ marginTop: "auto" }}>
           <MeetingBadge meetingUUID={meetingUUID} role={role ?? undefined} />
