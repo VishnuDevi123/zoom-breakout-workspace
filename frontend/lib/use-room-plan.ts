@@ -17,7 +17,7 @@ import {
   keepParticipantInMain as keepInMain,
 } from "@/lib/room-plan-assignments";
 
-const MAX_ROOMS = 50;
+export const MAX_ROOMS = 50;
 const SAVE_DELAY_MS = 500;
 
 export interface SelectedRound {
@@ -478,7 +478,6 @@ export function useRoomPlan(
     unassignParticipant,
     keepParticipantInMain,
     autoAssignParticipants,
-    savedRevision,
     flushSave,
     reloadDraft,
     canAdd: state.kind === "ready" && state.draft.rooms.length < MAX_ROOMS,

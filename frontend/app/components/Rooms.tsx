@@ -32,7 +32,6 @@ export interface RoomsProps {
   onHome?: () => void;
   onNext?: () => void;
   nextLabel?: string;
-  headerActions?: ReactNode;
   railFooter?: ReactNode;
 }
 
@@ -58,7 +57,6 @@ export default function Rooms({
   onHome,
   onNext,
   nextLabel = "Next",
-  headerActions,
   railFooter,
 }: RoomsProps) {
   const menuRootRef = useDismissibleMenus();
@@ -159,8 +157,6 @@ export default function Rooms({
             Auto-assign evenly
           </Button>
         </div>
-
-        {headerActions}
       </header>
 
       <div className="bw-body">

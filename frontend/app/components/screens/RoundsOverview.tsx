@@ -7,7 +7,7 @@ import { readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
 import { autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
-import { newRoom } from "@/lib/use-room-plan";
+import { MAX_ROOMS, newRoom } from "@/lib/use-room-plan";
 import { roundLabel } from "@/lib/use-workspace";
 import type {
   LiveState,
@@ -24,8 +24,6 @@ const DURATION_STEP_SEC = 30;
 const MIN_DURATION_SEC = 30;
 
 const SETUP_STEPS = ["01 Build rounds", "02 Configure each round", "03 Review & launch"];
-
-const MAX_ROOMS = 50;
 
 /** Grow or shrink a draft to exactly `count` rooms. Shrinking unassigns whoever was in the last rooms. */
 function withRoomCount(draft: RoundPlanDraft, count: number): RoundPlanDraft {
