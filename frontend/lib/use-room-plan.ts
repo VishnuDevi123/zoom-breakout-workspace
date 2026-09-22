@@ -45,7 +45,8 @@ interface CachedDraft {
 // Keeps unsaved work alive while future navigation remounts the editor.
 const draftCache = new Map<string, CachedDraft>();
 
-function newRoom(rooms: PlannedRoom[]): PlannedRoom {
+/** Next room in a draft: first free "Room N" name and the next dot in the palette. */
+export function newRoom(rooms: PlannedRoom[]): PlannedRoom {
   const usedNames = new Set(rooms.map((room) => room.name.trim().toLowerCase()));
   let number = 1;
   while (usedNames.has(`room ${number}`)) number += 1;

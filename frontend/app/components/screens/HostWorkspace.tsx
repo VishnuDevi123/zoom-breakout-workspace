@@ -105,7 +105,11 @@ export default function HostWorkspace({
   const currentView: HostView = view === "landing" && runningRoundId ? "live" : view;
 
   const rounds = workspace.state.kind === "ready" ? workspace.state.workspace.rounds : [];
-  const plans = useRoundSummaries(meetingUUID, rounds.map((round) => round.roundId), view);
+  const { plans, reload: reloadPlans } = useRoundSummaries(
+    meetingUUID,
+    rounds.map((round) => round.roundId),
+    view,
+  );
   const livePlan = liveRoundId ? (plans[liveRoundId] ?? null) : null;
   const nextRound = rounds[rounds.findIndex((round) => round.roundId === liveRoundId) + 1] ?? null;
 
@@ -236,6 +240,8 @@ export default function HostWorkspace({
         workspace={workspace.state.workspace}
         parentUUID={meetingUUID}
         plans={plans}
+        onPlansChanged={reloadPlans}
+        live={live.liveState}
         role={role}
         onLaunched={(roundId) => {
           setLaunchedRoundId(roundId);

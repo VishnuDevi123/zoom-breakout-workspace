@@ -1,10 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
 
+import { readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
+import { autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
+import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
+import { newRoom } from "@/lib/use-room-plan";
 import { roundLabel } from "@/lib/use-workspace";
-import type { RoundMeta, RoundPlan, RoundStatus, Workspace, ZoomRole } from "@/types/breakout";
+import type {
+  LiveState,
+  RoundMeta,
+  RoundPlan,
+  RoundPlanDraft,
+  Workspace,
+  ZoomRole,
+} from "@/types/breakout";
 
 import { Button, Card, EditableName, Pill, SectionLabel } from "../ui";
 
@@ -13,23 +25,28 @@ const MIN_DURATION_SEC = 30;
 
 const SETUP_STEPS = ["01 Build rounds", "02 Configure each round", "03 Review & launch"];
 
+const MAX_ROOMS = 50;
+
+/** Grow or shrink a draft to exactly `count` rooms. Shrinking unassigns whoever was in the last rooms. */
+function withRoomCount(draft: RoundPlanDraft, count: number): RoundPlanDraft {
+  const rooms = [...draft.rooms];
+  while (rooms.length < count) rooms.push(newRoom(rooms));
+  return { ...draft, rooms: rooms.slice(0, count) };
+}
+
 function formatDuration(totalSec: number): string {
   const minutes = Math.floor(totalSec / 60);
   const seconds = totalSec % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-const STATUS_PILL: Record<RoundStatus, { label: string; tone: "neutral" | "teal" | "dark" }> = {
-  planned: { label: "Planned", tone: "neutral" },
-  launched: { label: "Live", tone: "teal" },
-  closed: { label: "Done", tone: "dark" },
-};
-
 /** Rounds overview: order, titles and timing. Rooms are planned per round in the editor. */
 export default function RoundsOverview({
   workspace,
   parentUUID,
   plans,
+  onPlansChanged,
+  live,
   role,
   onLaunched,
   onHome,
@@ -41,8 +58,10 @@ export default function RoundsOverview({
 }: {
   workspace: Workspace;
   parentUUID: string;
-  /** Saved draft per round, fetched once by HostWorkspace. Null means never configured. */
+  /** Saved draft per round, fetched by HostWorkspace. Null means never configured. */
   plans: Record<string, RoundPlan | null>;
+  onPlansChanged: () => void;
+  live: LiveState | null;
   role: ZoomRole | null;
   onLaunched: (roundId: string) => void;
   onHome: () => void;
@@ -60,6 +79,58 @@ export default function RoundsOverview({
   const anyLaunched = workspace.rounds.some((round) => round.status === "launched");
   // The round the host would start now: the first one Zoom has not run yet.
   const target = workspace.rounds.find((round) => round.status !== "closed") ?? null;
+
+  const [applying, setApplying] = useState(false);
+  // Everyone Zoom still reports in the meeting. The host is never placed in a room.
+  const eligibleUUIDs = (live?.participants ?? [])
+    .filter((participant) => participant.location !== "left" && !participant.isHost)
+    .map((participant) => participant.participantUUID);
+
+  /** First draft for a round nobody has configured: seeded from round 1 when the host asked for that. */
+  function startingDraft(round: RoundMeta): RoundPlanDraft {
+    const empty: RoundPlanDraft = {
+      parentUUID,
+      roundId: round.roundId,
+      title: roundLabel(workspace, round.roundId),
+      rooms: [],
+      stayInMainParticipantUUIDs: [],
+    };
+    const first = workspace.rounds[0];
+    const source = first && first.roundId !== round.roundId ? plans[first.roundId] : null;
+    if (!source || !workspace.sameRoomsEveryRound) return empty;
+    return copyRooms(source, empty, { withPeople: workspace.samePeopleEveryRound });
+  }
+
+  /** Write one round's draft. The editor may have saved since this page loaded, so a stale revision retries once. */
+  async function writePlan(round: RoundMeta, change: (draft: RoundPlanDraft) => RoundPlanDraft) {
+    const known = plans[round.roundId] ?? null;
+    try {
+      await saveRoundPlan(parentUUID, change(known ?? startingDraft(round)), known?.revision ?? 0);
+    } catch (error) {
+      const fresh = await readSavedRoundPlan(parentUUID, round.roundId).catch(() => null);
+      if (!fresh) throw error;
+      await saveRoundPlan(parentUUID, change(fresh), fresh.revision);
+    }
+  }
+
+  /**
+   * Apply one change to every round. A launched round is skipped: its rooms are
+   * already open in Zoom, so a draft edit would only desync the live view.
+   */
+  async function applyToAllRounds(change: (draft: RoundPlanDraft) => RoundPlanDraft, done: string) {
+    setApplying(true);
+    try {
+      const editable = workspace.rounds.filter((round) => round.status !== "launched");
+      for (const round of editable) await writePlan(round, change);
+      onPlansChanged();
+      toast.success(done);
+    } catch (error) {
+      onPlansChanged();
+      toast.error(error instanceof Error ? error.message : "Could not save the rooms.");
+    } finally {
+      setApplying(false);
+    }
+  }
 
   async function run(action: () => Promise<void>) {
     try {
@@ -121,7 +192,10 @@ export default function RoundsOverview({
                 key={round.roundId}
                 round={round}
                 position={index + 1}
-                roomCount={plans[round.roundId]?.rooms.length ?? null}
+                roomCount={plans[round.roundId]?.rooms.length ?? 0}
+                placedCount={
+                  plans[round.roundId]?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0
+                }
                 onRename={(title) =>
                   run(() => onUpdateRound(round.roundId, { title }))
                 }
@@ -153,6 +227,34 @@ export default function RoundsOverview({
 
           <SectionLabel>Applies to every round</SectionLabel>
           <Card tone="sunken" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <RoomsForEveryRound
+              busy={applying}
+              onApply={(count) =>
+                void applyToAllRounds(
+                  (draft) => withRoomCount(draft, count),
+                  `Every round now has ${count} ${count === 1 ? "room" : "rooms"}.`,
+                )
+              }
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={applying || eligibleUUIDs.length === 0}
+              title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
+              onClick={() =>
+                void applyToAllRounds(
+                  (draft) =>
+                    autoAssignParticipantsEvenly(
+                      draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft,
+                      eligibleUUIDs,
+                    ),
+                  "People spread evenly across every round.",
+                )
+              }
+            >
+              Auto-assign evenly
+            </Button>
+
             <label className="bw-switch-row">
               <input
                 type="checkbox"
@@ -247,10 +349,47 @@ function LaunchWorkflow({
   );
 }
 
+/** Small box in the rail: one room count for every round at once. */
+function RoomsForEveryRound({
+  busy,
+  onApply,
+}: {
+  busy: boolean;
+  onApply: (count: number) => void;
+}) {
+  const [value, setValue] = useState("3");
+  const count = Number(value);
+  const valid = Number.isInteger(count) && count >= 1 && count <= MAX_ROOMS;
+
+  return (
+    <div className="bw-switch-row">
+      <input
+        type="number"
+        min={1}
+        max={MAX_ROOMS}
+        value={value}
+        aria-label="Rooms in every round"
+        className="bw-rooms-input bw-mono"
+        onChange={(event) => setValue(event.target.value)}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={busy || !valid}
+        title={valid ? undefined : `Enter 1 to ${MAX_ROOMS}.`}
+        onClick={() => onApply(count)}
+      >
+        Set rooms
+      </Button>
+    </div>
+  );
+}
+
 function RoundRow({
   round,
   position,
   roomCount,
+  placedCount,
   onRename,
   onDuration,
   onDelete,
@@ -258,24 +397,24 @@ function RoundRow({
 }: {
   round: RoundMeta;
   position: number;
-  roomCount: number | null;
+  roomCount: number;
+  placedCount: number;
   onRename: (title: string | null) => void;
   onDuration: (durationSec: number) => void;
   onDelete: () => void;
   onEdit: () => void;
 }) {
-  const status = STATUS_PILL[round.status];
-
   return (
     <Card className="bw-round-row" style={{ borderLeftColor: round.dot }}>
       <div className="bw-round-row-title">
         <EditableName value={round.title} placeholder={`Round ${position}`} onSave={onRename} />
-        <Pill tone={status.tone}>{status.label}</Pill>
       </div>
 
       <div className="bw-round-row-side">
         <span style={{ fontSize: 11.5, color: "var(--bw-ink)" }}>
-          {roomCount === null ? "Not set yet" : `${roomCount} rooms`}
+          {roomCount === 0
+            ? "No rooms yet"
+            : `${roomCount} ${roomCount === 1 ? "room" : "rooms"} · ${placedCount} placed`}
         </span>
         <div className="bw-stepper">
           <button

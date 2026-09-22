@@ -409,6 +409,15 @@ body {
   color: var(--bw-muted-2);
 }
 
+.bw-rooms-input {
+  width: 56px;
+  padding: 5px 7px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: 8px;
+  background: var(--bw-surface);
+  font-size: 12px;
+}
+
 .bw-room-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

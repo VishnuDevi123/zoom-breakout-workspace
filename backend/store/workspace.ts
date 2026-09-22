@@ -11,7 +11,7 @@ import { deleteRoundPlan } from "./round-plans.ts";
 const workspaces = new Map<string, Workspace>();
 
 const MAX_ROUNDS = 20;
-const DEFAULT_DURATION_SEC = 600;
+const DEFAULT_DURATION_SEC = 300;
 
 export class WorkspaceError extends Error {
   constructor(

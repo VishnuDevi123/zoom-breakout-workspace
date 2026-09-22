@@ -16,6 +16,7 @@ import type { RoundPlan } from "@/types/breakout";
  */
 export function useRoundSummaries(parentUUID: string, roundIds: string[], refreshKey: unknown) {
   const [plans, setPlans] = useState<Record<string, RoundPlan | null>>({});
+  const [reloadAttempt, setReloadAttempt] = useState(0);
   const key = roundIds.join(",");
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function useRoundSummaries(parentUUID: string, roundIds: string[], refres
     return () => {
       alive = false;
     };
-  }, [parentUUID, key, refreshKey]);
+  }, [parentUUID, key, refreshKey, reloadAttempt]);
 
-  return plans;
+  return { plans, reload: () => setReloadAttempt((n) => n + 1) };
 }
