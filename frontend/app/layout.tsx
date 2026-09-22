@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import { Toaster } from "sonner";
 
 const hankenGrotesk = Hanken_Grotesk({
   variable: "--font-hanken",
@@ -29,6 +30,7 @@ export default function RootLayout({
     <html lang="en" className={`${hankenGrotesk.variable} ${plexMono.variable}`}>
       <body>
         {children}
+        <Toaster position="bottom-right" richColors closeButton />
 
         <Script
           src="https://appssdk.zoom.us/sdk.js"

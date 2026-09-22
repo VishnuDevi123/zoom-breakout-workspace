@@ -57,7 +57,7 @@ export default function UnassignedRail({
       {participants.length === 0 ? (
         <div className="bw-empty-placement">
           {rosterKnown
-            ? "Everyone in the live roster has a draft placement."
+            ? "Unplaced roster appears here"
             : "Roster unavailable. Last known placements remain saved."}
         </div>
       ) : null}

@@ -3,3 +3,5 @@ export { default as Card } from "./Card";
 export { default as Pill } from "./Pill";
 export { default as SectionLabel } from "./SectionLabel";
 export { default as StatusDot } from "./StatusDot";
+export { default as BrandMark } from "./BrandMark";
+export { default as EditableName } from "./EditableName";

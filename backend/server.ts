@@ -2,11 +2,11 @@ import express from "express";
 import helmet from "helmet";
 import dotenv from "dotenv";
 
-import testRoutes from "./routes/tests.ts";
 import roundPlanRoutes from "./routes/round-plans.ts";
 import type { ApiResponse, HealthResponse } from "./types/breakout.ts";
 import webhookRoutes from "./routes/webhooks.ts";
 import liveRoutes from "./routes/live.ts";
+import workSpaceRoutes from "./routes/workspace.ts"
 
 dotenv.config();
 
@@ -28,11 +28,11 @@ app.use(
   }),
 );
 
-app.use("/api/test", testRoutes);
 // The router adds /:roundId/rooms. Draft saves never change actual Zoom rooms.
 app.use("/api/rounds", roundPlanRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/live", liveRoutes);
+app.use("/api/workspace", workSpaceRoutes);
 // zoom OAuth callback route, only backend should handle this
 app.get("/auth/callback", (req, res) => {
   console.log("Auth callback received");

@@ -32,6 +32,8 @@ export interface HostGateValue {
   role: ZoomRole | null;
   screenName: string;
   meetingUUID: string;
+  /** Meeting title from getMeetingContext(). Empty until it resolves. */
+  meetingTopic: string;
   /** Populated only in the "unsupported" state. */
   sdkError: SdkErrorInfo | null;
 }
@@ -41,6 +43,7 @@ const INITIAL: HostGateValue = {
   role: null,
   screenName: "",
   meetingUUID: "",
+  meetingTopic: "",
   sdkError: null,
 };
 
@@ -130,6 +133,10 @@ export function useHostGate(): HostGateValue {
       const context = await sdk.getUserContext();
 
       applyRole({ role: context.role, screenName: context.screenName });
+
+      const { meetingTopic } = await sdk.getMeetingContext();
+      if (!aliveRef.current) return;
+      setValue((previous) => ({ ...previous, meetingTopic }));
     }
 
     detectRole().catch((error) => {

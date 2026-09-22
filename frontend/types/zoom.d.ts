@@ -102,7 +102,10 @@ declare global {
         meetingUUID: string;
       }>;
 
-      getMeetingContext: () => Promise<unknown>;
+      getMeetingContext: () => Promise<{
+        meetingTopic: string;
+        meetingID: string;
+      }>;
 
       getUserContext: () => Promise<ZoomUserContext>;
 
@@ -115,8 +118,26 @@ declare global {
         participantUUID: string;
         uuid?: string;
       }) => Promise<ZoomBreakoutRoomsResponse>;
+      /**
+       * Meeting-wide breakout settings. `countDown: 0` matters most here: with a
+       * countdown, Zoom keeps the room set locked after a close and refuses to
+       * create the next round's rooms.
+       */
+      configureBreakoutRooms: (options: {
+        closeAfter?: number;
+        countDown?: number;
+        automaticallyMoveParticipantsIntoRooms?: boolean;
+        automaticallyMoveParticipantsIntoMainRoom?: boolean;
+      }) => Promise<unknown>;
       openBreakoutRooms: () => Promise<unknown>;
       closeBreakoutRooms: () => Promise<unknown>;
+
+      /**
+       * Read once when the app opens, to tell a stale live round from a real one.
+       * Zoom sends no webhook when its rooms close, so this is the only way to
+       * learn that the round the backend still records is already over.
+       */
+      getBreakoutRoomList: () => Promise<{ state: "open" | "closed" }>;
 
       /**
        * Fires only for the current user's own context. The SDK has no matching

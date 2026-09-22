@@ -328,6 +328,16 @@ body {
   font-weight: 700;
 }
 
+.bw-brand-mark--link {
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
 .bw-round-heading {
   min-width: 180px;
   display: flex;
@@ -366,6 +376,48 @@ body {
   gap: 13px;
 }
 
+/* Live view puts the session plan on the left of the room grid. */
+.bw-rail--left {
+  border-left: none;
+  border-right: 1px solid var(--bw-border);
+}
+
+.bw-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+}
+
+.bw-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.bw-timer__clock {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.bw-timer__label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bw-muted-2);
+}
+
+.bw-rooms-input {
+  width: 56px;
+  padding: 5px 7px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: 8px;
+  background: var(--bw-surface);
+  font-size: 12px;
+}
+
 .bw-room-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -379,36 +431,193 @@ body {
   gap: 7px;
 }
 
-.bw-execution-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.bw-operation {
+.bw-landing {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.bw-landing-title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.bw-landing-lede {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+
+.bw-landing-cards {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.bw-landing-cards .bw-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.bw-landing-stat {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.bw-landing-starts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.bw-landing-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.bw-round-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.bw-round-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-left: 4px solid var(--bw-border);
+}
+
+.bw-round-row-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bw-round-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.bw-round-row-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.bw-round-row-actions .bw-button {
   font-size: 11px;
-  line-height: 1.4;
+  padding: 2px 8px;
 }
 
-.bw-operation--error {
-  border-color: var(--bw-red);
-  background: #fffafa;
-  color: var(--bw-red-deep);
+.bw-editable-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
-.bw-operation--success {
-  border-color: var(--bw-teal);
-  background: var(--bw-teal-tint);
-  color: var(--bw-teal-deep);
+.bw-workspace-title .bw-room-name {
+  font-size: 15px;
 }
 
-.bw-operation--running {
-  border-color: var(--bw-amber);
-  background: var(--bw-amber-tint);
-  color: var(--bw-amber-deep);
+.bw-back {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid var(--bw-border);
+  border-radius: 999px;
+  background: var(--bw-surface);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.bw-setup-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bw-setup-step-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bw-setup-arrow {
+  color: var(--bw-muted-4);
+  font-size: 12px;
+}
+
+.bw-add-round {
+  padding: 14px;
+  border: 1px dashed var(--bw-border-strong);
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+.bw-add-round:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bw-shape {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 6px;
+  font-size: 12px;
+}
+
+.bw-shape dt {
+  color: var(--bw-muted-2);
+}
+
+.bw-shape dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.bw-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bw-landing-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bw-muted);
 }
 
 .bw-room-card {
@@ -806,11 +1015,6 @@ body {
 
   .bw-round-heading {
     flex: 1;
-  }
-
-  .bw-execution-actions {
-    width: 100%;
-    flex-wrap: wrap;
   }
 
   .bw-room-grid {

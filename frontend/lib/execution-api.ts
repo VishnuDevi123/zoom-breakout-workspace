@@ -1,4 +1,10 @@
-import type { ApiResponse, LiveState, RoundPlan } from "@/types/breakout";
+import type {
+  ApiResponse,
+  LiveState,
+  RoundPlan,
+  RoundPlanDraft,
+  SaveRoundPlanRequest,
+} from "@/types/breakout";
 
 async function apiResult<T>(response: Response): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
@@ -17,6 +23,25 @@ export async function readSavedRoundPlan(
       `/api/rounds/${encodeURIComponent(roundId)}/rooms?parentUUID=${encodeURIComponent(parentUUID)}`,
       { cache: "no-store" },
     ),
+  );
+}
+
+/**
+ * Write a whole round draft. `use-room-plan` owns the editor's debounced saves;
+ * this is the direct write the rounds overview uses for room count and auto-assign.
+ */
+export async function saveRoundPlan(
+  parentUUID: string,
+  draft: RoundPlanDraft,
+  expectedRevision: number,
+): Promise<RoundPlan> {
+  const body: SaveRoundPlanRequest = { ...draft, parentUUID, expectedRevision };
+  return apiResult(
+    await fetch(`/api/rounds/${encodeURIComponent(draft.roundId)}/rooms`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   );
 }
 
