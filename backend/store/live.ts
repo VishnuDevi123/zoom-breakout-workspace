@@ -12,6 +12,7 @@ interface LiveMeeting{
     participants: Map<string, LiveParticipant>;
     // Undefined rather than null so clearTimeout() needs no guard.
     timer?: ReturnType<typeof setTimeout>;
+    taskRevision: number;
 }
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
@@ -24,6 +25,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
         live.set(parentUUID, {
             round: null,
             participants: new Map(),
+            taskRevision: 0,
         });
     }
     return live.get(parentUUID)!;
@@ -32,7 +34,12 @@ function meetingFor(parentUUID: string): LiveMeeting{
 
 export function getLive(parentUUID: string): LiveState{
     const liveMeeting = meetingFor(parentUUID)
-    return { parentUUID, round: liveMeeting.round, participants: [...liveMeeting.participants.values()] }
+    return {
+        parentUUID,
+        round: liveMeeting.round,
+        participants: [...liveMeeting.participants.values()],
+        taskRevision: liveMeeting.taskRevision,
+    }
 }
 
 
@@ -49,6 +56,12 @@ export function subscribe(parentUUID: string, fn: (state: LiveState) => void): (
     const set = listeners.get(parentUUID) ?? new Set(); set.add(fn); listeners.set(parentUUID, set)
     return () => set.delete(fn)
 
+}
+
+// Tasks live in store/tasks.ts; this only tells SSE clients that something changed.
+export function bumpTaskRevision(parentUUID: string): void {
+    meetingFor(parentUUID).taskRevision += 1
+    notify(parentUUID)
 }
 
 export function markLaunchedRound(parentUUID: string, roundId: string, durationSec: number): LiveState | null {
