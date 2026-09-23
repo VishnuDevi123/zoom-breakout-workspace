@@ -14,6 +14,7 @@ router.use((_req, res, next) => {
 // GET /api/tasks/:roundId?parentUUID=<meeting uuid>
 router.get("/:roundId", (req, res) => {
   const roundTasks = getRoundTasks(req.query.parentUUID, req.params.roundId);
+  // if roundTasks empty
   if (!roundTasks) {
     const body: ApiResponse<never> = { success: false, error: "No tasks for this round." };
     res.status(404).json(body);
@@ -26,7 +27,7 @@ router.get("/:roundId", (req, res) => {
 
 // PUT /api/tasks/:roundId   body: SaveRoundTasksRequest. 201 on create (revision 1), 200 on update.
 router.put("/:roundId", (req, res) => {
-  const input: unknown = req.body;
+  const input = req.body;
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     throw new TaskError("The request body must be an object.", 400);
   }
@@ -34,7 +35,7 @@ router.put("/:roundId", (req, res) => {
   if (request.roundId !== req.params.roundId) {
     throw new TaskError("roundId in the body must match the URL.", 400);
   }
-
+  
   const saved = saveRoundTasks(request, request.expectedRevision);
   const body: ApiResponse<RoundTasks> = { success: true, data: saved };
   res.status(saved.revision === 1 ? 201 : 200).json(body);

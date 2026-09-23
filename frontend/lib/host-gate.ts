@@ -4,8 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   configureZoomSdk,
+  forgetHostCapabilities,
+  grantHostCapabilities,
   normalizeSdkError,
   type SdkErrorInfo,
+  type ZoomSdk,
 } from "@/lib/zoom-sdk";
 import type { HostState, ZoomRole } from "@/types/breakout";
 
@@ -13,11 +16,11 @@ import type { HostState, ZoomRole } from "@/types/breakout";
  * Slice 1 host gate.
  *
  * Answers one question: what is this user allowed to do? -> getUserContext().role
- * Whether the client can actually drive breakouts is learned when a launch is
- * attempted; the SDK error is shown then, not guessed at on load.
+ * A host or co-host then needs the breakout capabilities, which is a second
+ * `config()` call; if that one is refused, this client cannot drive breakouts
+ * and the SDK's own error is shown instead of a host screen it cannot use.
  *
- * The SDK bootstrap itself lives in `lib/zoom-sdk.ts`, because slice 2 onwards
- * needs the configured SDK too and `config()` may only run once per page.
+ * The SDK bootstrap itself lives in `lib/zoom-sdk.ts`, which owns both stages.
  */
 
 interface ApplyRoleInput {
@@ -26,12 +29,18 @@ interface ApplyRoleInput {
   screenName: string;
 }
 
+/** Stable for the whole meeting, including across breakout room hops. */
+type ParticipantUUID = string;
+
 export interface HostGateValue {
   state: HostState;
   /** Raw SDK role. Null until getUserContext() resolves. */
   role: ZoomRole | null;
   screenName: string;
+  /** The main meeting, even when this client sits inside a breakout room. */
   meetingUUID: string;
+  /** This user's own UUID. Empty until getUserContext() resolves. */
+  participantUUID: ParticipantUUID;
   /** Meeting title from getMeetingContext(). Empty until it resolves. */
   meetingTopic: string;
   /** Populated only in the "unsupported" state. */
@@ -43,6 +52,7 @@ const INITIAL: HostGateValue = {
   role: null,
   screenName: "",
   meetingUUID: "",
+  participantUUID: "",
   meetingTopic: "",
   sdkError: null,
 };
@@ -68,12 +78,20 @@ export function useHostGate(): HostGateValue {
    */
   const meetingUUIDRef = useRef("");
 
+  /** Needed by the role-change handler, which fires long after the bootstrap. */
+  const sdkRef = useRef<ZoomSdk | null>(null);
+
   useEffect(() => {
     aliveRef.current = true;
 
-    /** Turns a role into a screen. */
-    function applyRole({ role, screenName }: ApplyRoleInput) {
+    /**
+     * Turns a role into a screen. A host seat is claimed only after the breakout
+     * capabilities are actually granted, so the host screen never renders
+     * controls this client would be refused for.
+     */
+    async function applyRole({ role, screenName }: ApplyRoleInput) {
       if (!canManageRooms(role)) {
+        forgetHostCapabilities();
         if (!aliveRef.current) return;
         setValue((previous) => ({
           ...previous,
@@ -85,7 +103,15 @@ export function useHostGate(): HostGateValue {
         return;
       }
 
+      const sdk = sdkRef.current;
+      const capabilityError = sdk ? await grantHostCapabilities(sdk) : null;
       if (!aliveRef.current) return;
+
+      if (capabilityError) {
+        setValue({ ...INITIAL, state: "unsupported", sdkError: capabilityError });
+        return;
+      }
+
       setValue((previous) => ({
         ...previous,
         state: "host",
@@ -93,6 +119,20 @@ export function useHostGate(): HostGateValue {
         screenName,
         sdkError: null,
       }));
+
+      if (!sdk) return;
+
+      // Both of these are host-only and only become callable once the second
+      // config() above resolves, so neither can run during the bootstrap.
+      if (!listenerAttached) {
+        sdk.onMyUserContextChange(handleUserContextChange);
+        listenerAttached = true;
+      }
+
+      // A missing meeting title is cosmetic: the workspace has its own name.
+      const context = await sdk.getMeetingContext().catch(() => null);
+      if (!aliveRef.current || !context) return;
+      setValue((previous) => ({ ...previous, meetingTopic: context.meetingTopic }));
     }
 
     /**
@@ -101,13 +141,14 @@ export function useHostGate(): HostGateValue {
      */
     function handleUserContextChange(event: ZoomUserContextChangeEvent) {
       if (!aliveRef.current) return;
-      applyRole({ role: event.role, screenName: event.screenName ?? "" });
+      void applyRole({ role: event.role, screenName: event.screenName ?? "" });
     }
 
     /**
      * True once onMyUserContextChange has actually been attached. The SDK
      * refuses a removeEventListener call that arrives before config() resolves,
      * so the cleanup below has to know whether there is anything to detach.
+     * An attendee never attaches it: the event is host-only.
      */
     let listenerAttached = false;
 
@@ -122,21 +163,15 @@ export function useHostGate(): HostGateValue {
 
       const { sdk, meetingUUID } = bootstrap;
 
+      sdkRef.current = sdk;
       meetingUUIDRef.current = meetingUUID;
       setValue((previous) => ({ ...previous, meetingUUID }));
 
-      // Subscribed before the first role read, so a promotion that lands during
-      // initialisation is not missed.
-      sdk.onMyUserContextChange(handleUserContextChange);
-      listenerAttached = true;
-
       const context = await sdk.getUserContext();
-
-      applyRole({ role: context.role, screenName: context.screenName });
-
-      const { meetingTopic } = await sdk.getMeetingContext();
       if (!aliveRef.current) return;
-      setValue((previous) => ({ ...previous, meetingTopic }));
+
+      setValue((previous) => ({ ...previous, participantUUID: context.participantUUID }));
+      await applyRole({ role: context.role, screenName: context.screenName });
     }
 
     detectRole().catch((error) => {

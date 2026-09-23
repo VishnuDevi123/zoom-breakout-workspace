@@ -1,53 +1,164 @@
-import { SectionLabel } from "../ui";
+"use client";
+
+import { formatClock, useRemainingSec } from "@/lib/round-clock";
+import { useLiveState } from "@/lib/use-live-state";
+import { useParticipantRound } from "@/lib/use-participant-round";
+import type { LiveState, PlannedRoom } from "@/types/breakout";
+
+import { Card, SectionLabel, StatusDot } from "../ui";
+
+const HOW_IT_WORKS = [
+  "Your task stays on screen for the whole round, so you cannot lose the instructions.",
+  "If the host changes the task while you work, this page updates on its own.",
+  "If you drop out and rejoin, open the app again and your room is still here.",
+];
 
 /**
- * Temporary participant screen for slice 1.
+ * The participant's landing page.
  *
- * It carries no room controls at all: no room stepper, no auto-assign and no
- * open-rooms button. Hiding the controls is not a styling choice, it is the
- * gate. Participant tasks and activities replace this in later weeks.
+ * Everything here is read-only: a participant never calls a breakout method.
+ * The running round arrives over SSE, room membership comes from the host's
+ * saved draft, and the task comes from the task store. Three states, in the
+ * order they are checked: no round running, running but staying in main, and
+ * placed in a room.
  */
 export default function ParticipantScreen({
-  screenName,
-  meetingUUID,
+  parentUUID,
+  participantUUID,
 }: {
-  screenName: string;
-  meetingUUID: string;
+  parentUUID: string;
+  participantUUID: string;
 }) {
+  const { liveState } = useLiveState(parentUUID);
+  const roundId = liveState?.round?.roundId ?? "";
+  const { room, task, roundTitle } = useParticipantRound({
+    parentUUID,
+    participantUUID,
+    roundId,
+    taskRevision: liveState?.taskRevision ?? 0,
+  });
+
+  if (!roundId) {
+    return <Waiting headline="No round running yet" lede="The host starts the round from their side. This page fills in by itself." />;
+  }
+
+  if (!room) {
+    return (
+      <Waiting
+        headline="You are staying in the main room"
+        lede="The host did not place you in a breakout room for this round."
+      />
+    );
+  }
+
   return (
-    <div
-      className="bw-shell"
-      style={{ alignItems: "center", justifyContent: "center", display: "flex" }}
-    >
-      <div
-        className="bw-card bw-card--lg"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 9,
-          maxWidth: 340,
-          alignItems: "center",
-          textAlign: "center",
-        }}
-      >
-        <SectionLabel>Participant</SectionLabel>
+    <div className="bw-shell">
+      <div className="bw-body">
+        <main className="bw-main bw-participant-main">
+          <SectionLabel>You are in a breakout room</SectionLabel>
+          <h2 className="bw-landing-title">Welcome to {room.name}</h2>
+          <p className="bw-landing-lede">
+            {task ? task.goal : "No task yet. The host can add one while the round runs."}
+          </p>
 
-        <span style={{ fontSize: 15, fontWeight: 600 }}>
-          {screenName ? `You are in, ${screenName}` : "You are in the meeting"}
-        </span>
+          <div className="bw-landing-cards">
+            <Card className="bw-participant-card bw-participant-card--accent">
+              <span className="bw-mono bw-participant-card__label bw-participant-card__label--accent">
+                THIS ROUND
+              </span>
+              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{roundTitle}</span>
+              <span style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
+                {task
+                  ? `${task.instructions.length} instructions · ${task.resources.length} resources`
+                  : "Nothing set yet"}
+              </span>
+            </Card>
 
-        <span style={{ fontSize: 11.5, lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
-          The host arranges the breakout rooms. This screen updates on its own if
-          the host makes you a co-host.
-        </span>
+            <TimeCard endsAt={liveState?.round?.endsAt ?? 0} />
+          </div>
 
-        <span
-          className="bw-mono"
-          style={{ fontSize: 10, color: "var(--bw-muted-4)", overflowWrap: "anywhere" }}
-        >
-          {meetingUUID || "no meeting uuid yet"}
-        </span>
+          <Roster room={room} live={liveState} participantUUID={participantUUID} />
+        </main>
+
+        <aside className="bw-rail">
+          <SectionLabel>How this works</SectionLabel>
+          {HOW_IT_WORKS.map((line, index) => (
+            <div className="bw-participant-step" key={line}>
+              <span className="bw-mono bw-participant-step__number">{index + 1}</span>
+              <span>{line}</span>
+            </div>
+          ))}
+          <Card tone="sunken" className="bw-participant-note">
+            Your room and your task follow you. Nothing here is visible to the other rooms.
+          </Card>
+        </aside>
       </div>
+    </div>
+  );
+}
+
+/** The two states that come before a room: no round, or not placed in one. */
+function Waiting({ headline, lede }: { headline: string; lede: string }) {
+  return (
+    <div className="bw-shell">
+      <div className="bw-body">
+        <main className="bw-main bw-participant-main">
+          <SectionLabel>Breakout Workspace</SectionLabel>
+          <h2 className="bw-landing-title">{headline}</h2>
+          <p className="bw-landing-lede">{lede}</p>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function TimeCard({ endsAt }: { endsAt: number }) {
+  const remainingSec = useRemainingSec(endsAt);
+
+  return (
+    <Card className="bw-participant-card">
+      <span className="bw-mono bw-participant-card__label">TIME</span>
+      <span className="bw-mono" style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px" }}>
+        {remainingSec === null ? "--:--" : formatClock(remainingSec)}
+      </span>
+      <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
+        {remainingSec === null ? "Runs until the host ends it" : "left in this round"}
+      </span>
+    </Card>
+  );
+}
+
+/**
+ * Who else is here. The planned count comes from the draft; the present count
+ * comes from webhooks, and stays at zero until the first person enters, because
+ * that is when the backend learns which Zoom room this is.
+ */
+function Roster({
+  room,
+  live,
+  participantUUID,
+}: {
+  room: PlannedRoom;
+  live: LiveState | null;
+  participantUUID: string;
+}) {
+  const roomUUID = live?.round?.roomUUIDs[room.id] ?? null;
+  const others = (live?.participants ?? []).filter(
+    (p) => p.location === roomUUID && p.participantUUID !== participantUUID,
+  );
+  const names = others.map((p) => p.name).filter(Boolean);
+
+  return (
+    <div className="bw-participant-roster">
+      <StatusDot color={room.dot} />
+      <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>With you:</span>
+      <span style={{ fontSize: 11.5 }}>
+        {names.length > 0 ? names.join(", ") : "nobody else has arrived yet"}
+      </span>
+      <div style={{ flex: 1 }} />
+      <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-muted-3)" }}>
+        {others.length + 1} of {room.participantUUIDs.length} here
+      </span>
     </div>
   );
 }

@@ -3,7 +3,9 @@ import type {
   LiveState,
   RoundPlan,
   RoundPlanDraft,
+  RoundTasks,
   SaveRoundPlanRequest,
+  SaveRoundTasksRequest,
 } from "@/types/breakout";
 
 async function apiResult<T>(response: Response): Promise<T> {
@@ -23,6 +25,30 @@ export async function readSavedRoundPlan(
       `/api/rounds/${encodeURIComponent(roundId)}/rooms?parentUUID=${encodeURIComponent(parentUUID)}`,
       { cache: "no-store" },
     ),
+  );
+}
+
+/** Null when the host has not written a task for this round yet (backend 404). */
+export async function readRoundTasks(
+  parentUUID: string,
+  roundId: string,
+): Promise<RoundTasks | null> {
+  const response = await fetch(
+    `/api/tasks/${encodeURIComponent(roundId)}?parentUUID=${encodeURIComponent(parentUUID)}`,
+    { cache: "no-store" },
+  );
+  if (response.status === 404) return null;
+  return apiResult(response);
+}
+
+/** Whole record each time: the store has no partial merge. */
+export async function saveRoundTasks(request: SaveRoundTasksRequest): Promise<RoundTasks> {
+  return apiResult(
+    await fetch(`/api/tasks/${encodeURIComponent(request.roundId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }),
   );
 }
 

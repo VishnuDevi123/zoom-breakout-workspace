@@ -20,9 +20,10 @@ import Rooms from "../Rooms";
 import { BrandMark, Button, Card, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
 import RoundsOverview from "./RoundsOverview";
+import TaskEditor from "./TaskEditor";
 
-/** Host screens in flow order. Later steps add rounds and review. */
-type HostView = "landing" | "rounds" | "draft" | "live";
+/** Host screens in flow order. A round is configured in two steps: draft, then task. */
+type HostView = "landing" | "rounds" | "draft" | "task" | "live";
 
 /** People who can be placed: everyone Zoom still reports in the meeting. */
 function presentCount(live: LiveState | null): number | null {
@@ -260,6 +261,31 @@ export default function HostWorkspace({
     );
   }
 
+  if (currentView === "task") {
+    const selected = workspace.selectedRound;
+    const after = workspace.state.workspace.rounds[
+      workspace.state.workspace.rounds.findIndex((r) => r.roundId === selected.roundId) + 1
+    ];
+    return (
+      <TaskEditor
+        workspace={workspace.state.workspace}
+        round={selected}
+        onBack={() => setView("draft")}
+        onBackToRounds={() => setView("rounds")}
+        onNext={() => {
+          if (!after) return setView("rounds");
+          workspace.selectRound(after.roundId);
+          setView("draft");
+        }}
+        nextLabel={
+          after
+            ? `Next: ${roundLabel(workspace.state.workspace, after.roundId)} ->`
+            : "Review & launch ->"
+        }
+      />
+    );
+  }
+
   return (
     <RoundEditor
       meetingUUID={meetingUUID}
@@ -341,8 +367,8 @@ function RoundEditor({
       readyState={plan.state}
       live={live}
       onChangeView={onChangeView}
-      onNext={nextRound ? () => onSelectRound(nextRound.roundId) : () => onChangeView("rounds")}
-      nextLabel={nextRound ? `Next: ${roundLabel(workspace, nextRound.roundId)} ->` : "Review & launch ->"}
+      onNext={() => onChangeView("task")}
+      nextLabel="Next: Task & activities ->"
     />
   );
 }

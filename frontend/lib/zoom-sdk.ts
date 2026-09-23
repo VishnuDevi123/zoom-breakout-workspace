@@ -3,24 +3,34 @@
 /**
  * Single owner of the Zoom SDK bootstrap.
  *
- * `config()` may only run once per page, but several hooks need the configured
- * SDK: the host gate reads the role, the room snapshot reads the breakout list,
- * and later slices add more. This module runs the call once and hands the same
- * result to every caller, so no two hooks can race over it.
+ * `config()` runs in two stages, because the capability list depends on the
+ * role and the role can only be read once the SDK is configured. Stage one asks
+ * for the read-only capabilities everybody has. Stage two adds the breakout
+ * methods, and runs only for a host or co-host. Asking an attendee for the
+ * breakout methods rejects the whole call with `reason:require_meeting_role`,
+ * which would hide the participant screen behind an SDK error.
+ *
+ * Zoom permits repeat `config()` calls and documents one as the way to pick up
+ * new permissions after a role change, so a promotion mid-meeting re-runs
+ * stage two rather than reloading the page.
  */
 
 /** The SDK object once it is known to be present on the page. */
 export type ZoomSdk = NonNullable<Window["zoomSdk"]>;
 
 /**
- * Capability list passed to `config()`. Every capability must also be ticked on
- * the app's API list in the Zoom Marketplace, otherwise the call fails at run
- * time with `reason:app_not_support`.
+ * Documented by Zoom as available to every role, including guests. Anything
+ * else in this list rejects the whole `config()` call for an attendee.
  */
-export const ZOOM_CAPABILITIES = [
-  "getMeetingUUID",
+const BASE_CAPABILITIES = ["getMeetingUUID", "getUserContext"];
+
+/**
+ * Host and co-host only, per Zoom's "Supported roles" line on each method.
+ * `getMeetingContext` and `onMyUserContextChange` are restricted too, which is
+ * easy to miss: neither of them touches breakout rooms.
+ */
+const HOST_CAPABILITIES = [
   "getMeetingContext",
-  "getUserContext",
   "onMyUserContextChange",
   "configureBreakoutRooms",
   "createBreakoutRooms",
@@ -29,6 +39,13 @@ export const ZOOM_CAPABILITIES = [
   "closeBreakoutRooms",
   "getBreakoutRoomList",
 ];
+
+/**
+ * Everything the app can ever ask for. Every entry must also be ticked on the
+ * app's API list in the Zoom Marketplace, otherwise the call fails at run time
+ * with `reason:app_not_support`.
+ */
+export const ZOOM_CAPABILITIES = [...BASE_CAPABILITIES, ...HOST_CAPABILITIES];
 
 /** Error code shown when the SDK is not on the page at all, e.g. a plain browser tab. */
 export const SDK_MISSING_CODE = "ZOOM_SDK_UNAVAILABLE";
@@ -93,10 +110,12 @@ async function bootstrap(): Promise<ZoomBootstrap> {
   }
 
   try {
-    await sdk.config({ version: "0.16", capabilities: ZOOM_CAPABILITIES });
-    const { meetingUUID } = await sdk.getMeetingUUID();
+    await sdk.config({ version: "0.16", capabilities: BASE_CAPABILITIES });
+    const { meetingUUID, parentUUID } = await sdk.getMeetingUUID();
 
-    return { kind: "ready", sdk, meetingUUID };
+    // A participant runs this from inside a breakout room, where meetingUUID is
+    // the room. Every store is keyed by the main meeting, so prefer parentUUID.
+    return { kind: "ready", sdk, meetingUUID: parentUUID ?? meetingUUID };
   } catch (error) {
     // A rejected config() means a capability is unavailable on this client,
     // which is the unsupported case rather than a role problem.
@@ -108,4 +127,32 @@ async function bootstrap(): Promise<ZoomBootstrap> {
 export function configureZoomSdk(): Promise<ZoomBootstrap> {
   bootstrapPromise ??= bootstrap();
   return bootstrapPromise;
+}
+
+let hostPromise: Promise<SdkErrorInfo | null> | null = null;
+
+/**
+ * Call when this user loses the host seat. Zoom revokes the breakout
+ * capabilities on demotion, so a later promotion has to run stage two again
+ * rather than replay a cached success.
+ */
+export function forgetHostCapabilities(): void {
+  hostPromise = null;
+}
+
+/**
+ * Stage two. Call once the role is known to be host or co-host. Resolves to null
+ * when the breakout methods are now available, or to the SDK's own error when
+ * this client cannot drive breakouts at all.
+ */
+export function grantHostCapabilities(sdk: ZoomSdk): Promise<SdkErrorInfo | null> {
+  hostPromise ??= sdk
+    .config({ version: "0.16", capabilities: ZOOM_CAPABILITIES })
+    .then(() => null)
+    .catch((error: unknown) => {
+      // Let a later promotion try again rather than caching the failure.
+      hostPromise = null;
+      return normalizeSdkError(error, "CONFIG_FAILED");
+    });
+  return hostPromise;
 }

@@ -46,20 +46,6 @@ export async function launchRoundInZoom(
 ): Promise<void> {
   if (plan.rooms.length === 0) throw new Error("Add at least one room before launching.");
 
-  // No close countdown: the app owns the round timer, and a countdown leaves Zoom
-  // refusing to create the next round's rooms. Moving people needs no consent
-  // dialog either way, in or out.
-  onStep("Preparing Zoom…");
-  await withZoomTimeout(
-    "Configure breakout rooms",
-    sdk.configureBreakoutRooms({
-      closeAfter: 0,
-      countDown: 0,
-      automaticallyMoveParticipantsIntoRooms: true,
-      automaticallyMoveParticipantsIntoMainRoom: true,
-    }),
-  );
-
   onStep("Creating rooms…");
   const names = plan.rooms.map((room) => room.name);
   const created = await whenZoomIsReady(
@@ -84,6 +70,23 @@ export async function launchRoundInZoom(
       );
     }
   }
+
+  // Configure only works on a room set that already exists, so it cannot run
+  // before the create above: an empty meeting answers "No Breakout Room exist".
+  // No close countdown either: the app owns the round timer, and a countdown
+  // leaves Zoom refusing to create the next round's rooms.
+  onStep("Setting round options…");
+  await whenZoomIsReady(
+    "Configure breakout rooms",
+    () =>
+      sdk.configureBreakoutRooms({
+        closeAfter: 0,
+        countDown: 0,
+        automaticallyMoveParticipantsIntoRooms: true,
+        automaticallyMoveParticipantsIntoMainRoom: true,
+      }),
+    onStep,
+  );
 
   onStep("Opening rooms…");
   await whenZoomIsReady("Open breakout rooms", () => sdk.openBreakoutRooms(), onStep);
