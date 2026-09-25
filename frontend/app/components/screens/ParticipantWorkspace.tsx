@@ -36,27 +36,32 @@ export default function ParticipantWorkspace({
 
   return (
     <div className="bw-shell">
-      <header className="bw-header">
-        <button className="bw-back" onClick={onBack} aria-label="Back to the round summary">
+      <header className="bw-header bw-participant-workspace-header">
+        <button className="bw-back" onClick={onBack}>
           ←
         </button>
-        <StatusDot color={room.dot} />
-        <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{room.name}</span>
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
-            {others.length > 0 ? `You, ${others.join(", ")}` : "You are the only one here so far"}
-          </span>
+
+        <div className="bw-room-header-group">
+          <span className="bw-room-header-dot" />
+
+          <div className="bw-round-heading">
+            <span style={{ fontSize: 15, fontWeight: 600 }}>{room.name}</span>
+            <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+              {others.length > 0
+                ? `You, ${others.join(", ")}`
+                : "You are the only one here so far"}
+            </span>
+          </div>
         </div>
 
         <span className="bw-header-divider" />
 
         <div className="bw-round-heading">
           <span style={{ fontSize: 12.5, fontWeight: 500 }}>
-            {roundPosition > 0 ? `Round ${roundPosition} of ${roundCount} · ` : ""}
+            {roundPosition > 0
+              ? `Round ${roundPosition} of ${roundCount} · `
+              : ""}
             {roundTitle}
-          </span>
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
-            {task ? `${task.instructions.length} steps from your host` : "No task set yet"}
           </span>
         </div>
 
@@ -64,7 +69,9 @@ export default function ParticipantWorkspace({
 
         {remainingSec !== null ? (
           <div className="bw-timer bw-timer--end">
-            <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
+            <span className="bw-timer__clock bw-mono">
+              {formatClock(remainingSec)}
+            </span>
             <span className="bw-timer__label">left in round</span>
           </div>
         ) : null}
@@ -78,7 +85,8 @@ export default function ParticipantWorkspace({
               <h2 className="bw-task-goal">{task.goal}</h2>
             ) : (
               <p className="bw-task-empty">
-                Your host has not written a task for this round. It appears here as soon as they do.
+                Your host has not written a task for this round. It appears here
+                as soon as they do.
               </p>
             )}
           </div>
@@ -89,7 +97,9 @@ export default function ParticipantWorkspace({
               <Card className="bw-instruction-list">
                 {task.instructions.map((line, index) => (
                   <div className="bw-instruction-row" key={line}>
-                    <span className="bw-mono bw-instruction-row__number">{index + 1}</span>
+                    <span className="bw-mono bw-instruction-row__number">
+                      {index + 1}
+                    </span>
                     <span>{line}</span>
                   </div>
                 ))}
@@ -111,14 +121,11 @@ export default function ParticipantWorkspace({
           <div className="bw-activities-heading">
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>Activities</span>
             <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 10.5, color: "var(--bw-muted-3)" }}>
-              Work through them in any order
-            </span>
           </div>
 
           <Card tone="dashed" className="bw-activities-empty">
-            Nothing to submit this round. Follow the task on the left and talk it through with your
-            room.
+            Nothing to submit this round. Follow the task on the left if
+            provided and discuss with your roommates! room.
           </Card>
         </main>
       </div>

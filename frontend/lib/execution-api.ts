@@ -98,6 +98,20 @@ export async function markRoundLaunched(
   )
 }
 
+/** Negative seconds shorten the round. 404 when no timed round is running. */
+export async function adjustRoundTime(
+  parentUUID: string,
+  seconds: number,
+): Promise<LiveState> {
+  return apiResult(
+    await fetch("/api/live/extend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentUUID, seconds }),
+    }),
+  );
+}
+
 export async function markRoundClosed(
   parentUUID: string,
 ): Promise<LiveState> {

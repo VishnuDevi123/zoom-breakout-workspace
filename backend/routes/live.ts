@@ -1,6 +1,6 @@
 import { Router } from "express";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
-import { getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
+import { extendRound, getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
 import type { ApiResponse, LiveState } from "../types/breakout.ts";
 
 const router = Router();
@@ -44,6 +44,39 @@ router.post("/launch", (req, res) => {
   }
   const body: ApiResponse<LiveState> = { success: true, data: state };
   markRoundStatus(parentUUID, roundId, "launched");
+  res.json(body);
+});
+
+/** Widest single adjustment the host can make, in seconds. */
+const MAX_ADJUST_SEC = 1800;
+
+/** Add or remove time on the running round. Negative seconds shorten it. */
+router.post("/extend", (req, res) => {
+  const parentUUID = parentUUIDFrom(req.body?.parentUUID);
+  const seconds = req.body?.seconds;
+  // validate is seconds input is number
+  const validSeconds =
+    typeof seconds === "number" &&
+    Number.isSafeInteger(seconds) &&
+    seconds !== 0 &&
+    Math.abs(seconds) <= MAX_ADJUST_SEC;
+
+  if (!parentUUID || !validSeconds) {
+    const body: ApiResponse<never> = {
+      success: false,
+      error: `parentUUID and a non-zero whole number of seconds up to ${MAX_ADJUST_SEC} are required.`,
+    };
+    res.status(400).json(body);
+    return;
+  }
+
+  const state = extendRound(parentUUID, seconds);
+  if (!state) {
+    const body: ApiResponse<never> = { success: false, error: "No timed round is running." };
+    res.status(404).json(body);
+    return;
+  }
+  const body: ApiResponse<LiveState> = { success: true, data: state };
   res.json(body);
 });
 

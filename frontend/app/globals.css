@@ -271,8 +271,8 @@ body {
 .bw-dot {
   display: inline-block;
   flex: none;
-  width: 10px;
-  height: 10px;
+  width: 20px;
+  height: 20px;
   border-radius: 3px;
 }
 
@@ -310,8 +310,8 @@ body {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 18px;
+  gap:13px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--bw-border);
 }
 
@@ -339,7 +339,6 @@ body {
 }
 
 .bw-round-heading {
-  min-width: 180px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -395,18 +394,19 @@ body {
   align-items: center;
   line-height: 1;
 }
-
 .bw-timer__clock {
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
   letter-spacing: -0.5px;
+  line-height: 1.1;
 }
 
 .bw-timer__label {
   font-size: 9.5px;
-  text-transform: uppercase;
+  font-weight: 600;
   letter-spacing: 0.08em;
-  color: var(--bw-muted-2);
+  text-transform: uppercase;
+  color: var(--bw-muted-3);
 }
 
 .bw-rooms-input {
@@ -1369,4 +1369,21 @@ a.bw-resource-row:hover {
   line-height: 1.5;
   color: var(--bw-muted-2);
   max-width: 460px;
+}
+
+
+
+.bw-room-header-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bw-room-header-dot {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--bw-accent);
 }

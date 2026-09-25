@@ -1,10 +1,13 @@
 "use client";
 
+import { adjustRoundTime } from "@/lib/execution-api";
 import { initialsFrom } from "@/lib/participant-status";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
 import { roundLabel } from "@/lib/use-workspace";
 import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace } from "@/types/breakout";
+
+import { toast } from "sonner";
 
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 
@@ -13,6 +16,9 @@ import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
  * where comes from Zoom webhooks via LiveState. The timer counts down to the
  * backend's endsAt, and the backend decides when the round is actually over.
  */
+/** One press of the timer stepper. */
+const ADJUST_STEP_SEC = 60;
+
 export default function LiveRound({
   workspace,
   round,
@@ -35,6 +41,20 @@ export default function LiveRound({
   onLaunchNext: () => void;
 }) {
   const busy = operation.kind === "running";
+
+  // The backend re-arms the timer and pushes the new endsAt over SSE, so there
+  // is nothing to set here: the countdown above follows the pushed state.
+  async function adjustTime(seconds: number) {
+    try {
+      await adjustRoundTime(live.parentUUID, seconds);
+    } catch (error) {
+      toast.error(
+        seconds > 0 ? "Could not add time." : "Could not take time off.",
+        { description: error instanceof Error ? error.message : undefined },
+      );
+    }
+  }
+
   const open = live.round !== null;
   const remainingSec = useRemainingSec(live.round?.endsAt ?? 0);
   const participants = live.participants;
@@ -58,10 +78,28 @@ export default function LiveRound({
         <div className="bw-header-spacer" />
 
         {remainingSec !== null ? (
-          <div className="bw-timer">
-            <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
-            <span className="bw-timer__label">remaining</span>
-          </div>
+          <>
+            <div className="bw-timer">
+              <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
+              <span className="bw-timer__label">remaining</span>
+            </div>
+            <div className="bw-stepper">
+              <button
+                disabled={!open || remainingSec <= ADJUST_STEP_SEC}
+                title="Take a minute off this round"
+                onClick={() => void adjustTime(-ADJUST_STEP_SEC)}
+              >
+                -
+              </button>
+              <button
+                disabled={!open}
+                title="Give this round another minute"
+                onClick={() => void adjustTime(ADJUST_STEP_SEC)}
+              >
+                +
+              </button>
+            </div>
+          </>
         ) : null}
 
         <Button variant="outline" size="sm" disabled={!open || busy} onClick={onEndRound}>
