@@ -4,8 +4,9 @@ import { toast } from "sonner";
 
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
-import type { RoomTask, RoundMeta, Workspace } from "@/types/breakout";
+import type { RoundMeta, Workspace } from "@/types/breakout";
 
+import TaskFields from "../TaskFields";
 import { Button, Card, SectionLabel } from "../ui";
 
 /**
@@ -48,16 +49,6 @@ export default function TaskEditor({
     go();
   }
 
-  function commit(next: RoomTask) {
-    setTask(next);
-    void save(next);
-  }
-
-  /** Blank rows are working space while typing; they are dropped on save. */
-  function commitLines(field: "instructions" | "resources", lines: string[]) {
-    commit({ ...task, [field]: lines.map((line) => line.trim()).filter(Boolean) });
-  }
-
   return (
     <div className="bw-shell">
       <header className="bw-header">
@@ -86,40 +77,7 @@ export default function TaskEditor({
 
       <div className="bw-body">
         <main className="bw-main">
-          <div className="bw-field">
-            <SectionLabel>Goal shown to every room</SectionLabel>
-            <input
-              className="bw-goal-input"
-              value={task.goal}
-              placeholder="What should this room achieve?"
-              onChange={(event) => setTask({ ...task, goal: event.target.value })}
-              onBlur={() => void save(task)}
-            />
-          </div>
-
-          <div className="bw-field">
-            <SectionLabel>Instructions</SectionLabel>
-            <LineList
-              lines={task.instructions}
-              numbered
-              addLabel="+ Add step"
-              placeholder="One step per line"
-              onChange={(instructions) => setTask({ ...task, instructions })}
-              onCommit={(instructions) => commitLines("instructions", instructions)}
-            />
-          </div>
-
-          <div className="bw-field" style={{ maxWidth: 420 }}>
-            <SectionLabel>Resources</SectionLabel>
-            <LineList
-              lines={task.resources}
-              numbered={false}
-              addLabel="+ Attach link"
-              placeholder="https://…"
-              onChange={(resources) => setTask({ ...task, resources })}
-              onCommit={(resources) => commitLines("resources", resources)}
-            />
-          </div>
+          <TaskFields task={task} setTask={setTask} save={(next) => void save(next)} />
         </main>
 
         <aside className="bw-rail">
@@ -128,9 +86,6 @@ export default function TaskEditor({
           </Card>
 
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 7 }}>
-            <span style={{ fontSize: 10.5, color: "var(--bw-muted-3)" }}>
-              {configured} {configured === 1 ? "round" : "rounds"} in this workspace
-            </span>
             <Button variant="outline" onClick={() => void leave(onBackToRounds)}>
               Back to rounds
             </Button>
@@ -138,61 +93,6 @@ export default function TaskEditor({
           </div>
         </aside>
       </div>
-    </div>
-  );
-}
-
-/**
- * An editable list of single-line strings, fully controlled by the page above.
- * Keeping a local copy here would fight the saved list on every keystroke, so
- * `onChange` reports each edit and `onCommit` marks the points worth saving.
- */
-function LineList({
-  lines,
-  numbered,
-  addLabel,
-  placeholder,
-  onChange,
-  onCommit,
-}: {
-  lines: string[];
-  numbered: boolean;
-  addLabel: string;
-  placeholder: string;
-  /** Every keystroke. */
-  onChange: (lines: string[]) => void;
-  /** Leaving a row, or removing one. */
-  onCommit: (lines: string[]) => void;
-}) {
-  return (
-    <div className="bw-line-list">
-      {lines.map((line, index) => (
-        <div className="bw-line-row" key={index}>
-          {numbered ? <span className="bw-mono bw-line-row__number">{index + 1}</span> : null}
-          <input
-            className="bw-line-row__input"
-            value={line}
-            placeholder={placeholder}
-            // A blank last row is one that was just added, so it takes the caret.
-            autoFocus={line === "" && index === lines.length - 1}
-            onChange={(event) =>
-              onChange(lines.map((current, at) => (at === index ? event.target.value : current)))
-            }
-            onBlur={() => onCommit(lines)}
-          />
-          <button
-            className="bw-icon-button"
-            aria-label="Remove line"
-            onClick={() => onCommit(lines.filter((_, at) => at !== index))}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-
-      <button className="bw-line-add" onClick={() => onChange([...lines, ""])}>
-        {addLabel}
-      </button>
     </div>
   );
 }

@@ -124,8 +124,7 @@ export default function ParticipantWorkspace({
           </div>
 
           <Card tone="dashed" className="bw-activities-empty">
-            Nothing to submit this round. Follow the task on the left if
-            provided and discuss with your roommates! room.
+            Nothing to submit this round.
           </Card>
         </main>
       </div>

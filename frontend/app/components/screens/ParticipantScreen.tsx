@@ -11,9 +11,8 @@ import { Button, Card, SectionLabel, StatusDot } from "../ui";
 import ParticipantWorkspace from "./ParticipantWorkspace";
 
 const HOW_IT_WORKS = [
-  "Your task stays on screen for the whole round, so you cannot lose the instructions.",
-  "If the host changes the task while you work, this page updates on its own.",
-  "If you drop out and rejoin, open the app again and your room is still here.",
+  "Your task stays on screen for the whole round",
+  "If the host changes the task while you work, the sections updates on its own.",
 ];
 
 /**
@@ -99,7 +98,7 @@ export default function ParticipantScreen({
           <Roster room={room} live={liveState} participantUUID={participantUUID} />
 
           <Button onClick={() => setShowWorkspace(true)}>
-            See the current round task -&gt;
+            See the current round tasks
           </Button>
         </main>
 

@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
+
 import { adjustRoundTime } from "@/lib/execution-api";
 import { initialsFrom } from "@/lib/participant-status";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
+import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
 import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace } from "@/types/breakout";
 
 import { toast } from "sonner";
 
+import EditTaskModal from "./EditTaskModal";
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 
 /**
@@ -40,6 +44,8 @@ export default function LiveRound({
   onEndRound: () => void;
   onLaunchNext: () => void;
 }) {
+  const [editingTask, setEditingTask] = useState(false);
+  const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
   const busy = operation.kind === "running";
 
   // The backend re-arms the timer and pushes the new endsAt over SSE, so there
@@ -68,12 +74,19 @@ export default function LiveRound({
     <div className="bw-shell">
       <header className="bw-header bw-live-header">
         <BrandMark onHome={onHome} />
-        <Pill tone={open ? "teal" : "neutral"}>{open ? "Live" : "Closed"}</Pill>
+        <span className="bw-header-divider" />
         <div className="bw-round-heading">
           <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title}</span>
-          <span style={{ fontSize: 11, color: "var(--bw-ink)" }}>
-            {connected ? "Receiving Zoom updates" : "Reconnecting…"}
-          </span>
+          <div className="bw-live-badge">
+            <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
+            <span
+              className={
+                open ? "bw-live-badge__label" : "bw-live-badge__label bw-live-badge__label--off"
+              }
+            >
+              {open ? "Live" : "Closed"}
+            </span>
+          </div>
         </div>
         <div className="bw-header-spacer" />
 
@@ -113,7 +126,7 @@ export default function LiveRound({
             title={open ? "End this round first." : undefined}
             onClick={onLaunchNext}
           >
-            Launch {roundLabel(workspace, nextRound.roundId)} -&gt;
+            Launch {roundLabel(workspace, nextRound.roundId)}
           </Button>
         ) : null}
       </header>
@@ -121,30 +134,29 @@ export default function LiveRound({
       <div className="bw-body">
         <aside className="bw-rail bw-rail--left">
           <SectionLabel>Session plan</SectionLabel>
-          {workspace.rounds.map((meta) => (
+          {workspace.rounds.map((meta, index) => (
             <Card
               key={meta.roundId}
               tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
               className="bw-plan-row"
             >
-              <StatusDot color={meta.dot} />
-              <span className="bw-member-name">{roundLabel(workspace, meta.roundId)}</span>
+              
+              <span className="bw-member-name">R{index+1}: {roundLabel(workspace, meta.roundId)}</span>
               <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-ink)" }}>
                 {meta.status === "closed" ? "✓" : formatClock(meta.durationSec)}
               </span>
             </Card>
           ))}
 
-          <SectionLabel>Rooms</SectionLabel>
-          {round.rooms.map((room) => (
-            <div className="bw-rail-row" key={room.id}>
-              <StatusDot color={room.dot} />
-              <span className="bw-member-name">{room.name}</span>
-              <span className="bw-mono" style={{ fontSize: 11 }}>
-                {membersOf(room.id).length}/{room.participantUUIDs.length}
-              </span>
-            </div>
-          ))}
+          <SectionLabel>Task this round</SectionLabel>
+          <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
+            <span className="bw-task-summary__goal">
+              {tasks.task.goal || "No task set for this round"}
+            </span>
+            <span className="bw-task-summary__action">
+              {tasks.task.goal ? "Edit task" : "Add a task"} -&gt;
+            </span>
+          </button>
         </aside>
 
         <main className="bw-main">
@@ -173,6 +185,14 @@ export default function LiveRound({
           </div>
         </main>
       </div>
+
+      {editingTask ? (
+        <EditTaskModal
+          roundTitle={round.title}
+          tasks={tasks}
+          onClose={() => setEditingTask(false)}
+        />
+      ) : null}
     </div>
   );
 }

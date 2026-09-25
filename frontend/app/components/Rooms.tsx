@@ -255,8 +255,8 @@ function SaveFeedback({
   onRetry: () => void;
   onReload?: () => void;
 }) {
-  if (save.kind === "saving") return <Pill tone="neutral">Saving…</Pill>;
-  if (save.kind === "saved") return <Pill tone="teal">Saved</Pill>;
+  if (save.kind === "saving") return ;
+  if (save.kind === "saved") return ;
 
   return (
     <Card style={{ display: "flex", flexDirection: "column", gap: 6 }}>

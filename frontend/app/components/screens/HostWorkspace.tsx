@@ -279,8 +279,8 @@ export default function HostWorkspace({
         }}
         nextLabel={
           after
-            ? `Next: ${roundLabel(workspace.state.workspace, after.roundId)} ->`
-            : "Review & launch ->"
+            ? `Next: ${roundLabel(workspace.state.workspace, after.roundId)}`
+            : "Review & launch"
         }
       />
     );
@@ -368,7 +368,7 @@ function RoundEditor({
       live={live}
       onChangeView={onChangeView}
       onNext={() => onChangeView("task")}
-      nextLabel="Next: Task & activities ->"
+      nextLabel="Next: Task & activities"
     />
   );
 }

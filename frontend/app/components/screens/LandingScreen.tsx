@@ -86,7 +86,7 @@ export default function LandingScreen({
               <Button variant="outline" disabled={busy} onClick={onStartRoundOne}>Start Round 1</Button>
             ) : null}
             <Button variant="accent" disabled={busy} onClick={onBuildRounds}>
-              {roundCount === null ? "Build the rounds →" : "Open the rounds →"}
+              {roundCount === null ? "Build the rounds →" : "Open the ongoing rounds"}
             </Button>
           </div>
         </main>
