@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { useRoundTasks } from "@/lib/use-round-tasks";
@@ -54,6 +53,11 @@ export default function TaskEditor({
     void save(next);
   }
 
+  /** Blank rows are working space while typing; they are dropped on save. */
+  function commitLines(field: "instructions" | "resources", lines: string[]) {
+    commit({ ...task, [field]: lines.map((line) => line.trim()).filter(Boolean) });
+  }
+
   return (
     <div className="bw-shell">
       <header className="bw-header">
@@ -100,7 +104,8 @@ export default function TaskEditor({
               numbered
               addLabel="+ Add step"
               placeholder="One step per line"
-              onChange={(instructions) => commit({ ...task, instructions })}
+              onChange={(instructions) => setTask({ ...task, instructions })}
+              onCommit={(instructions) => commitLines("instructions", instructions)}
             />
           </div>
 
@@ -111,7 +116,8 @@ export default function TaskEditor({
               numbered={false}
               addLabel="+ Attach link"
               placeholder="https://…"
-              onChange={(resources) => commit({ ...task, resources })}
+              onChange={(resources) => setTask({ ...task, resources })}
+              onCommit={(resources) => commitLines("resources", resources)}
             />
           </div>
         </main>
@@ -137,8 +143,9 @@ export default function TaskEditor({
 }
 
 /**
- * An editable list of single-line strings. Blank lines are dropped by the
- * backend, so an empty new row costs nothing until it is typed into.
+ * An editable list of single-line strings, fully controlled by the page above.
+ * Keeping a local copy here would fight the saved list on every keystroke, so
+ * `onChange` reports each edit and `onCommit` marks the points worth saving.
  */
 function LineList({
   lines,
@@ -146,62 +153,44 @@ function LineList({
   addLabel,
   placeholder,
   onChange,
+  onCommit,
 }: {
   lines: string[];
   numbered: boolean;
   addLabel: string;
   placeholder: string;
+  /** Every keystroke. */
   onChange: (lines: string[]) => void;
+  /** Leaving a row, or removing one. */
+  onCommit: (lines: string[]) => void;
 }) {
-  const [draft, setDraft] = useState<string[]>(lines);
-  const [adding, setAdding] = useState(false);
-
-  // The saved list is the source of truth; a fresh load replaces local edits.
-  if (draft !== lines && !adding) {
-    setDraft(lines);
-  }
-
-  function replace(index: number, value: string) {
-    setDraft(draft.map((line, at) => (at === index ? value : line)));
-  }
-
-  function commit(next: string[]) {
-    const kept = next.map((line) => line.trim()).filter(Boolean);
-    setAdding(false);
-    setDraft(kept);
-    onChange(kept);
-  }
-
   return (
     <div className="bw-line-list">
-      {draft.map((line, index) => (
+      {lines.map((line, index) => (
         <div className="bw-line-row" key={index}>
           {numbered ? <span className="bw-mono bw-line-row__number">{index + 1}</span> : null}
           <input
             className="bw-line-row__input"
             value={line}
             placeholder={placeholder}
-            autoFocus={adding && index === draft.length - 1}
-            onChange={(event) => replace(index, event.target.value)}
-            onBlur={() => commit(draft)}
+            // A blank last row is one that was just added, so it takes the caret.
+            autoFocus={line === "" && index === lines.length - 1}
+            onChange={(event) =>
+              onChange(lines.map((current, at) => (at === index ? event.target.value : current)))
+            }
+            onBlur={() => onCommit(lines)}
           />
           <button
             className="bw-icon-button"
             aria-label="Remove line"
-            onClick={() => commit(draft.filter((_, at) => at !== index))}
+            onClick={() => onCommit(lines.filter((_, at) => at !== index))}
           >
             ✕
           </button>
         </div>
       ))}
 
-      <button
-        className="bw-line-add"
-        onClick={() => {
-          setAdding(true);
-          setDraft([...draft, ""]);
-        }}
-      >
+      <button className="bw-line-add" onClick={() => onChange([...lines, ""])}>
         {addLabel}
       </button>
     </div>

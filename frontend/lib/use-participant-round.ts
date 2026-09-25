@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { readRoundTasks, readSavedRoundPlan } from "@/lib/execution-api";
+import { readRoundTasks, readSavedRoundPlan, readWorkspace } from "@/lib/execution-api";
 import type { PlannedRoom, RoomTask } from "@/types/breakout";
 
 /**
@@ -22,14 +22,19 @@ export interface ParticipantRound {
   task: RoomTask | null;
   /** The round's own title, from the saved draft. */
   roundTitle: string;
+  /** 1-based place in the workspace, and how many rounds there are. 0 when unknown. */
+  roundPosition: number;
+  roundCount: number;
 }
 
 interface Placement {
   room: PlannedRoom | null;
   roundTitle: string;
+  roundPosition: number;
+  roundCount: number;
 }
 
-const NOWHERE: Placement = { room: null, roundTitle: "" };
+const NOWHERE: Placement = { room: null, roundTitle: "", roundPosition: 0, roundCount: 0 };
 
 export function useParticipantRound({
   parentUUID,
@@ -53,9 +58,16 @@ export function useParticipantRound({
     async function readPlacement(): Promise<Placement> {
       if (!parentUUID || !roundId || !participantUUID) return NOWHERE;
       try {
-        const plan = await readSavedRoundPlan(parentUUID, roundId);
+        // Position comes from the workspace's round order, never from the id.
+        const [plan, workspace] = await Promise.all([
+          readSavedRoundPlan(parentUUID, roundId),
+          readWorkspace(parentUUID).catch(() => null),
+        ]);
+        const rounds = workspace?.rounds ?? [];
         return {
           roundTitle: plan.title,
+          roundPosition: rounds.findIndex((r) => r.roundId === roundId) + 1,
+          roundCount: rounds.length,
           room: plan.rooms.find((r) => r.participantUUIDs.includes(participantUUID)) ?? null,
         };
       } catch {
@@ -113,5 +125,11 @@ export function useParticipantRound({
     if (taskOnScreen.current) toast("Host updated the task");
   }, [taskRevision]);
 
-  return { room: placement.room, task, roundTitle: placement.roundTitle };
+  return {
+    room: placement.room,
+    task,
+    roundTitle: placement.roundTitle,
+    roundPosition: placement.roundPosition,
+    roundCount: placement.roundCount,
+  };
 }

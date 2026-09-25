@@ -6,6 +6,7 @@ import type {
   RoundTasks,
   SaveRoundPlanRequest,
   SaveRoundTasksRequest,
+  Workspace,
 } from "@/types/breakout";
 
 async function apiResult<T>(response: Response): Promise<T> {
@@ -26,6 +27,19 @@ export async function readSavedRoundPlan(
       { cache: "no-store" },
     ),
   );
+}
+
+/**
+ * Read-only workspace fetch. `use-workspace` owns the host's copy, with its
+ * edits and revision; a participant only needs a round's position in the list.
+ * Null when no workspace exists for this meeting yet.
+ */
+export async function readWorkspace(parentUUID: string): Promise<Workspace | null> {
+  const response = await fetch(`/api/workspace?parentUUID=${encodeURIComponent(parentUUID)}`, {
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  return apiResult(response);
 }
 
 /** Null when the host has not written a task for this round yet (backend 404). */

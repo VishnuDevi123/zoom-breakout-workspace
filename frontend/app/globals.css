@@ -1272,3 +1272,101 @@ body {
 .bw-line-add:hover {
   color: var(--bw-ink);
 }
+
+/* ── Participant room workspace ────────────────────────────────────── */
+.bw-header-divider {
+  width: 1px;
+  height: 24px;
+  flex: none;
+  background: var(--bw-border);
+}
+.bw-timer--end {
+  align-items: flex-end;
+}
+.bw-task-rail {
+  width: 316px;
+  border-left: 0;
+  border-right: 1px solid var(--bw-border);
+  overflow: auto;
+}
+.bw-task-goal {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+  text-wrap: pretty;
+}
+.bw-task-empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+.bw-instruction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.bw-instruction-row {
+  display: flex;
+  gap: 9px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+.bw-instruction-row:last-child {
+  border-bottom: 0;
+}
+.bw-instruction-row__number {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-accent);
+  padding-top: 2px;
+}
+.bw-resource-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border-faint);
+  border-radius: 9px;
+  text-decoration: none;
+  color: inherit;
+}
+a.bw-resource-row:hover {
+  border-color: var(--bw-accent);
+}
+.bw-resource-row__mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--bw-accent-tint);
+}
+.bw-resource-row__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.bw-resource-row__open {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+.bw-activities-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.bw-activities-empty {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+  max-width: 460px;
+}

@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
+
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import { useLiveState } from "@/lib/use-live-state";
 import { useParticipantRound } from "@/lib/use-participant-round";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
-import { Card, SectionLabel, StatusDot } from "../ui";
+import { Button, Card, SectionLabel, StatusDot } from "../ui";
+import ParticipantWorkspace from "./ParticipantWorkspace";
 
 const HOW_IT_WORKS = [
   "Your task stays on screen for the whole round, so you cannot lose the instructions.",
@@ -29,24 +32,40 @@ export default function ParticipantScreen({
   parentUUID: string;
   participantUUID: string;
 }) {
+  const [showWorkspace, setShowWorkspace] = useState(false);
   const { liveState } = useLiveState(parentUUID);
   const roundId = liveState?.round?.roundId ?? "";
-  const { room, task, roundTitle } = useParticipantRound({
+  const round = useParticipantRound({
     parentUUID,
     participantUUID,
     roundId,
     taskRevision: liveState?.taskRevision ?? 0,
   });
+  const { room, task, roundTitle } = round;
 
   if (!roundId) {
-    return <Waiting headline="No round running yet" lede="The host starts the round from their side. This page fills in by itself." />;
+    return <Waiting headline="No round running yet" lede="The host hasent started breakout rooms yet. Please standby! " />;
   }
 
   if (!room) {
+    // The room page belongs to a placement, so losing one closes it.
+    if (showWorkspace) setShowWorkspace(false);
     return (
       <Waiting
         headline="You are staying in the main room"
         lede="The host did not place you in a breakout room for this round."
+      />
+    );
+  }
+
+  if (showWorkspace) {
+    return (
+      <ParticipantWorkspace
+        round={round}
+        room={room}
+        live={liveState}
+        participantUUID={participantUUID}
+        onBack={() => setShowWorkspace(false)}
       />
     );
   }
@@ -78,6 +97,10 @@ export default function ParticipantScreen({
           </div>
 
           <Roster room={room} live={liveState} participantUUID={participantUUID} />
+
+          <Button onClick={() => setShowWorkspace(true)}>
+            See the current round task -&gt;
+          </Button>
         </main>
 
         <aside className="bw-rail">

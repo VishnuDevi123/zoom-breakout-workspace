@@ -179,8 +179,8 @@ export default function RoundsOverview({
         <main className="bw-main">
           <div className="bw-section-heading">
             <span style={{ fontSize: 12, color: "var(--bw-ink)" }}>
-              Click a round to plan its rooms. Come back any time to change one
-              round.
+              Add and Edit round configurations.
+
             </span>
           </div>
 
