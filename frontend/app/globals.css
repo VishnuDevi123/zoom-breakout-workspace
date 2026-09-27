@@ -1475,3 +1475,20 @@ a.bw-resource-row:hover {
 .bw-live-badge__label--off {
   color: var(--bw-muted-3);
 }
+
+/* ── Skip rounds panel ─────────────────────────────────────────────── */
+.bw-skip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--bw-border);
+  border-radius: 10px;
+}
+.bw-skip-row--skipped {
+  background: var(--bw-surface-sunken);
+}
+.bw-skip-row--skipped .bw-member-name {
+  color: var(--bw-muted-3);
+  text-decoration: line-through;
+}

@@ -13,6 +13,7 @@ import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace }
 import { toast } from "sonner";
 
 import EditTaskModal from "./EditTaskModal";
+import SkipRoundsModal from "./SkipRoundsModal";
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 
 /**
@@ -31,6 +32,7 @@ export default function LiveRound({
   operation,
   nextRound,
   onHome,
+  onSkipRound,
   onEndRound,
   onLaunchNext,
 }: {
@@ -41,10 +43,13 @@ export default function LiveRound({
   operation: LiveOperationState;
   nextRound: RoundMeta | null;
   onHome: () => void;
+  /** Mark a later round as one to skip, or put a skipped one back. */
+  onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
   onEndRound: () => void;
   onLaunchNext: () => void;
 }) {
   const [editingTask, setEditingTask] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
   const busy = operation.kind === "running";
 
@@ -115,6 +120,9 @@ export default function LiveRound({
           </>
         ) : null}
 
+        <Button variant="outline" size="sm" onClick={() => setSkipping(true)}>
+          Skip rounds
+        </Button>
         <Button variant="outline" size="sm" disabled={!open || busy} onClick={onEndRound}>
           End round
         </Button>
@@ -141,9 +149,18 @@ export default function LiveRound({
               className="bw-plan-row"
             >
               
-              <span className="bw-member-name">R{index+1}: {roundLabel(workspace, meta.roundId)}</span>
+              <span
+                className="bw-member-name"
+                style={meta.status === "skipped" ? { color: "var(--bw-muted-3)" } : undefined}
+              >
+                R{index + 1}: {roundLabel(workspace, meta.roundId)}
+              </span>
               <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-ink)" }}>
-                {meta.status === "closed" ? "✓" : formatClock(meta.durationSec)}
+                {meta.status === "closed"
+                  ? "✓"
+                  : meta.status === "skipped"
+                    ? "skipped"
+                    : formatClock(meta.durationSec)}
               </span>
             </Card>
           ))}
@@ -185,6 +202,15 @@ export default function LiveRound({
           </div>
         </main>
       </div>
+
+      {skipping ? (
+        <SkipRoundsModal
+          workspace={workspace}
+          liveRoundId={live.round?.roundId ?? null}
+          onSkipRound={onSkipRound}
+          onClose={() => setSkipping(false)}
+        />
+      ) : null}
 
       {editingTask ? (
         <EditTaskModal

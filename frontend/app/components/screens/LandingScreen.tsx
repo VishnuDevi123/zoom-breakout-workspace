@@ -32,7 +32,7 @@ export default function LandingScreen({
   onBuildRounds: () => void;
   onUseTemplate: (template: RoundTemplate) => void;
 }) {
-  const countText = participantCount === null ? "Connecting to the meeting…" : `${participantCount} people are in the main room.`;
+  const countText = participantCount === null ? "Connecting to the meeting…" : `Meeting occupancy: ${participantCount}.`;
 
   return (
     <div className="bw-shell">
@@ -52,7 +52,7 @@ export default function LandingScreen({
           <SectionLabel>You are hosting this meeting</SectionLabel>
           <h1 className="bw-landing-title">{meetingTopic || "This meeting"}</h1>
           <p className="bw-landing-lede">
-            {countText} Set up the rounds, and Zoom opens the breakouts when you launch.
+            {countText} Set up the rounds, and Zoom opens the rooms when you launch.
           </p>
 
           <div className="bw-landing-cards">

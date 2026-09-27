@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  LiveActionResponse,
   LiveState,
   RoundPlan,
   RoundPlanDraft,
@@ -85,10 +86,11 @@ export async function saveRoundPlan(
   );
 }
 
+/** Also returns the workspace: the round's status and revision changed with it. */
 export async function markRoundLaunched(
   parentUUID: string,
   roundId: string,
-): Promise<LiveState> {
+): Promise<LiveActionResponse> {
   return apiResult(
     await fetch("/api/live/launch", {
       method: "POST",
@@ -112,9 +114,24 @@ export async function adjustRoundTime(
   );
 }
 
+/** Skip a round the host will not run, or put a skipped one back. */
+export async function setRoundSkipped(
+  parentUUID: string,
+  roundId: string,
+  skipped: boolean,
+): Promise<Workspace> {
+  return apiResult(
+    await fetch("/api/live/skip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentUUID, roundId, skipped }),
+    }),
+  );
+}
+
 export async function markRoundClosed(
   parentUUID: string,
-): Promise<LiveState> {
+): Promise<LiveActionResponse> {
   return apiResult(
     await fetch("/api/live/close", {
       method: "POST",

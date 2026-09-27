@@ -41,7 +41,7 @@ const HOST_CAPABILITIES = [
 ];
 
 /**
- * Everything the app can ever ask for. Every entry must also be ticked on the
+ * Everything the app can ever ask for. Every entry is also ticked on the
  * app's API list in the Zoom Marketplace, otherwise the call fails at run time
  * with `reason:app_not_support`.
  */
@@ -80,8 +80,22 @@ export function normalizeSdkError(error: unknown, fallbackCode: string): SdkErro
   // fallback for every rejection.
   const { code, type, message } = error as ZoomSdkError;
 
-  const resolvedCode =
-    code !== undefined && code !== null ? String(code) : (type ?? fallbackCode);
+  let resolvedCode;
+
+  // 1. Check if the primary code exists and is valid
+  if (code !== undefined && code !== null) {
+    // Convert the code to a string before assigning it
+    resolvedCode = String(code);
+  }
+  // 2. Fall back to 'type' if the primary code is missing
+  else if (type !== undefined && type !== null) {
+    resolvedCode = type;
+  }
+  // 3. Use the absolute fallback if everything else is null or undefined
+  else {
+    resolvedCode = fallbackCode;
+  }
+
 
   const resolvedMessage =
     message ?? (error instanceof Error ? error.message : "No message returned by the SDK.");
