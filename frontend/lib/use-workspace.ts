@@ -193,6 +193,8 @@ export function useWorkspace(parentUUID: string) {
     deleteRound,
     updateRound,
     updateWorkspace,
+    /** Adopt a workspace a non-workspace route handed back, such as launch or skip. */
+    applyWorkspace: (workspace: Workspace) => apply(workspace),
     reload: () => setLoadAttempt((n) => n + 1),
   };
 }

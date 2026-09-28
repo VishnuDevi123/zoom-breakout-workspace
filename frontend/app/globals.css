@@ -278,8 +278,8 @@ body {
 
 .bw-dot--round {
   border-radius: var(--bw-radius-pill);
-  width: 7px;
-  height: 7px;
+  width: 3px;
+  height: 3px;
 }
 
 .bw-dot--pulse {
@@ -310,8 +310,8 @@ body {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 18px;
+  gap:13px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--bw-border);
 }
 
@@ -339,10 +339,9 @@ body {
 }
 
 .bw-round-heading {
-  min-width: 180px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: -1px;
 }
 
 .bw-header-spacer {
@@ -395,18 +394,19 @@ body {
   align-items: center;
   line-height: 1;
 }
-
 .bw-timer__clock {
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
   letter-spacing: -0.5px;
+  line-height: 1.1;
 }
 
 .bw-timer__label {
   font-size: 9.5px;
-  text-transform: uppercase;
+  font-weight: 600;
   letter-spacing: 0.08em;
-  color: var(--bw-muted-2);
+  text-transform: uppercase;
+  color: var(--bw-muted-3);
 }
 
 .bw-rooms-input {
@@ -624,7 +624,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 170px;
+  min-height: 150px;
 }
 
 .bw-auto-assign {
@@ -643,7 +643,7 @@ body {
 }
 
 .bw-room-card__header {
-  min-height: 26px;
+  min-height: 25px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1119,4 +1119,376 @@ body {
     border-left: 0;
   }
 
+}
+
+/* ── Participant landing ───────────────────────────────────────────── */
+.bw-participant-main {
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 18px;
+}
+.bw-participant-card {
+  padding: 13px;
+  border-radius: 11px;
+  gap: 5px;
+}
+.bw-participant-card--accent {
+  border-color: var(--bw-accent);
+  background: var(--bw-accent-tint);
+}
+.bw-participant-card__label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-muted-3);
+}
+.bw-participant-card__label--accent {
+  color: var(--bw-accent-deep);
+}
+.bw-participant-roster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+  padding: 11px 14px;
+  border: 1px solid var(--bw-border);
+  border-radius: 11px;
+}
+.bw-participant-step {
+  display: flex;
+  gap: 9px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+.bw-participant-step__number {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-accent);
+  padding-top: 2px;
+}
+.bw-participant-note {
+  margin-top: auto;
+  padding: 11px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+}
+
+/* ── Task editor ───────────────────────────────────────────────────── */
+.bw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bw-step-switch {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+}
+.bw-step-switch__step {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: 9999px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  color: var(--bw-muted-2);
+  cursor: pointer;
+}
+.bw-step-switch__step:hover {
+  border-color: var(--bw-accent);
+  color: var(--bw-accent);
+}
+.bw-step-switch__step--current {
+  font-weight: 600;
+  background: var(--bw-ink);
+  border-color: var(--bw-ink);
+  color: var(--bw-surface);
+  cursor: default;
+}
+.bw-step-switch__step--current:hover {
+  border-color: var(--bw-ink);
+  color: var(--bw-surface);
+}
+.bw-goal-input {
+  padding: 11px 12px;
+  border: 1px solid var(--bw-accent);
+  border-radius: 10px;
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--bw-ink);
+}
+.bw-goal-input:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: 1px;
+}
+.bw-line-list {
+  border: 1px solid var(--bw-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.bw-line-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 11px;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+.bw-line-row__number {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+.bw-line-row__input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--bw-ink);
+}
+.bw-line-row__input:focus-visible {
+  outline: none;
+}
+.bw-line-add {
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-top: 1px dashed var(--bw-border-soft);
+  background: var(--bw-surface-sunken);
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--bw-muted-2);
+  cursor: pointer;
+}
+.bw-line-add:hover {
+  color: var(--bw-ink);
+}
+
+/* ── Participant room workspace ────────────────────────────────────── */
+.bw-header-divider {
+  width: 1px;
+  height: 24px;
+  flex: none;
+  background: var(--bw-border);
+}
+.bw-timer--end {
+  align-items: flex-end;
+}
+.bw-task-rail {
+  width: 316px;
+  border-left: 0;
+  border-right: 1px solid var(--bw-border);
+  overflow: auto;
+}
+.bw-task-goal {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+  text-wrap: pretty;
+}
+.bw-task-empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+.bw-instruction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.bw-instruction-row {
+  display: flex;
+  gap: 9px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+.bw-instruction-row:last-child {
+  border-bottom: 0;
+}
+.bw-instruction-row__number {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-accent);
+  padding-top: 2px;
+}
+.bw-resource-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border-faint);
+  border-radius: 9px;
+  text-decoration: none;
+  color: inherit;
+}
+a.bw-resource-row:hover {
+  border-color: var(--bw-accent);
+}
+.bw-resource-row__mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--bw-accent-tint);
+}
+.bw-resource-row__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.bw-resource-row__open {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+.bw-activities-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.bw-activities-empty {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+  max-width: 460px;
+}
+
+
+
+.bw-room-header-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bw-room-header-dot {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--bw-accent);
+}
+/* ── Overlay panel ─────────────────────────────────────────────────── */
+.bw-overlay {
+  position: fixed;
+  inset: 58px 0 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  background: rgb(28 28 30 / 28%);
+  padding: 16px;
+  overflow: auto;
+}
+.bw-overlay__panel {
+  width: 100%;
+  max-width: 560px;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgb(28 28 30 / 18%);
+  overflow: hidden;
+}
+.bw-overlay__header {
+  display: flex;
+  align-items: center;
+  gap: 133px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--bw-border);
+}
+.bw-overlay__body {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 16px;
+  overflow: auto;
+}
+
+/* ── Task summary in the live rail ─────────────────────────────────── */
+.bw-task-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px;
+  text-align: left;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.bw-task-summary:hover:not(:disabled) {
+  border-color: var(--bw-accent);
+}
+.bw-task-summary:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.bw-task-summary__goal {
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bw-ink);
+}
+.bw-task-summary__action {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+
+/* ── Live badge ────────────────────────────────────────────────────── */
+.bw-live-badge {
+  display: flex;
+  align-items: center;
+  /* The pulse ring is drawn outside the dot, so it needs room on the left. */
+  gap: 9px;
+  padding-left: 3px;
+}
+.bw-live-badge__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--bw-red-deep);
+}
+.bw-live-badge__label--off {
+  color: var(--bw-muted-3);
+}
+
+/* ── Skip rounds panel ─────────────────────────────────────────────── */
+.bw-skip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--bw-border);
+  border-radius: 10px;
+}
+.bw-skip-row--skipped {
+  background: var(--bw-surface-sunken);
+}
+.bw-skip-row--skipped .bw-member-name {
+  color: var(--bw-muted-3);
+  text-decoration: line-through;
 }

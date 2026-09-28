@@ -7,7 +7,7 @@ import { markRoundClosed, markRoundLaunched, readSavedRoundPlan } from "@/lib/ex
 import { canManageRooms } from "@/lib/host-gate";
 import { breakoutRoomsAreOpen, closeRoundInZoom, launchRoundInZoom } from "@/lib/launch-round";
 import { configureZoomSdk, type ZoomSdk } from "@/lib/zoom-sdk";
-import type { RoundPlanDraft, ZoomRole } from "@/types/breakout";
+import type { RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
 
 /**
  * Zoom keeps the previous round's rooms locked for a moment after a close, so a
@@ -28,10 +28,14 @@ interface ControllerInput {
   round: RoundPlanDraft;
   /** Persist pending draft edits; resolves false when the save failed. */
   flushSave: () => Promise<boolean>;
-  /** Called once Zoom opened the rooms and the backend recorded the launch. */
-  onLaunched?: (roundId: string) => void;
+  /**
+   * Called once Zoom opened the rooms and the backend recorded the launch. The
+   * workspace comes back because the round's status and revision changed with
+   * it, and nothing else would tell the caller.
+   */
+  onLaunched?: (roundId: string, workspace: Workspace | null) => void;
   /** Called once Zoom closed the rooms and the backend recorded the close. */
-  onClosed?: () => void;
+  onClosed?: (workspace: Workspace | null) => void;
 }
 
 /**
@@ -97,8 +101,8 @@ export function useLiveRoomController(input: ControllerInput) {
       const plan = await readSavedRoundPlan(input.parentUUID, roundId);
       const { sdk, hostUUID } = await hostSdk();
       await launchRoundInZoom(sdk, plan, hostUUID, step);
-      await markRoundLaunched(input.parentUUID, plan.roundId);
-      input.onLaunched?.(plan.roundId);
+      const launched = await markRoundLaunched(input.parentUUID, plan.roundId);
+      input.onLaunched?.(plan.roundId, launched.workspace);
       return `${plan.title} launched.`;
     });
   }
@@ -107,8 +111,8 @@ export function useLiveRoomController(input: ControllerInput) {
     void run("close", async () => {
       const { sdk } = await hostSdk();
       await closeRoundInZoom(sdk);
-      await markRoundClosed(input.parentUUID);
-      input.onClosed?.();
+      const closed = await markRoundClosed(input.parentUUID);
+      input.onClosed?.(closed.workspace);
       return `${input.round.title} closed.`;
     });
   }
@@ -124,8 +128,8 @@ export function useLiveRoomController(input: ControllerInput) {
       try {
         const { sdk } = await hostSdk();
         if (await breakoutRoomsAreOpen(sdk)) return;
-        await markRoundClosed(input.parentUUID);
-        input.onClosed?.();
+        const closed = await markRoundClosed(input.parentUUID);
+        input.onClosed?.(closed.workspace);
         toast.info("Zoom had already closed these rooms. The round is cleared.");
       } catch {
         // Nothing to report: the host can still end the round by hand.

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { readSavedRoundPlan } from "@/lib/execution-api";
+import { readSavedRoundPlan, setRoundSkipped } from "@/lib/execution-api";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
@@ -20,9 +20,10 @@ import Rooms from "../Rooms";
 import { BrandMark, Button, Card, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
 import RoundsOverview from "./RoundsOverview";
+import TaskEditor from "./TaskEditor";
 
-/** Host screens in flow order. Later steps add rounds and review. */
-type HostView = "landing" | "rounds" | "draft" | "live";
+/** Host screens in flow order. A round is configured in two steps: draft, then task. */
+type HostView = "landing" | "rounds" | "draft" | "task" | "live";
 
 /** People who can be placed: everyone Zoom still reports in the meeting. */
 function presentCount(live: LiveState | null): number | null {
@@ -111,7 +112,12 @@ export default function HostWorkspace({
     view,
   );
   const livePlan = liveRoundId ? (plans[liveRoundId] ?? null) : null;
-  const nextRound = rounds[rounds.findIndex((round) => round.roundId === liveRoundId) + 1] ?? null;
+  // The next round to run, not simply the next in the list: the host can skip
+  // rounds mid-session, and a closed one has already had its turn.
+  const nextRound =
+    rounds
+      .slice(rounds.findIndex((round) => round.roundId === liveRoundId) + 1)
+      .find((round) => round.status === "planned") ?? null;
 
   const controller = useLiveRoomController({
     parentUUID: meetingUUID,
@@ -125,11 +131,13 @@ export default function HostWorkspace({
     },
     // Launching happens from saved drafts; the live view has no pending edits.
     flushSave: () => Promise.resolve(true),
-    onLaunched: (roundId) => {
+    onLaunched: (roundId, saved) => {
+      if (saved) workspace.applyWorkspace(saved);
       setLaunchedRoundId(roundId);
       setView("live");
     },
-    onClosed: () => {
+    onClosed: (saved) => {
+      if (saved) workspace.applyWorkspace(saved);
       if (!closedByTimer.current) return;
       closedByTimer.current = false;
       if (nextRound) controller.launch(nextRound.roundId);
@@ -229,6 +237,9 @@ export default function HostWorkspace({
         operation={controller.operation}
         nextRound={nextRound}
         onHome={() => setView("rounds")}
+        onSkipRound={async (roundId, skipped) => {
+          workspace.applyWorkspace(await setRoundSkipped(meetingUUID, roundId, skipped));
+        }}
         onEndRound={controller.close}
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
       />
@@ -256,6 +267,31 @@ export default function HostWorkspace({
           workspace.selectRound(roundId);
           setView("draft");
         }}
+      />
+    );
+  }
+
+  if (currentView === "task") {
+    const selected = workspace.selectedRound;
+    const after = workspace.state.workspace.rounds[
+      workspace.state.workspace.rounds.findIndex((r) => r.roundId === selected.roundId) + 1
+    ];
+    return (
+      <TaskEditor
+        workspace={workspace.state.workspace}
+        round={selected}
+        onBack={() => setView("draft")}
+        onBackToRounds={() => setView("rounds")}
+        onNext={() => {
+          if (!after) return setView("rounds");
+          workspace.selectRound(after.roundId);
+          setView("draft");
+        }}
+        nextLabel={
+          after
+            ? `Next: ${roundLabel(workspace.state.workspace, after.roundId)}`
+            : "Review & launch"
+        }
       />
     );
   }
@@ -341,8 +377,8 @@ function RoundEditor({
       readyState={plan.state}
       live={live}
       onChangeView={onChangeView}
-      onNext={nextRound ? () => onSelectRound(nextRound.roundId) : () => onChangeView("rounds")}
-      nextLabel={nextRound ? `Next: ${roundLabel(workspace, nextRound.roundId)} ->` : "Review & launch ->"}
+      onNext={() => onChangeView("task")}
+      nextLabel="Next: Task & activities"
     />
   );
 }

@@ -1,37 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
+import { adjustRoundTime } from "@/lib/execution-api";
 import { initialsFrom } from "@/lib/participant-status";
+import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
+import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
 import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace } from "@/types/breakout";
 
+import { toast } from "sonner";
+
+import EditTaskModal from "./EditTaskModal";
+import SkipRoundsModal from "./SkipRoundsModal";
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
-
-function formatClock(totalSec: number): string {
-  const safe = Math.max(0, totalSec);
-  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
-}
-
-/** Seconds left on the round, recomputed every second from the server's endsAt. */
-function useRemainingSec(endsAt: number): number | null {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!endsAt) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [endsAt]);
-
-  return endsAt ? Math.max(0, Math.round((endsAt - now) / 1000)) : null;
-}
 
 /**
  * The running round. Room names and dots come from the round's draft; who is
  * where comes from Zoom webhooks via LiveState. The timer counts down to the
  * backend's endsAt, and the backend decides when the round is actually over.
  */
+/** One press of the timer stepper. */
+const ADJUST_STEP_SEC = 60;
+
 export default function LiveRound({
   workspace,
   round,
@@ -40,6 +32,7 @@ export default function LiveRound({
   operation,
   nextRound,
   onHome,
+  onSkipRound,
   onEndRound,
   onLaunchNext,
 }: {
@@ -50,10 +43,29 @@ export default function LiveRound({
   operation: LiveOperationState;
   nextRound: RoundMeta | null;
   onHome: () => void;
+  /** Mark a later round as one to skip, or put a skipped one back. */
+  onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
   onEndRound: () => void;
   onLaunchNext: () => void;
 }) {
+  const [editingTask, setEditingTask] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+  const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
   const busy = operation.kind === "running";
+
+  // The backend re-arms the timer and pushes the new endsAt over SSE, so there
+  // is nothing to set here: the countdown above follows the pushed state.
+  async function adjustTime(seconds: number) {
+    try {
+      await adjustRoundTime(live.parentUUID, seconds);
+    } catch (error) {
+      toast.error(
+        seconds > 0 ? "Could not add time." : "Could not take time off.",
+        { description: error instanceof Error ? error.message : undefined },
+      );
+    }
+  }
+
   const open = live.round !== null;
   const remainingSec = useRemainingSec(live.round?.endsAt ?? 0);
   const participants = live.participants;
@@ -67,22 +79,50 @@ export default function LiveRound({
     <div className="bw-shell">
       <header className="bw-header bw-live-header">
         <BrandMark onHome={onHome} />
-        <Pill tone={open ? "teal" : "neutral"}>{open ? "Live" : "Closed"}</Pill>
+        <span className="bw-header-divider" />
         <div className="bw-round-heading">
           <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title}</span>
-          <span style={{ fontSize: 11, color: "var(--bw-ink)" }}>
-            {connected ? "Receiving Zoom updates" : "Reconnecting…"}
-          </span>
+          <div className="bw-live-badge">
+            <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
+            <span
+              className={
+                open ? "bw-live-badge__label" : "bw-live-badge__label bw-live-badge__label--off"
+              }
+            >
+              {open ? "Live" : "Closed"}
+            </span>
+          </div>
         </div>
         <div className="bw-header-spacer" />
 
         {remainingSec !== null ? (
-          <div className="bw-timer">
-            <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
-            <span className="bw-timer__label">remaining</span>
-          </div>
+          <>
+            <div className="bw-timer">
+              <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
+              <span className="bw-timer__label">remaining</span>
+            </div>
+            <div className="bw-stepper">
+              <button
+                disabled={!open || remainingSec <= ADJUST_STEP_SEC}
+                title="Take a minute off this round"
+                onClick={() => void adjustTime(-ADJUST_STEP_SEC)}
+              >
+                -
+              </button>
+              <button
+                disabled={!open}
+                title="Give this round another minute"
+                onClick={() => void adjustTime(ADJUST_STEP_SEC)}
+              >
+                +
+              </button>
+            </div>
+          </>
         ) : null}
 
+        <Button variant="outline" size="sm" onClick={() => setSkipping(true)}>
+          Skip rounds
+        </Button>
         <Button variant="outline" size="sm" disabled={!open || busy} onClick={onEndRound}>
           End round
         </Button>
@@ -94,7 +134,7 @@ export default function LiveRound({
             title={open ? "End this round first." : undefined}
             onClick={onLaunchNext}
           >
-            Launch {roundLabel(workspace, nextRound.roundId)} -&gt;
+            Launch {roundLabel(workspace, nextRound.roundId)}
           </Button>
         ) : null}
       </header>
@@ -102,30 +142,38 @@ export default function LiveRound({
       <div className="bw-body">
         <aside className="bw-rail bw-rail--left">
           <SectionLabel>Session plan</SectionLabel>
-          {workspace.rounds.map((meta) => (
+          {workspace.rounds.map((meta, index) => (
             <Card
               key={meta.roundId}
               tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
               className="bw-plan-row"
             >
-              <StatusDot color={meta.dot} />
-              <span className="bw-member-name">{roundLabel(workspace, meta.roundId)}</span>
+              
+              <span
+                className="bw-member-name"
+                style={meta.status === "skipped" ? { color: "var(--bw-muted-3)" } : undefined}
+              >
+                R{index + 1}: {roundLabel(workspace, meta.roundId)}
+              </span>
               <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-ink)" }}>
-                {meta.status === "closed" ? "✓" : formatClock(meta.durationSec)}
+                {meta.status === "closed"
+                  ? "✓"
+                  : meta.status === "skipped"
+                    ? "skipped"
+                    : formatClock(meta.durationSec)}
               </span>
             </Card>
           ))}
 
-          <SectionLabel>Rooms</SectionLabel>
-          {round.rooms.map((room) => (
-            <div className="bw-rail-row" key={room.id}>
-              <StatusDot color={room.dot} />
-              <span className="bw-member-name">{room.name}</span>
-              <span className="bw-mono" style={{ fontSize: 11 }}>
-                {membersOf(room.id).length}/{room.participantUUIDs.length}
-              </span>
-            </div>
-          ))}
+          <SectionLabel>Task this round</SectionLabel>
+          <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
+            <span className="bw-task-summary__goal">
+              {tasks.task.goal || "No task set for this round"}
+            </span>
+            <span className="bw-task-summary__action">
+              {tasks.task.goal ? "Edit task" : "Add a task"} -&gt;
+            </span>
+          </button>
         </aside>
 
         <main className="bw-main">
@@ -154,6 +202,23 @@ export default function LiveRound({
           </div>
         </main>
       </div>
+
+      {skipping ? (
+        <SkipRoundsModal
+          workspace={workspace}
+          liveRoundId={live.round?.roundId ?? null}
+          onSkipRound={onSkipRound}
+          onClose={() => setSkipping(false)}
+        />
+      ) : null}
+
+      {editingTask ? (
+        <EditTaskModal
+          roundTitle={round.title}
+          tasks={tasks}
+          onClose={() => setEditingTask(false)}
+        />
+      ) : null}
     </div>
   );
 }

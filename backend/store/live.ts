@@ -12,6 +12,7 @@ interface LiveMeeting{
     participants: Map<string, LiveParticipant>;
     // Undefined rather than null so clearTimeout() needs no guard.
     timer?: ReturnType<typeof setTimeout>;
+    taskRevision: number;
 }
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
@@ -24,6 +25,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
         live.set(parentUUID, {
             round: null,
             participants: new Map(),
+            taskRevision: 0,
         });
     }
     return live.get(parentUUID)!;
@@ -32,7 +34,12 @@ function meetingFor(parentUUID: string): LiveMeeting{
 
 export function getLive(parentUUID: string): LiveState{
     const liveMeeting = meetingFor(parentUUID)
-    return { parentUUID, round: liveMeeting.round, participants: [...liveMeeting.participants.values()] }
+    return {
+        parentUUID,
+        round: liveMeeting.round,
+        participants: [...liveMeeting.participants.values()],
+        taskRevision: liveMeeting.taskRevision,
+    }
 }
 
 
@@ -51,6 +58,42 @@ export function subscribe(parentUUID: string, fn: (state: LiveState) => void): (
 
 }
 
+// Tasks live in store/tasks.ts; this only tells SSE clients that something changed.
+export function bumpTaskRevision(parentUUID: string): void {
+    meetingFor(parentUUID).taskRevision += 1
+    notify(parentUUID)
+}
+
+// The app owns the round timer: Zoom reports nothing when its own closeAfter fires.
+function armTimer(meeting: LiveMeeting, parentUUID: string, endsAt: number): void {
+    clearTimeout(meeting.timer)
+    if (!endsAt) return
+    meeting.timer = setTimeout(() => {
+        if (!meeting.round) return
+        meeting.round.timerEnded = true
+        notify(parentUUID)
+    }, Math.max(0, endsAt - Date.now()))
+}
+
+/**
+ * Add or remove time on the running round. Negative seconds shorten it.
+ * Returns null when no round is running, or when the round was launched with no
+ * timer at all: that is a deliberate "runs until the host ends it", not a zero.
+ */
+export function extendRound(parentUUID: string, seconds: number): LiveState | null {
+    const meeting = meetingFor(parentUUID)
+    if (!meeting.round || !meeting.round.endsAt) return null
+
+    // Never land in the past: shortening past now ends the round on the next tick.
+    const endsAt = Math.max(Date.now() + 1000, meeting.round.endsAt + seconds * 1000)
+    meeting.round.endsAt = endsAt
+    // Extending after the buzzer puts the round back on the clock.
+    meeting.round.timerEnded = false
+    armTimer(meeting, parentUUID, endsAt)
+    notify(parentUUID)
+    return getLive(parentUUID)
+}
+
 export function markLaunchedRound(parentUUID: string, roundId: string, durationSec: number): LiveState | null {
     const plan = getRoundPlan(parentUUID, roundId)
     // if getRoundPlan returns undefined, it means the round plan does not exist for the given parentUUID and roundId. In that case return null to indicate that there is no live round to mark as lauched
@@ -62,18 +105,10 @@ export function markLaunchedRound(parentUUID: string, roundId: string, durationS
         roomUUIDs[room.id] = null
     }
     const meeting = meetingFor(parentUUID)
-    clearTimeout(meeting.timer)
     // endsAt 0 means no timer: the round runs until the host closes it.
     const endsAt = durationSec > 0 ? Date.now() + durationSec * 1000 : 0
     meeting.round = { roundId, roomUUIDs, endsAt, timerEnded: false }
-    // The app owns the round timer: Zoom reports nothing when its own closeAfter fires.
-    if (endsAt) {
-        meeting.timer = setTimeout(() => {
-            if (!meeting.round) return
-            meeting.round.timerEnded = true
-            notify(parentUUID)
-        }, durationSec * 1000)
-    }
+    armTimer(meeting, parentUUID, endsAt)
     notify(parentUUID)
     return getLive(parentUUID)
 }

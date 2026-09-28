@@ -7,6 +7,7 @@ import type { ApiResponse, HealthResponse } from "./types/breakout.ts";
 import webhookRoutes from "./routes/webhooks.ts";
 import liveRoutes from "./routes/live.ts";
 import workSpaceRoutes from "./routes/workspace.ts"
+import taskRoutes from "./routes/tasks.ts";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use("/api/rounds", roundPlanRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/live", liveRoutes);
 app.use("/api/workspace", workSpaceRoutes);
+app.use("/api/tasks", taskRoutes);
 // zoom OAuth callback route, only backend should handle this
 app.get("/auth/callback", (req, res) => {
   console.log("Auth callback received");

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
-import { getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
-import type { ApiResponse, LiveState } from "../types/breakout.ts";
+import { extendRound, getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
+import type { ApiResponse, LiveActionResponse, LiveState, Workspace } from "../types/breakout.ts";
 
 const router = Router();
 
@@ -42,8 +42,47 @@ router.post("/launch", (req, res) => {
     res.status(404).json(body);
     return;
   }
-  const body: ApiResponse<LiveState> = { success: true, data: state };
+  // Must run before getWorkspace below, or the reply carries the pre-bump revision.
   markRoundStatus(parentUUID, roundId, "launched");
+
+  const body: ApiResponse<LiveActionResponse> = {
+    success: true,
+    data: { live: state, workspace: getWorkspace(parentUUID) ?? null },
+  };
+  res.json(body);
+});
+
+
+/** Widest single adjustment the host can make, in seconds. */
+const MAX_ADJUST_SEC = 1800;
+
+/** Add or remove time on the running round. Negative seconds shorten it. */
+router.post("/extend", (req, res) => {
+  const parentUUID = parentUUIDFrom(req.body?.parentUUID);
+  const seconds = req.body?.seconds;
+  // validate is seconds input is number
+  const validSeconds =
+    typeof seconds === "number" &&
+    Number.isSafeInteger(seconds) &&
+    seconds !== 0 &&
+    Math.abs(seconds) <= MAX_ADJUST_SEC;
+
+  if (!parentUUID || !validSeconds) {
+    const body: ApiResponse<never> = {
+      success: false,
+      error: `parentUUID and a non-zero whole number of seconds up to ${MAX_ADJUST_SEC} are required.`,
+    };
+    res.status(400).json(body);
+    return;
+  }
+
+  const state = extendRound(parentUUID, seconds);
+  if (!state) {
+    const body: ApiResponse<never> = { success: false, error: "No timed round is running." };
+    res.status(404).json(body);
+    return;
+  }
+  const body: ApiResponse<LiveState> = { success: true, data: state };
   res.json(body);
 });
 
@@ -58,7 +97,42 @@ router.post("/close", (req, res) => {
   const roundId = getLive(parentUUID).round?.roundId;
   const state = markClosedRound(parentUUID);
   if (roundId) markRoundStatus(parentUUID, roundId, "closed");
-  const body: ApiResponse<LiveState> = { success: true, data: state };
+  const body: ApiResponse<LiveActionResponse> = {
+    success: true,
+    data: { live: state, workspace: getWorkspace(parentUUID) ?? null },
+  };
+
+  res.json(body);
+});
+
+/**
+ * Skip a round the host does not want to run, or put a skipped one back.
+ * The panel decides which rounds may be skipped; an unknown round is a no-op,
+ * so this only ever reports the workspace as it now stands.
+ */
+router.post("/skip", (req, res) => {
+  const parentUUID = parentUUIDFrom(req.body?.parentUUID);
+  const roundId = parentUUIDFrom(req.body?.roundId);
+  const skipped: unknown = req.body?.skipped;
+
+  if (!parentUUID || !roundId || typeof skipped !== "boolean") {
+    const body: ApiResponse<never> = {
+      success: false,
+      error: "parentUUID, roundId and a boolean skipped are required.",
+    };
+    res.status(400).json(body);
+    return;
+  }
+
+  markRoundStatus(parentUUID, roundId, skipped ? "skipped" : "planned");
+
+  const workspace = getWorkspace(parentUUID);
+  if (!workspace) {
+    const body: ApiResponse<never> = { success: false, error: "No workspace for this meeting." };
+    res.status(404).json(body);
+    return;
+  }
+  const body: ApiResponse<Workspace> = { success: true, data: workspace };
   res.json(body);
 });
 

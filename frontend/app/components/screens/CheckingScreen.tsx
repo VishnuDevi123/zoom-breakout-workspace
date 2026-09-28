@@ -24,11 +24,7 @@ export default function CheckingScreen() {
       >
         <SectionLabel>Checking</SectionLabel>
 
-        <span style={{ fontSize: 15, fontWeight: 600 }}>Reading your role</span>
-
-        <span style={{ fontSize: 11.5, lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
-          Asking Zoom whether you can manage breakout rooms in this meeting.
-        </span>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>Checking your role</span>
       </div>
     </div>
   );

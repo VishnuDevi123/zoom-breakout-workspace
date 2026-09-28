@@ -99,7 +99,10 @@ declare global {
       }) => Promise<unknown>;
 
       getMeetingUUID: () => Promise<{
+        /** Inside a breakout room this is the ROOM's uuid, not the meeting's. */
         meetingUUID: string;
+        /** Present only inside a breakout room: the main meeting's uuid. */
+        parentUUID?: string;
       }>;
 
       getMeetingContext: () => Promise<{

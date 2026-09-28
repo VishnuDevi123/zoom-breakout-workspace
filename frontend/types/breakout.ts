@@ -50,11 +50,9 @@ export interface RoundPlan {
 
 export type RoundPlanDraft = Omit<RoundPlan, "revision">;
 
-
 export interface SaveRoundPlanRequest extends RoundPlanDraft {
   expectedRevision: number;
 }
-
 
 export type ApiResponse<T> =
   | { success: true; data: T }
@@ -70,9 +68,8 @@ export interface LiveParticipant {
   participantUUID: string;
   name: string;
   isHost: boolean;
-  location: "main" | "left"| string;
+  location: "main" | "left" | string;
 }
- 
 
 export interface LiveRound {
   roundId: string;
@@ -85,10 +82,11 @@ export interface LiveState {
   parentUUID: string;
   round: LiveRound | null;
   participants: LiveParticipant[];
+  /** Bumped on every task save; participants refetch /api/tasks when it changes. */
+  taskRevision: number;
 }
 
-
-export type RoundStatus = "planned" | "launched" | "closed";
+export type RoundStatus = "planned" | "launched" | "closed" | "skipped";
 
 /** Per-round metadata. Room lists live in RoundPlan, keyed by the same roundId. */
 export interface RoundMeta {
@@ -129,4 +127,32 @@ export interface AddRoundRequest {
   parentUUID: string;
   title?: string;
   durationSec?: number;
+}
+/** What one room sees during a round. Resources are URLs. */
+export interface RoomTask {
+  goal: string;
+  instructions: string[];
+  resources: string[];
+}
+
+/** One record per (parentUUID, roundId). `rooms` overrides `all`, keyed by PlannedRoom.id. */
+export interface RoundTasks {
+  parentUUID: string;
+  roundId: string;
+  all: RoomTask | null;
+  rooms: Record<string, RoomTask>;
+  /** Server-owned version: first save is 1; each successful update adds 1. */
+  revision: number;
+}
+
+/** PUT body. Use 0 to create. */
+export interface SaveRoundTasksRequest extends Omit<RoundTasks, "revision"> {
+  expectedRevision: number;
+}
+
+
+export interface LiveActionResponse {
+  live: LiveState;
+  /** Null when this meeting has no workspace; launch never gates on one. */
+  workspace: Workspace | null;
 }

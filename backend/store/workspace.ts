@@ -6,6 +6,7 @@ import {
   type Workspace,
 } from "../types/breakout.ts";
 import { deleteRoundPlan } from "./round-plans.ts";
+import { deleteRoundTasks } from "./tasks.ts";
 
 // One record per meeting. Room lists live in round-plans, keyed by the same roundId.
 const workspaces = new Map<string, Workspace>();
@@ -202,6 +203,7 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
   stored.rounds = stored.rounds.filter((r) => r.roundId !== id);
   stored.revision += 1;
   deleteRoundPlan(stored.parentUUID, id);
+  deleteRoundTasks(stored.parentUUID, id);
   return structuredClone(stored);
 }
 
