@@ -76,7 +76,10 @@ export default function RoundsOverview({
   const totalSec = workspace.rounds.reduce((sum, round) => sum + round.durationSec, 0);
   const anyLaunched = workspace.rounds.some((round) => round.status === "launched");
   // The round the host would start now: the first one Zoom has not run yet.
-  const target = workspace.rounds.find((round) => round.status !== "closed") ?? null;
+  // A skipped round is one the host chose not to run, so the rail steps over it.
+  const target =
+    workspace.rounds.find((round) => round.status !== "closed" && round.status !== "skipped") ??
+    null;
 
   const [applying, setApplying] = useState(false);
   // Everyone Zoom still reports in the meeting. The host is never placed in a room.

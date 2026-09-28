@@ -10,8 +10,9 @@ import type { RoundPlan } from "@/types/breakout";
  */
 const ZOOM_BUSY_MESSAGES = ["can not edit the breakout room", "not ready"];
 const ZOOM_BUSY_WAIT_MS = 1_500;
-const ZOOM_BUSY_ATTEMPTS = 4;
+const ZOOM_BUSY_ATTEMPTS = 3;
 
+// function too throw error message
 function zoomIsBusy(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   return ZOOM_BUSY_MESSAGES.some((busy) => message.includes(busy));

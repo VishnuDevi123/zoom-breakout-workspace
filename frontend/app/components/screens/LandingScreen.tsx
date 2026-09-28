@@ -32,7 +32,7 @@ export default function LandingScreen({
   onBuildRounds: () => void;
   onUseTemplate: (template: RoundTemplate) => void;
 }) {
-  const countText = participantCount === null ? "Connecting to the meeting…" : `${participantCount} people are in the main room.`;
+  const countText = participantCount === null ? "Connecting to the meeting…" : `Meeting occupancy: ${participantCount}.`;
 
   return (
     <div className="bw-shell">
@@ -52,7 +52,7 @@ export default function LandingScreen({
           <SectionLabel>You are hosting this meeting</SectionLabel>
           <h1 className="bw-landing-title">{meetingTopic || "This meeting"}</h1>
           <p className="bw-landing-lede">
-            {countText} Set up the rounds, and Zoom opens the breakouts when you launch.
+            {countText} Set up the rounds, and Zoom opens the rooms when you launch.
           </p>
 
           <div className="bw-landing-cards">
@@ -86,7 +86,7 @@ export default function LandingScreen({
               <Button variant="outline" disabled={busy} onClick={onStartRoundOne}>Start Round 1</Button>
             ) : null}
             <Button variant="accent" disabled={busy} onClick={onBuildRounds}>
-              {roundCount === null ? "Build the rounds →" : "Open the rounds →"}
+              {roundCount === null ? "Build the rounds →" : "Open the ongoing rounds"}
             </Button>
           </div>
         </main>

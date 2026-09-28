@@ -86,7 +86,7 @@ export interface LiveState {
   taskRevision: number;
 }
 
-export type RoundStatus = "planned" | "launched" | "closed";
+export type RoundStatus = "planned" | "launched" | "closed" | "skipped";
 
 /** Per-round metadata. Room lists live in RoundPlan, keyed by the same roundId. */
 export interface RoundMeta {
@@ -148,4 +148,11 @@ export interface RoundTasks {
 /** PUT body. Use 0 to create. */
 export interface SaveRoundTasksRequest extends Omit<RoundTasks, "revision"> {
   expectedRevision: number;
+}
+
+
+export interface LiveActionResponse {
+  live: LiveState;
+  /** Null when this meeting has no workspace; launch never gates on one. */
+  workspace: Workspace | null;
 }
