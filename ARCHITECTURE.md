@@ -40,6 +40,8 @@ participant moves Zoom     -> POST /api/webhooks/zoom                     live s
 push              backend  -> SSE  /api/live/events                       frontend setState -> UI
 Close Round N     frontend -> SDK getBreakoutRoomList, closeBreakoutRooms when still open
                   frontend -> POST /api/live/close                          live store: round null, timer cleared, room-located people reset to "main"; workspace: status closed
+skip round        frontend -> POST /api/live/skip {parentUUID, roundId, skipped}   workspace: status skipped <-> planned
+                  (launch, close and skip all reply with the workspace as well, because all three change its revision)
 ```
 
 ## Identity rules
@@ -70,6 +72,8 @@ close emits none of them, so `markClosedRound` resets locations instead.
 - Do not poll the SDK for live state; webhooks are the source. Two reads are allowed, both one-shot: `getBreakoutRoomList()` when the app opens on a round the backend still calls live, and again before `closeBreakoutRooms` to skip a close Zoom does not need.
 - The app owns the round clock. `configureBreakoutRooms` always sets `closeAfter: 0` and `countDown: 0`: Zoom reports nothing when its own timer fires, and a countdown blocks the next round's rooms. It runs **after** `createBreakoutRooms`, never before: configuring a room set that does not exist yet fails with `No Breakout Room exist.` on the first launch in a fresh meeting. `markLaunchedRound` and `extendRound` share one `armTimer` helper so the two cannot drift.
 - `config()` runs in two stages. `BASE_CAPABILITIES` (`getMeetingUUID`, `getUserContext`) is all any role may request; everything else, including `getMeetingContext` and `onMyUserContextChange`, is host-only and is added by `grantHostCapabilities` once the role is known. Requesting a host capability as an attendee rejects the whole call with `reason:require_meeting_role`. Demotion clears the memo so a later promotion re-runs stage two.
+- `markRoundStatus` bumps the workspace revision but returns nothing, so every route that calls it replies with the workspace too (`LiveActionResponse` for launch and close, a plain `Workspace` for skip) and the client adopts it. Without that the client keeps an old revision and its next workspace edit fails with 409, which nothing recovers from.
+- The next round to run is the next one still `planned`, never simply the next in the list: `RoundStatus` is `planned | launched | closed | skipped`, and Launch next, the auto-start chain and the overview's Launch Workflow all walk forward past the others. Skipping is a live-session decision, so it is driven from `SkipRoundsModal.tsx` on the live screen, not from the planner. The panel is the only guard on which rounds may change; the route accepts any round id.
 - Tasks are never gated on round status: the same `PUT /api/tasks/:roundId` serves the planner and the live panel. The SSE stream carries only `taskRevision`, never the task text, so a change is a signal to refetch.
 - A participant calls no breakout method and reads no Zoom state. Their room comes from the host's saved draft, matched on their own `participantUUID`.
 - Zoom answers "busy" for a second or two after a close and after creating rooms; `launch-round.ts` waits it out rather than failing.
@@ -88,6 +92,7 @@ close emits none of them, so `markClosedRound` resets locations instead.
 - Every entry in `ZOOM_CAPABILITIES` must stay ticked on the Marketplace API list, or `config()` fails with `reason:app_not_support`.
 - An attendee cannot receive `onMyUserContextChange`: it is host-only. A demoted host is re-routed at once, but a promoted attendee must reopen the app.
 - `getMeetingParticipants` called from inside a breakout room returns that room's people, not the meeting's. `getBreakoutRoomList` includes each room's participants only for the meeting **owner**; a co-host receives rooms with no people, which must not be read as an empty meeting.
+- Skipped rounds stay in the session plan, greyed and struck through. Launching one directly un-skips it, because launch never gates on the workspace.
 - One task per round. The store holds per-room overrides and every save preserves them, but no screen writes them yet.
 - Room count and auto-assign from the overview rail apply to every round at once; per-round differences need the editor. Rounds already launched are skipped.
 - Active scope: week 5, room tasks and the participant UI. Activities, submissions, help requests and room status are later weeks; the participant room page reserves the middle column for them.
