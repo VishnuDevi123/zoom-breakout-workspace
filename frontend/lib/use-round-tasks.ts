@@ -1,43 +1,59 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { readRoundTasks, saveRoundTasks } from "@/lib/execution-api";
-import type { RoomTask } from "@/types/breakout";
+import { ApiError, readRoundTasks, saveRoundTasks } from "@/lib/execution-api";
+import type { Activity, RoomTask, RoundTasks } from "@/types/breakout";
 
-const EMPTY_TASK: RoomTask = { goal: "", instructions: [], resources: [] };
+const EMPTY_TASK: RoomTask = { goal: "", instructions: [], resources: [], checklist: [] };
 
 export type TaskEditorState = "loading" | "ready" | "saving" | "error";
 
+/** What one save sends besides the ids: the round's task and its activities. */
+interface TaskDraft {
+  task: RoomTask;
+  activities: Activity[];
+}
+
 /**
- * The host's side of one round's task. `use-participant-round` reads the task
- * a participant should see and never writes; this one owns the edits, the
- * revision and the save, so the two stay separate.
+ * The host's side of one round's task and activities. `use-participant-round`
+ * reads what a participant should see and never writes; this one owns the
+ * edits, the revision and the save, so the two stay separate.
  *
  * Per-room overrides are carried through untouched. No screen writes them yet,
  * but a save must not wipe what the store already holds.
+ *
+ * Saves run one at a time: a blur save and a click right after it would
+ * otherwise both send the same revision, and the second would conflict with
+ * this client's own first write.
  */
 export function useRoundTasks(parentUUID: string, roundId: string) {
   const [task, setTask] = useState<RoomTask>(EMPTY_TASK);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [state, setState] = useState<TaskEditorState>("loading");
   const revisionRef = useRef(0);
   const roomsRef = useRef<Record<string, RoomTask>>({});
+  // The last draft sent, so saving one half keeps the other half as it was.
+  const draftRef = useRef<TaskDraft>({ task: EMPTY_TASK, activities: [] });
+  const queueRef = useRef<Promise<boolean>>(Promise.resolve(true));
+
+  const apply = useCallback((stored: RoundTasks | null) => {
+    revisionRef.current = stored?.revision ?? 0;
+    roomsRef.current = stored?.rooms ?? {};
+    draftRef.current = { task: stored?.all ?? EMPTY_TASK, activities: stored?.activities ?? [] };
+    setTask(draftRef.current.task);
+    setActivities(draftRef.current.activities);
+  }, []);
 
   useEffect(() => {
     let alive = true;
+    const load = parentUUID && roundId ? readRoundTasks(parentUUID, roundId) : Promise.resolve(null);
 
-    async function load(): Promise<RoomTask> {
-      if (!parentUUID || !roundId) return EMPTY_TASK;
-      const stored = await readRoundTasks(parentUUID, roundId);
-      revisionRef.current = stored?.revision ?? 0;
-      roomsRef.current = stored?.rooms ?? {};
-      return stored?.all ?? EMPTY_TASK;
-    }
-
-    void load()
-      .then((loaded) => {
+    load
+      .then((stored) => {
         if (!alive) return;
-        setTask(loaded);
+        apply(stored);
         setState("ready");
       })
       .catch(() => {
@@ -47,47 +63,72 @@ export function useRoundTasks(parentUUID: string, roundId: string) {
     return () => {
       alive = false;
     };
-  }, [parentUUID, roundId]);
+  }, [parentUUID, roundId, apply]);
 
   /**
-   * Writes the whole record. A 409 means another client saved first, so the
-   * current revision is read back and the write is retried once; a second
-   * conflict is a real collision and is reported.
+   * Writes the whole record. A 409 means someone else saved first: their
+   * version is loaded and shown, and this edit is dropped rather than written
+   * over theirs.
    */
-  const save = useCallback(
-    async (next: RoomTask): Promise<boolean> => {
+  const write = useCallback(
+    async (patch: Partial<TaskDraft>): Promise<boolean> => {
       if (!parentUUID || !roundId) return false;
+      const next = { ...draftRef.current, ...patch };
       setState("saving");
 
-      async function write(): Promise<number> {
+      try {
         const saved = await saveRoundTasks({
           parentUUID,
           roundId,
-          all: next.goal.trim() ? next : null,
+          all: next.task.goal.trim() ? next.task : null,
           rooms: roomsRef.current,
+          activities: next.activities,
           expectedRevision: revisionRef.current,
         });
-        return saved.revision;
-      }
-
-      try {
-        revisionRef.current = await write();
-      } catch {
-        const stored = await readRoundTasks(parentUUID, roundId).catch(() => null);
-        revisionRef.current = stored?.revision ?? revisionRef.current;
-        try {
-          revisionRef.current = await write();
-        } catch {
-          setState("error");
+        revisionRef.current = saved.revision;
+        draftRef.current = next;
+        setState("ready");
+        return true;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          apply(await readRoundTasks(parentUUID, roundId).catch(() => null));
+          toast.error("Someone else changed this round.", {
+            description: "Your edit was not saved. Check it and try again.",
+          });
+          setState("ready");
           return false;
         }
+        toast.error("Could not save.", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+        setState("error");
+        return false;
       }
-
-      setState("ready");
-      return true;
     },
-    [parentUUID, roundId],
+    [parentUUID, roundId, apply],
   );
 
-  return { task, setTask, state, save };
+  const enqueue = useCallback(
+    (patch: Partial<TaskDraft>): Promise<boolean> => {
+      const run = queueRef.current.then(() => write(patch));
+      queueRef.current = run;
+      return run;
+    },
+    [write],
+  );
+
+  const save = useCallback((next: RoomTask) => enqueue({ task: next }), [enqueue]);
+
+  const saveActivities = useCallback(
+    async (next: Activity[]): Promise<boolean> => {
+      const previous = activities;
+      setActivities(next);
+      const saved = await enqueue({ activities: next });
+      if (!saved) setActivities((current) => (current === next ? previous : current));
+      return saved;
+    },
+    [activities, enqueue],
+  );
+
+  return { task, setTask, activities, state, save, saveActivities };
 }

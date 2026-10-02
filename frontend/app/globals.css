@@ -1417,6 +1417,10 @@ a.bw-resource-row:hover {
   padding: 13px 16px;
   border-bottom: 1px solid var(--bw-border);
 }
+/* Narrow screens hide .bw-header-spacer, so the closing button pushes itself right. */
+.bw-overlay__header > :last-child {
+  margin-left: auto;
+}
 .bw-overlay__body {
   display: flex;
   flex-direction: column;
@@ -1491,4 +1495,117 @@ a.bw-resource-row:hover {
 .bw-skip-row--skipped .bw-member-name {
   color: var(--bw-muted-3);
   text-decoration: line-through;
+}
+
+/* ── Activities (task page rail, live rail, activity panel) ─────────── */
+.bw-activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bw-activity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+.bw-activity-card:hover {
+  border-color: var(--bw-accent);
+}
+.bw-activity-card--confirm {
+  cursor: default;
+  gap: 9px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--bw-red-deep);
+  border-color: var(--bw-red);
+}
+.bw-activity-card__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.bw-activity-card__grip {
+  color: var(--bw-muted-4);
+  cursor: grab;
+}
+.bw-activity-card__kind {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-activity-card__title {
+  font-size: 12.5px;
+  color: var(--bw-ink);
+}
+.bw-activity-card__description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--bw-muted-2);
+}
+.bw-activity-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.bw-activity-badge {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.bw-activity-empty {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+}
+.bw-activity-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bw-activity-add:hover {
+  border-color: var(--bw-ink);
+}
+.bw-activity-add__swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+.bw-activity-add__label {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+.bw-activity-add__hint {
+  font-size: 10.5px;
+  color: var(--bw-muted-3);
+}
+.bw-activity-description {
+  padding: 9px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.bw-danger-button {
+  background: var(--bw-red-deep);
+  color: var(--bw-surface);
 }

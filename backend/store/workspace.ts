@@ -5,6 +5,7 @@ import {
   type SaveWorkspaceRequest,
   type Workspace,
 } from "../types/breakout.ts";
+import { deleteRoundResponses } from "./activity_responses.ts";
 import { deleteRoundPlan } from "./round-plans.ts";
 import { deleteRoundTasks } from "./tasks.ts";
 
@@ -204,6 +205,7 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
   stored.revision += 1;
   deleteRoundPlan(stored.parentUUID, id);
   deleteRoundTasks(stored.parentUUID, id);
+  deleteRoundResponses(stored.parentUUID, id);
   return structuredClone(stored);
 }
 

@@ -10,10 +10,24 @@ import type {
   Workspace,
 } from "@/types/breakout";
 
+/** Carries the HTTP status so a caller can tell a 409 conflict from other failures. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function apiResult<T>(response: Response): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
   if (!response.ok || !result.success) {
-    throw new Error(result.success ? `Backend returned ${response.status}.` : result.error);
+    throw new ApiError(
+      result.success ? `Backend returned ${response.status}.` : result.error,
+      response.status,
+    );
   }
   return result.data;
 }

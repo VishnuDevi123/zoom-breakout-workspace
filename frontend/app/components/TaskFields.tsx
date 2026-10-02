@@ -1,11 +1,11 @@
 "use client";
 
-import type { RoomTask } from "@/types/breakout";
+import type { CheckListItem, RoomTask } from "@/types/breakout";
 
 import { SectionLabel } from "./ui";
 
 /**
- * The three task fields, shared by the round's task page and the panel the host
+ * The task fields, shared by the round's task page and the panel the host
  * opens mid-round. Nothing here knows where it is rendered.
  *
  * Saving happens at the edges rather than on every keystroke: `setTask` reports
@@ -23,6 +23,26 @@ export default function TaskFields({
   /** Blank rows are working space while typing; they are dropped on save. */
   function commitLines(field: "instructions" | "resources", lines: string[]) {
     const next = { ...task, [field]: lines.map((line) => line.trim()).filter(Boolean) };
+    setTask(next);
+    save(next);
+  }
+
+  /** Items keep their ids across edits: ticks are stored per item id. */
+  function editChecklist(labels: string[]) {
+    const checklist = labels.map((label, at) => ({
+      id: task.checklist[at]?.id ?? crypto.randomUUID(),
+      label,
+    }));
+    setTask({ ...task, checklist });
+  }
+
+  function commitChecklist(checklist: CheckListItem[]) {
+    const next = {
+      ...task,
+      checklist: checklist
+        .map((item) => ({ ...item, label: item.label.trim() }))
+        .filter((item) => item.label),
+    };
     setTask(next);
     save(next);
   }
@@ -49,6 +69,22 @@ export default function TaskFields({
           placeholder="One step per line"
           onChange={(instructions) => setTask({ ...task, instructions })}
           onCommit={(instructions) => commitLines("instructions", instructions)}
+          onRemove={(index) =>
+            commitLines("instructions", task.instructions.filter((_, at) => at !== index))
+          }
+        />
+      </div>
+
+      <div className="bw-field">
+        <SectionLabel>Checklist · anyone in the room can tick</SectionLabel>
+        <LineList
+          lines={task.checklist.map((item) => item.label)}
+          numbered={false}
+          addLabel="+ Add item"
+          placeholder="Done when…"
+          onChange={editChecklist}
+          onCommit={() => commitChecklist(task.checklist)}
+          onRemove={(index) => commitChecklist(task.checklist.filter((_, at) => at !== index))}
         />
       </div>
 
@@ -61,6 +97,9 @@ export default function TaskFields({
           placeholder="https://…"
           onChange={(resources) => setTask({ ...task, resources })}
           onCommit={(resources) => commitLines("resources", resources)}
+          onRemove={(index) =>
+            commitLines("resources", task.resources.filter((_, at) => at !== index))
+          }
         />
       </div>
     </>
@@ -79,6 +118,7 @@ function LineList({
   placeholder,
   onChange,
   onCommit,
+  onRemove,
 }: {
   lines: string[];
   numbered: boolean;
@@ -86,8 +126,10 @@ function LineList({
   placeholder: string;
   /** Every keystroke. */
   onChange: (lines: string[]) => void;
-  /** Leaving a row, or removing one. */
+  /** Leaving a row. */
   onCommit: (lines: string[]) => void;
+  /** By position, so a caller holding ids beside the lines removes the right one. */
+  onRemove: (index: number) => void;
 }) {
   return (
     <div className="bw-line-list">
@@ -108,7 +150,7 @@ function LineList({
           <button
             className="bw-icon-button"
             aria-label="Remove line"
-            onClick={() => onCommit(lines.filter((_, at) => at !== index))}
+            onClick={() => onRemove(index)}
           >
             ✕
           </button>

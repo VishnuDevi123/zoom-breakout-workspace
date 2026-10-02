@@ -12,6 +12,7 @@ import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace }
 
 import { toast } from "sonner";
 
+import ActivityList from "./ActivityList";
 import EditTaskModal from "./EditTaskModal";
 import SkipRoundsModal from "./SkipRoundsModal";
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
@@ -171,9 +172,13 @@ export default function LiveRound({
               {tasks.task.goal || "No task set for this round"}
             </span>
             <span className="bw-task-summary__action">
-              {tasks.task.goal ? "Edit task" : "Add a task"} -&gt;
+              {tasks.task.goal ? "Edit task" : "Add a task"}
             </span>
           </button>
+
+          {open ? (
+            <ActivityList activities={tasks.activities} live onSave={tasks.saveActivities} />
+          ) : null}
         </aside>
 
         <main className="bw-main">

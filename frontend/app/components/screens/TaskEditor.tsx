@@ -1,13 +1,12 @@
 "use client";
 
-import { toast } from "sonner";
-
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
 import type { RoundMeta, Workspace } from "@/types/breakout";
 
+import ActivityList from "../ActivityList";
 import TaskFields from "../TaskFields";
-import { Button, Card, SectionLabel } from "../ui";
+import { Button } from "../ui";
 
 /**
  * Step 2 of configuring one round: the task every room in it receives.
@@ -35,18 +34,17 @@ export default function TaskEditor({
   onNext: () => void;
   nextLabel: string;
 }) {
-  const { task, setTask, state, save } = useRoundTasks(workspace.parentUUID, round.roundId);
+  const { task, setTask, activities, state, save, saveActivities } = useRoundTasks(
+    workspace.parentUUID,
+    round.roundId,
+  );
   const label = roundLabel(workspace, round.roundId);
   const configured = workspace.rounds.length;
 
-  /** Commit the current draft, then run a navigation that must not lose it. */
+  /** Commit the current draft, then run a navigation that must not lose it. The hook reports a failure. */
   async function leave(go: () => void) {
     if (state === "loading") return;
-    if (!(await save(task))) {
-      toast.error("Could not save the task. Try again before leaving this page.");
-      return;
-    }
-    go();
+    if (await save(task)) go();
   }
 
   return (
@@ -62,15 +60,6 @@ export default function TaskEditor({
           </span>
         </div>
 
-        <div className="bw-step-switch">
-          <button className="bw-step-switch__step" onClick={() => void leave(onBack)}>
-            Rooms
-          </button>
-          <span className="bw-setup-arrow">→</span>
-          <span className="bw-step-switch__step bw-step-switch__step--current">
-            Task &amp; activities
-          </span>
-        </div>
 
         <div className="bw-header-spacer" />
       </header>
@@ -81,9 +70,7 @@ export default function TaskEditor({
         </main>
 
         <aside className="bw-rail">
-          <SectionLabel>Activities on this round</SectionLabel>
-          <Card tone="dashed" style={{ fontSize: 11, lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
-          </Card>
+          <ActivityList activities={activities} live={false} onSave={saveActivities} />
 
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 7 }}>
             <Button variant="outline" onClick={() => void leave(onBackToRounds)}>

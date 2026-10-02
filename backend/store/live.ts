@@ -1,18 +1,19 @@
 import {
-    type LiveParticipant,
-    type LiveRound,
-    type LiveState,
+  type LiveParticipant,
+  type LiveRound,
+  type LiveState,
 } from "../types/breakout.ts"; 
 import {getRoundPlan } from "./round-plans.ts";
 
 // tracking the current live state participant, rooms and rounds and push any updates to the store
 
-interface LiveMeeting{
-    round: LiveRound | null;
-    participants: Map<string, LiveParticipant>;
-    // Undefined rather than null so clearTimeout() needs no guard.
-    timer?: ReturnType<typeof setTimeout>;
-    taskRevision: number;
+interface LiveMeeting {
+  round: LiveRound | null;
+  participants: Map<string, LiveParticipant>;
+  // Undefined rather than null so clearTimeout() needs no guard.
+  timer?: ReturnType<typeof setTimeout>;
+  taskRevision: number;
+  roomRevisions: Record<string, number>;
 }
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
@@ -26,6 +27,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
             round: null,
             participants: new Map(),
             taskRevision: 0,
+            roomRevisions: {},
         });
     }
     return live.get(parentUUID)!;
@@ -39,6 +41,7 @@ export function getLive(parentUUID: string): LiveState{
         round: liveMeeting.round,
         participants: [...liveMeeting.participants.values()],
         taskRevision: liveMeeting.taskRevision,
+        roomRevisions: { ...liveMeeting.roomRevisions },
     }
 }
 
@@ -61,6 +64,13 @@ export function subscribe(parentUUID: string, fn: (state: LiveState) => void): (
 // Tasks live in store/tasks.ts; this only tells SSE clients that something changed.
 export function bumpTaskRevision(parentUUID: string): void {
     meetingFor(parentUUID).taskRevision += 1
+    notify(parentUUID)
+}
+
+/** Called on every response write in one room; that room's participants refetch their board. */
+export function bumpRoomRevision(parentUUID: string, roomId: string): void {
+    const meeting = meetingFor(parentUUID)
+    meeting.roomRevisions[roomId] = (meeting.roomRevisions[roomId] ?? 0) + 1
     notify(parentUUID)
 }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { toast } from "sonner";
 
 import type { useRoundTasks } from "@/lib/use-round-tasks";
 
@@ -31,11 +30,8 @@ export default function EditTaskModal({
 
   async function close() {
     if (state === "loading") return;
-    if (!(await save(task))) {
-      toast.error("Could not save the task. Try again before closing.");
-      return;
-    }
-    onClose();
+    // The hook reports a failure; the panel stays open so the edit is not lost.
+    if (await save(task)) onClose();
   }
 
   useEffect(() => {
