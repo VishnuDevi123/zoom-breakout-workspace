@@ -22,7 +22,8 @@
   --bw-border-strong: #c7cad5;
 
   /* Ink */
-  --bw-ink: #1c1c1e;
+  --bw-ink: #080808;
+  --bw-ink-title: #141415;
   --bw-ink-hover: #2c2c34;
   --bw-muted: #555a6a;
   --bw-muted-2: #6b6f7e;
@@ -1296,6 +1297,7 @@ body {
   line-height: 1.25;
   letter-spacing: -0.3px;
   text-wrap: pretty;
+  color: var(--bw-ink);
 }
 .bw-task-empty {
   margin: 0;
@@ -1608,4 +1610,392 @@ a.bw-resource-row:hover {
 .bw-danger-button {
   background: var(--bw-red-deep);
   color: var(--bw-surface);
+}
+
+/* ── Participant room page: task | activities | people ──────────────── */
+/* Stronger type on this page: labels and body text in ink, not grey. */
+.bw-participant-room .bw-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bw-ink);
+}
+.bw-participant-room .bw-instruction-row,
+.bw-participant-room .bw-resource-row__label,
+.bw-participant-room .bw-task-empty {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+.bw-participant-room .bw-task-goal {
+  font-size: 16px;
+}
+.bw-participant-room .bw-activity-badge {
+  font-size: 9.5px;
+}
+.bw-room-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--bw-ink);
+}
+.bw-activity-count {
+  padding: 3px 9px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-sunken);
+  border: 1px solid var(--bw-border);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-participant-room .bw-activities-heading {
+  align-items: center;
+}
+.bw-participant-room .bw-activities-empty {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+
+/* Activity cards */
+.bw-room-activity {
+  container-type: inline-size;
+  container-name: room-activity;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+.bw-room-activity__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.bw-room-activity__break {
+  display: none;
+}
+.bw-room-activity__spacer {
+  flex: 1;
+}
+.bw-room-activity__kind {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bw-room-activity__scope {
+  padding: 2px 8px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-pill);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-room-activity__question {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--bw-ink);
+}
+.bw-room-activity__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.bw-progress-pill {
+  padding: 3px 10px;
+  border-radius: var(--bw-radius-pill);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.bw-progress-pill--notStarted {
+  background: var(--bw-surface-sunken);
+  color: var(--bw-ink);
+  border: 1px solid var(--bw-border);
+}
+.bw-progress-pill--working {
+  background: #eef1ff;
+  color: #2a41b6;
+}
+.bw-progress-pill--completed {
+  background: #e3f7d4;
+  color: #2d6a1f;
+}
+
+/* Right column */
+.bw-room-sidebar {
+  gap: 10px;
+}
+.bw-room-member {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.bw-room-member__avatar {
+  width: 27px;
+  height: 27px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bw-ink);
+}
+.bw-room-member__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-room-member__status {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.bw-room-member__status--open {
+  color: #2a41b6;
+}
+.bw-room-member__status--done {
+  color: #2d6a1f;
+}
+.bw-host-message {
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--bw-ink);
+  background: #fff8db;
+  border-color: #f3e3a0;
+}
+
+/* Shared checklist (room page and board page) */
+.bw-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: 10px;
+}
+.bw-checklist__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.bw-checklist__title {
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bw-ink);
+}
+.bw-checklist__count {
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-checklist__pill {
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: var(--bw-radius-pill);
+  background: #eef1ff;
+  color: #2a41b6;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.bw-checklist__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bw-checklist__box {
+  margin-top: 1px;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--bw-border-strong);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bw-surface);
+}
+.bw-checklist__row--done .bw-checklist__box {
+  background: #2a41b6;
+  border-color: #2a41b6;
+}
+.bw-checklist__label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+.bw-checklist__row--done .bw-checklist__label {
+  text-decoration: line-through;
+}
+
+/* Participant room layout. Responds to the room page's own width (the Zoom
+   panel), not the window: container queries on .bw-participant-room.
+   Wide >= 880px:   Task | Activities | In This Room
+   Medium 640-879:  Task full width, then Activities | In This Room
+   880 because the widest Zoom panel measured on a laptop is 900px.
+   Narrow < 640px:  Task / Activities / In This Room / Message
+   Columns do not scroll on their own; the page scrolls as a whole. */
+.bw-participant-room {
+  container-type: inline-size;
+  container-name: participant-room;
+}
+.bw-participant-room .bw-body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 220px;
+  grid-template-rows: 1fr;
+  grid-template-areas: "task main people";
+}
+.bw-participant-room .bw-task-rail {
+  grid-area: task;
+  width: auto;
+  min-width: 0;
+  overflow: visible;
+  border-top: 0;
+  border-right: 1px solid var(--bw-border);
+}
+.bw-participant-room .bw-main {
+  grid-area: main;
+  min-width: 0;
+  overflow: visible;
+}
+.bw-participant-room .bw-room-sidebar {
+  grid-area: people;
+  width: auto;
+  min-width: 0;
+  border-top: 0;
+  border-left: 1px solid var(--bw-border);
+}
+
+@container participant-room (max-width: 879px) {
+  .bw-participant-room .bw-body {
+    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "task task"
+      "main people";
+  }
+  .bw-participant-room .bw-task-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--bw-border);
+  }
+}
+
+@container participant-room (max-width: 639px) {
+  .bw-participant-room .bw-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "task"
+      "main"
+      "people";
+  }
+  .bw-participant-room .bw-room-sidebar {
+    border-left: 0;
+    border-top: 1px solid var(--bw-border);
+  }
+}
+
+/* Activity card adapts to its own width. Narrow: type on line one, scope and
+   status on line two, question full width, Open bottom right. */
+@container room-activity (max-width: 360px) {
+  .bw-room-activity__break {
+    display: block;
+    flex-basis: 100%;
+    height: 0;
+  }
+  .bw-room-activity__spacer {
+    display: none;
+  }
+  .bw-room-activity__header {
+    row-gap: 6px;
+  }
+  .bw-room-activity__question {
+    font-size: 12px;
+  }
+}
+
+/* Type and spacing tighten a step per layout state; wide keeps the base sizes. */
+@container participant-room (max-width: 879px) {
+  .bw-participant-room .bw-main {
+    padding: 14px 16px;
+  }
+  .bw-participant-room .bw-rail {
+    padding: 14px;
+  }
+  .bw-participant-room .bw-room-title {
+    font-size: 15px;
+  }
+  .bw-participant-room .bw-task-goal {
+    font-size: 15px;
+  }
+  .bw-participant-room .bw-room-activity {
+    padding: 13px 14px;
+  }
+  .bw-participant-room .bw-room-activity__question {
+    font-size: 12.5px;
+  }
+}
+
+@container participant-room (max-width: 639px) {
+  .bw-participant-room .bw-main {
+    padding: 12px;
+    gap: 10px;
+  }
+  .bw-participant-room .bw-rail {
+    padding: 12px;
+    gap: 11px;
+  }
+  .bw-participant-room .bw-room-title {
+    font-size: 14.5px;
+  }
+  .bw-participant-room .bw-task-goal {
+    font-size: 14.5px;
+  }
+  .bw-participant-room .bw-section-label {
+    font-size: 9.5px;
+  }
+  .bw-participant-room .bw-instruction-row,
+  .bw-participant-room .bw-resource-row__label,
+  .bw-participant-room .bw-checklist__label {
+    font-size: 11px;
+  }
+  .bw-participant-room .bw-room-member__name {
+    font-size: 11.5px;
+  }
+  .bw-participant-room .bw-room-activity {
+    gap: 8px;
+    padding: 12px 13px;
+  }
+  .bw-participant-room .bw-room-activity__question {
+    font-size: 12px;
+  }
 }

@@ -2,16 +2,18 @@
 
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { ParticipantRound } from "@/lib/use-participant-round";
+import { useRoomResponses } from "@/lib/use-room-responses";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
-import { Card, SectionLabel, StatusDot } from "../ui";
+import ActivityCards from "../ActivityCards";
+import RoomSidebar from "../RoomSidebar";
+import SharedChecklist from "../SharedChecklist";
+import { Card, SectionLabel } from "../ui";
 
 /**
- * The room a participant works in for one round: the task on the left, and the
- * activities they are asked to complete in the middle.
- *
- * Read-only for now. Activities land in a later week, so the middle column
- * carries the placeholder rather than the cards.
+ * The room a participant works in for one round: the task and its shared
+ * checklist on the left, the activities in the middle, and the room's people
+ * and the host's message on the right.
  */
 export default function ParticipantWorkspace({
   round,
@@ -26,7 +28,15 @@ export default function ParticipantWorkspace({
   participantUUID: string;
   onBack: () => void;
 }) {
-  const { task, roundTitle, roundPosition, roundCount } = round;
+  const { task, activities, roundTitle, roundPosition, roundCount } = round;
+  const roundId = live?.round?.roundId ?? "";
+  const { view, setTick } = useRoomResponses({
+    parentUUID: live?.parentUUID ?? "",
+    roundId,
+    roomId: room.id,
+    participantUUID,
+    roomRevision: live?.roomRevisions[room.id] ?? 0,
+  });
   const remainingSec = useRemainingSec(live?.round?.endsAt ?? 0);
   const roomUUID = live?.round?.roomUUIDs[room.id] ?? null;
   const others = (live?.participants ?? [])
@@ -35,7 +45,7 @@ export default function ParticipantWorkspace({
     .filter(Boolean);
 
   return (
-    <div className="bw-shell">
+    <div className="bw-shell bw-participant-room">
       <header className="bw-header bw-participant-workspace-header">
         <button className="bw-back" onClick={onBack}>
           ←
@@ -115,18 +125,23 @@ export default function ParticipantWorkspace({
               ))}
             </div>
           ) : null}
+
+          {task ? (
+            <SharedChecklist items={task.checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
+          ) : null}
         </aside>
 
         <main className="bw-main">
-          <div className="bw-activities-heading">
-            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Activities</span>
-            <div style={{ flex: 1 }} />
-          </div>
-
-          <Card tone="dashed" className="bw-activities-empty">
-            Nothing to submit this round.
-          </Card>
+          <ActivityCards activities={activities} view={view} participantUUID={participantUUID} />
         </main>
+
+        <RoomSidebar
+          room={room}
+          live={live}
+          activities={activities}
+          view={view}
+          participantUUID={participantUUID}
+        />
       </div>
     </div>
   );

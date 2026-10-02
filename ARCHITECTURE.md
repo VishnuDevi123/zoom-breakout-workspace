@@ -109,6 +109,7 @@ close emits none of them, so `markClosedRound` resets locations instead.
 - Round status pills were removed on purpose. Do not add them back.
 - Task saves happen at the edges, not per keystroke: a field commits on blur, and both the page's navigation buttons and the panel's close flush first and refuse to leave on failure. `TaskFields` keeps no copy of the list - an earlier version did, and reverted every keystroke in an existing row.
 - The live screen's rail shows the round's task, not a room list; the room cards beside it already carry that.
+- Measured in Zoom on a macOS laptop (2026-10-01): the app panel at its widest is 900px, and the app runs in WebKit (Safari-style errors), so container queries need Safari 16+. The participant room page lays out on its own width with container queries: wide >= 880px (task | activities | people), medium 640-879, narrow < 640.
 - The participant screen has three states: no round running, running but not placed in a room, and placed. Only the third can open the room page, and losing a placement closes it.
 
 ## Infra

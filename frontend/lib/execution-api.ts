@@ -3,10 +3,12 @@ import type {
   LiveActionResponse,
   LiveState,
   RoundPlan,
+  RoomResponsesView,
   RoundPlanDraft,
   RoundTasks,
   SaveRoundPlanRequest,
   SaveRoundTasksRequest,
+  TickRequest,
   Workspace,
 } from "@/types/breakout";
 
@@ -151,6 +153,37 @@ export async function markRoundClosed(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID }),
+    }),
+  );
+}
+
+function roomResponsesUrl(roundId: string, roomId: string): string {
+  return `/api/responses/${encodeURIComponent(roundId)}/rooms/${encodeURIComponent(roomId)}`;
+}
+
+/** The caller's view of their room: notes, ready marks, ticks, own answers, everyone's answer status. */
+export async function readRoomResponses(
+  parentUUID: string,
+  roundId: string,
+  roomId: string,
+  participantUUID: string,
+): Promise<RoomResponsesView> {
+  const query = `parentUUID=${encodeURIComponent(parentUUID)}&participantUUID=${encodeURIComponent(participantUUID)}`;
+  return apiResult(await fetch(`${roomResponsesUrl(roundId, roomId)}?${query}`, { cache: "no-store" }));
+}
+
+/** Tick or untick one task checklist item for the whole room. */
+export async function saveTick(
+  roundId: string,
+  roomId: string,
+  itemId: string,
+  request: TickRequest,
+): Promise<RoomResponsesView> {
+  return apiResult(
+    await fetch(`${roomResponsesUrl(roundId, roomId)}/ticks/${encodeURIComponent(itemId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
     }),
   );
 }

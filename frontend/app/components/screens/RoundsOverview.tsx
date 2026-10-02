@@ -168,14 +168,7 @@ export default function RoundsOverview({
           </span>
         </div>
         <div className="bw-header-spacer" />
-        <div className="bw-setup-steps">
-          {SETUP_STEPS.map((step, index) => (
-            <span key={step} className="bw-setup-step-wrap">
-              {index > 0 ? <span className="bw-setup-arrow">→</span> : null}
-              <Pill tone={index === 0 ? "dark" : "outline"}>{step}</Pill>
-            </span>
-          ))}
-        </div>
+
       </header>
 
       <div className="bw-body">

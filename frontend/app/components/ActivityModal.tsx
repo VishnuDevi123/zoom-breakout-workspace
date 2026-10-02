@@ -75,12 +75,12 @@ export default function ActivityModal({
             />
           </div>
           <div className="bw-field">
-            <SectionLabel>Clue or extra info</SectionLabel>
+            <SectionLabel>Additional Information</SectionLabel>
             <textarea
               className="bw-activity-description"
               rows={4}
               value={description}
-              placeholder="Optional - shown under the title"
+              placeholder="Write any additional instructions here"
               onChange={(event) => setDescription(event.target.value)}
             />
           </div>

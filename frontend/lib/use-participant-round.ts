@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { readRoundTasks, readSavedRoundPlan, readWorkspace } from "@/lib/execution-api";
-import type { PlannedRoom, RoomTask } from "@/types/breakout";
+import type { Activity, PlannedRoom, RoomTask } from "@/types/breakout";
 
 /**
  * What one participant needs to see for the running round.
@@ -20,6 +20,8 @@ export interface ParticipantRound {
   room: PlannedRoom | null;
   /** Per-room override, else the round-level task, else null. */
   task: RoomTask | null;
+  /** Round-wide, in the host's order. Empty when none. */
+  activities: Activity[];
   /** The round's own title, from the saved draft. */
   roundTitle: string;
   /** 1-based place in the workspace, and how many rounds there are. 0 when unknown. */
@@ -51,6 +53,7 @@ export function useParticipantRound({
 }): ParticipantRound {
   const [placement, setPlacement] = useState<Placement>(NOWHERE);
   const [task, setTask] = useState<RoomTask | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -93,20 +96,24 @@ export function useParticipantRound({
   useEffect(() => {
     let alive = true;
 
-    async function readTask(): Promise<RoomTask | null> {
-      if (!parentUUID || !roundId) return null;
+    async function readTask(): Promise<{ task: RoomTask | null; activities: Activity[] }> {
+      if (!parentUUID || !roundId) return { task: null, activities: [] };
       try {
         const tasks = await readRoundTasks(parentUUID, roundId);
-        return (roomId ? tasks?.rooms[roomId] : null) ?? tasks?.all ?? null;
+        return {
+          task: (roomId ? tasks?.rooms[roomId] : null) ?? tasks?.all ?? null,
+          activities: tasks?.activities ?? [],
+        };
       } catch {
-        return null;
+        return { task: null, activities: [] };
       }
     }
 
     void readTask().then((next) => {
       if (!alive) return;
-      taskOnScreen.current = next !== null;
-      setTask(next);
+      taskOnScreen.current = next.task !== null;
+      setTask(next.task);
+      setActivities(next.activities);
     });
 
     return () => {
@@ -128,6 +135,7 @@ export function useParticipantRound({
   return {
     room: placement.room,
     task,
+    activities,
     roundTitle: placement.roundTitle,
     roundPosition: placement.roundPosition,
     roundCount: placement.roundCount,
