@@ -4,7 +4,6 @@ import {
   addIdea,
   editIdea,
   getRoomResponses,
-  markReady,
   parseRoom,
   removeIdea,
   ResponseError,
@@ -24,7 +23,7 @@ import type { Activity, ApiResponse, RoomResponsesView } from "../types/breakout
 // checklist item still exists, then hands the write to the responses store.
 //
 // Every response route returns the caller's view of the room (RoomResponsesView):
-// everyone's notes, ready marks and ticks, the caller's own answers, and only the
+// everyone's notes and ticks, the caller's own answers, and only the
 // status of everyone else's answers. Each write also bumps the room's counter in
 // LiveState.roomRevisions, so the room's other participants refetch.
 //
@@ -138,22 +137,6 @@ router.delete("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", (req, res) =>
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
   const view = removeIdea(room, activityId, noteId, req.body);
-  const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
-  res.json(body);
-});
-
-/**
- * PUT /api/responses/:roundId/rooms/:roomId/ready/:activityId
- * Body: MarkReadyRequest. true marks the caller ready on this board, false undoes it.
- *
- * Example body: { "parentUUID": "...", "participantUUID": "p-ana", "ready": true }
- * 200: RoomResponsesView, with "p-ana" in ready.a2.
- */
-router.put("/:roundId/rooms/:roomId/ready/:activityId", (req, res) => {
-  const { roundId, roomId, activityId } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
-  assertActivity(room, activityId, "ideaBoard");
-  const view = markReady(room, activityId, req.body);
   const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
   res.json(body);
 });

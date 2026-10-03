@@ -90,8 +90,8 @@ export function useParticipantRound({
 
   const roomId = placement.room?.id ?? "";
 
-  /** True while a task is on screen, so the toast below can tell a change from an arrival. */
-  const taskOnScreen = useRef(false);
+  /** What is on screen, and for which round and room, so a refetch can say what changed. */
+  const shown = useRef<{ key: string; task: RoomTask | null; activities: Activity[] } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -111,7 +111,10 @@ export function useParticipantRound({
 
     void readTask().then((next) => {
       if (!alive) return;
-      taskOnScreen.current = next.task !== null;
+      const key = `${roundId}:${roomId}`;
+      const previous = shown.current?.key === key ? shown.current : null;
+      shown.current = { key, ...next };
+      if (previous) announceChanges(previous, next);
       setTask(next.task);
       setActivities(next.activities);
     });
@@ -121,17 +124,6 @@ export function useParticipantRound({
     };
   }, [parentUUID, roundId, roomId, taskRevision]);
 
-  // Announce a live edit, never the first task of the round: arriving content
-  // explains itself, changed content does not. This runs before the fetch above
-  // resolves, so it still sees whether something was already displayed.
-  const announcedRevision = useRef(taskRevision);
-
-  useEffect(() => {
-    if (announcedRevision.current === taskRevision) return;
-    announcedRevision.current = taskRevision;
-    if (taskOnScreen.current) toast("Host updated the task");
-  }, [taskRevision]);
-
   return {
     room: placement.room,
     task,
@@ -140,4 +132,22 @@ export function useParticipantRound({
     roundPosition: placement.roundPosition,
     roundCount: placement.roundCount,
   };
+}
+
+/**
+ * Toasts for a live host edit, compared with what was on screen in the same
+ * round and room. Never on first load: arriving content explains itself.
+ * A first task appearing mid-round is an arrival too, so it is not announced.
+ */
+function announceChanges(
+  previous: { task: RoomTask | null; activities: Activity[] },
+  next: { task: RoomTask | null; activities: Activity[] },
+): void {
+  const known = new Set(previous.activities.map((activity) => activity.id));
+  for (const activity of next.activities) {
+    if (!known.has(activity.id)) toast("New activity from your host", { description: activity.title });
+  }
+  if (previous.task && JSON.stringify(previous.task) !== JSON.stringify(next.task)) {
+    toast("Host updated the task");
+  }
 }

@@ -1,3 +1,5 @@
+import type { LiveState, PlannedRoom } from "@/types/breakout";
+
 /** Where a participant is from the draft editor's point of view. */
 export type ParticipantStatus = "in-room" | "unassigned" | "left";
 
@@ -35,3 +37,30 @@ export const DRAFT_MEMBER_STATUS_LABEL: Record<ParticipantStatus, string> = {
   unassigned: "planned · in main",
   left: "planned · left meeting",
 };
+
+/** Avatar backgrounds for room members, by position. */
+export const AVATAR_TINTS = ["#eef1ff", "#c3faf5", "#fff4c4", "#fde0f0", "#e3f7d4"];
+
+/**
+ * The people a participant shares a breakout room with, from the host's draft.
+ * Once Zoom has reported which breakout room this is, only members actually in
+ * it are kept. Names come from the webhook-fed live store; the caller is "You".
+ */
+export function roomMembers({
+  room,
+  live,
+  participantUUID,
+}: {
+  room: PlannedRoom;
+  live: LiveState | null;
+  participantUUID: string;
+}): { participantUUID: string; name: string }[] {
+  const roomUUID = live?.round?.roomUUIDs[room.id] ?? null;
+  const known = new Map((live?.participants ?? []).map((p) => [p.participantUUID, p]));
+  return room.participantUUIDs
+    .filter((uuid) => uuid === participantUUID || !roomUUID || known.get(uuid)?.location === roomUUID)
+    .map((uuid) => ({
+      participantUUID: uuid,
+      name: uuid === participantUUID ? "You" : known.get(uuid)?.name || "Participant",
+    }));
+}

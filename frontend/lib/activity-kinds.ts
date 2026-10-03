@@ -33,7 +33,7 @@ export const PROGRESS_LABELS: Record<ActivityProgress, string> = {
 
 /**
  * One person's progress on one activity. An answer is completed once submitted;
- * a board once the person marks ready, and in progress once they add a note.
+ * a board once the person has added at least one note (boards have no working step).
  */
 export function activityProgress(
   activity: Activity,
@@ -48,9 +48,8 @@ export function activityProgress(
       return status === "working" ? "working" : "notStarted";
     }
     case "ideaBoard": {
-      if (view.ready[activity.id]?.includes(participantUUID)) return "completed";
       const wroteNote = view.ideas[activity.id]?.some((note) => note.participantUUID === participantUUID);
-      return wroteNote ? "working" : "notStarted";
+      return wroteNote ? "completed" : "notStarted";
     }
     default:
       return assertNever(activity);

@@ -1,12 +1,16 @@
 import type {
+  AddIdeaRequest,
   ApiResponse,
+  EditIdeaRequest,
   LiveActionResponse,
   LiveState,
   RoundPlan,
+  RemoveIdeaRequest,
   RoomResponsesView,
   RoundPlanDraft,
   RoundTasks,
   SaveRoundPlanRequest,
+  SaveAnswerRequest,
   SaveRoundTasksRequest,
   TickRequest,
   Workspace,
@@ -161,7 +165,7 @@ function roomResponsesUrl(roundId: string, roomId: string): string {
   return `/api/responses/${encodeURIComponent(roundId)}/rooms/${encodeURIComponent(roomId)}`;
 }
 
-/** The caller's view of their room: notes, ready marks, ticks, own answers, everyone's answer status. */
+/** The caller's view of their room: notes, ticks, own answers, everyone's answer status. */
 export async function readRoomResponses(
   parentUUID: string,
   roundId: string,
@@ -173,17 +177,47 @@ export async function readRoomResponses(
 }
 
 /** Tick or untick one task checklist item for the whole room. */
-export async function saveTick(
-  roundId: string,
-  roomId: string,
-  itemId: string,
-  request: TickRequest,
+export function saveTick(roundId: string, roomId: string, itemId: string, request: TickRequest) {
+  return writeRoomResponse("PUT", `${roomResponsesUrl(roundId, roomId)}/ticks/${encodeURIComponent(itemId)}`, request);
+}
+
+async function writeRoomResponse(
+  method: "PUT" | "POST" | "DELETE",
+  url: string,
+  request: object,
 ): Promise<RoomResponsesView> {
   return apiResult(
-    await fetch(`${roomResponsesUrl(roundId, roomId)}/ticks/${encodeURIComponent(itemId)}`, {
-      method: "PUT",
+    await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     }),
+  );
+}
+
+/** Autosave ("working") or "Submit to host" ("submitted") one individual answer. */
+export function saveAnswer(roundId: string, roomId: string, activityId: string, request: SaveAnswerRequest) {
+  return writeRoomResponse("PUT", `${roomResponsesUrl(roundId, roomId)}/answers/${encodeURIComponent(activityId)}`, request);
+}
+
+export function addIdea(roundId: string, roomId: string, activityId: string, request: AddIdeaRequest) {
+  return writeRoomResponse("POST", `${roomResponsesUrl(roundId, roomId)}/ideas/${encodeURIComponent(activityId)}`, request);
+}
+
+/** Author only. */
+export function editIdea(roundId: string, roomId: string, activityId: string, noteId: string, request: EditIdeaRequest) {
+  return writeRoomResponse(
+    "PUT",
+    `${roomResponsesUrl(roundId, roomId)}/ideas/${encodeURIComponent(activityId)}/${encodeURIComponent(noteId)}`,
+    request,
+  );
+}
+
+/** Author only. */
+export function removeIdea(roundId: string, roomId: string, activityId: string, noteId: string, request: RemoveIdeaRequest) {
+  return writeRoomResponse(
+    "DELETE",
+    `${roomResponsesUrl(roundId, roomId)}/ideas/${encodeURIComponent(activityId)}/${encodeURIComponent(noteId)}`,
+    request,
   );
 }

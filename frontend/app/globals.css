@@ -1999,3 +1999,275 @@ a.bw-resource-row:hover {
     font-size: 12px;
   }
 }
+
+/* ── Participant activity page (individual answer, idea board) ─────── */
+/* Same states as the room page, by the page's own width:
+   Wide >= 880px:   main | 260px side
+   Medium 640-879:  main | 220px side
+   Narrow < 640px:  main, then side, stacked. */
+.bw-activity-page {
+  container-type: inline-size;
+  container-name: activity-page;
+}
+.bw-activity-page .bw-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+}
+.bw-activity-page .bw-main {
+  min-width: 0;
+  overflow: visible;
+  padding: 18px 20px;
+  gap: 14px;
+}
+.bw-activity-side {
+  width: auto;
+  min-width: 0;
+}
+.bw-activity-side__back {
+  margin-top: auto;
+}
+.bw-activity-page__badge {
+  padding: 6px 9px;
+  border-radius: 9px;
+  font-family: var(--bw-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.bw-activity-page__heading {
+  min-width: 0;
+}
+.bw-activity-page__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-activity-page__clock {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-activity-page__question {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-activity-page__description {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-prompt__part {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.bw-prompt__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bw-ink);
+}
+.bw-avatar-stack {
+  display: flex;
+}
+.bw-avatar-stack__avatar {
+  width: 26px;
+  height: 26px;
+  margin-left: -6px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--bw-surface);
+  border-radius: 50%;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--bw-ink);
+}
+.bw-avatar-stack__avatar:first-child {
+  margin-left: 0;
+}
+
+/* Individual answer */
+.bw-answer__box {
+  flex: 1;
+  min-height: 260px;
+  padding: 14px 16px;
+  border: 1px solid var(--bw-accent);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bw-ink);
+  resize: vertical;
+}
+.bw-answer__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.bw-answer__member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: 10px;
+}
+
+/* Idea board */
+/* Fixed-size square notes: they wrap to fewer columns instead of stretching and
+   shrinking with the panel. */
+.bw-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 150px);
+  gap: 12px;
+  align-items: start;
+}
+.bw-note {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 9px 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgb(28 28 30 / 8%);
+}
+.bw-note__title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-note__text {
+  flex: 1;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-note__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bw-note__author {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--bw-ink);
+}
+.bw-note__action {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--bw-ink);
+  cursor: pointer;
+}
+.bw-note__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.bw-note__action--strong {
+  text-decoration: underline;
+}
+.bw-note__action--danger {
+  color: var(--bw-red-deep);
+}
+.bw-note__title-input,
+.bw-note__text-input {
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid rgb(28 28 30 / 20%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 70%);
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--bw-ink);
+}
+.bw-note__text-input {
+  resize: vertical;
+}
+.bw-board__add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  width: 130px;
+  aspect-ratio: 1;
+  justify-content: center;
+  margin-top: auto;
+  align-self: flex-start;
+  padding: 8px;
+  border: 1px dashed var(--bw-border-strong);
+  border-radius: 12px;
+  background: var(--bw-surface-sunken);
+}
+.bw-board__input {
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: 7px;
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: 10.5px;
+}
+
+@container activity-page (max-width: 879px) {
+  .bw-activity-page .bw-body {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+  .bw-activity-page .bw-main {
+    padding: 14px 16px;
+  }
+  .bw-activity-page .bw-rail {
+    padding: 14px;
+  }
+  .bw-activity-page__question {
+    font-size: 15px;
+  }
+}
+
+@container activity-page (max-width: 639px) {
+  .bw-activity-page .bw-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bw-activity-page .bw-main {
+    padding: 12px;
+    gap: 11px;
+  }
+  .bw-activity-page .bw-rail {
+    padding: 12px;
+    border-left: 0;
+    border-top: 1px solid var(--bw-border);
+  }
+  .bw-activity-page__question {
+    font-size: 14px;
+  }
+  .bw-answer__box {
+    min-height: 200px;
+    font-size: 12.5px;
+  }
+}

@@ -9,8 +9,8 @@ import {
 import { bumpRoomRevision, getLive } from "./live.ts";
 import { getRoundPlan } from "./round-plans.ts";
 
-// What participants wrote: individual answers, idea notes, ready marks and
-// checklist ticks. One record per (parentUUID, roundId, roomId).
+// What participants wrote: individual answers, idea notes and checklist
+// ticks. One record per (parentUUID, roundId, roomId).
 //
 // The activity definitions live in store/tasks.ts. The route checks that an activity or checklist item exists before calling a write here, so this store
 
@@ -106,7 +106,7 @@ function authorName(parentUUID: string, participantUUID: string): string {
 }
 
 function emptyRecord(room: RoomRef): RoomResponses {
-  return { ...room, answers: {}, ideas: {}, ready: {}, ticks: {}, ideaCounters: {} };
+  return { ...room, answers: {}, ideas: {}, ticks: {}, ideaCounters: {} };
 }
 
 /** Get-or-create. Only writes call this, so a GET never stores an empty record. */
@@ -119,7 +119,7 @@ function recordFor(room: RoomRef): RoomResponses {
 }
 
 /**
- * What one participant may see. Notes, ready marks and ticks are shared with
+ * What one participant may see. Notes and ticks are shared with
  * the room. Answers are private: the caller gets their own in full and only the
  * status of everyone else's. ideaCounters is server bookkeeping and is left out.
  */
@@ -141,7 +141,6 @@ function viewFor(record: RoomResponses, participantUUID: string): RoomResponsesV
     roundId: record.roundId,
     roomId: record.roomId,
     ideas: structuredClone(record.ideas),
-    ready: structuredClone(record.ready),
     ticks: structuredClone(record.ticks),
     myAnswers,
     statuses,
@@ -244,17 +243,6 @@ export function removeIdea(room: RoomRef, activityId: string, noteId: string, re
   return changed(record, participantUUID);
 }
 
-/** "Mark me ready" on an idea board. Can be undone; it does not stop anyone adding notes. */
-export function markReady(room: RoomRef, activityId: string, request: unknown): RoomResponsesView {
-  const { participantUUID, body } = callerIn(room, request);
-  const ready = requiredBoolean(body.ready, "ready");
-
-  const record = recordFor(room);
-  const others = (record.ready[activityId] ?? []).filter((id) => id !== participantUUID);
-  record.ready[activityId] = ready ? [...others, participantUUID] : others;
-  return changed(record, participantUUID);
-}
-
 /** Anyone in the room ticks or unticks any item; the latest click wins. */
 export function setTick(room: RoomRef, itemId: string, request: unknown): RoomResponsesView {
   const { participantUUID, body } = callerIn(room, request);
@@ -300,7 +288,6 @@ export function pruneResponses(tasks: RoundTasks): void {
     const removed = [
       keepOnly(record.answers, individualIds),
       keepOnly(record.ideas, boardIds),
-      keepOnly(record.ready, boardIds),
       keepOnly(record.ideaCounters, boardIds),
       keepOnly(record.ticks, itemIds),
     ].some(Boolean);

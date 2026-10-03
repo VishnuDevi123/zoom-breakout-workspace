@@ -19,8 +19,7 @@ export default function ActivityCards({
   activities: Activity[];
   view: RoomResponsesView | null;
   participantUUID: string;
-  /** Absent until the activity pages exist; the button is then disabled. */
-  onOpen?: (activity: Activity) => void;
+  onOpen: (activity: Activity) => void;
 }) {
   const completed = activities.filter(
     (activity) => activityProgress(activity, view, participantUUID) === "completed",
@@ -70,7 +69,7 @@ export default function ActivityCards({
             <p className="bw-room-activity__question">{activity.title}</p>
 
             <div className="bw-room-activity__footer">
-              <Button size="sm" disabled={!onOpen} onClick={() => onOpen?.(activity)}>
+              <Button size="sm" onClick={() => onOpen(activity)}>
                 Open
               </Button>
             </div>

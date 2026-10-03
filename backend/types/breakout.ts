@@ -235,8 +235,6 @@ export interface RoomResponses {
   ticks: Record<string, ChecklistTick>;
   /** activityId -> last "Idea N" number handed out. Never goes down. */
   ideaCounters: Record<string, number>;
-  /** Idea board activityId -> participantUUIDs who marked themselves ready. */
-  ready: Record<string, string[]>;
 }
 
 /** What GET and every write return to one participant. Others' answer text is never included. */
@@ -276,10 +274,5 @@ export type RemoveIdeaRequest = ResponseCaller;
 /** PUT .../ticks/:itemId */
 export interface TickRequest extends ResponseCaller {
   done: boolean;
-}
-
-/** PUT .../ready/:activityId */
-export interface MarkReadyRequest extends ResponseCaller {
-  ready: boolean;
 }
 
