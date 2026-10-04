@@ -7,6 +7,7 @@ import type {
   RoundPlan,
   RemoveIdeaRequest,
   RoomResponsesView,
+  RosterEntry,
   RoundPlanDraft,
   RoundTasks,
   SaveRoundPlanRequest,
@@ -157,6 +158,20 @@ export async function markRoundClosed(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID }),
+    }),
+  );
+}
+
+/** Who Zoom reports in the meeting; the backend fills in anyone webhooks missed. */
+export async function postRoster(
+  parentUUID: string,
+  participants: RosterEntry[],
+): Promise<LiveState> {
+  return apiResult(
+    await fetch("/api/live/roster", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentUUID, participants }),
     }),
   );
 }

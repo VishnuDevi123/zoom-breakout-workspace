@@ -51,6 +51,8 @@ push              backend  -> SSE  /api/live/events                       fronte
 Close Round N     frontend -> SDK getBreakoutRoomList, closeBreakoutRooms when still open
                   frontend -> POST /api/live/close                          live store: round null, timer cleared, room-located people reset to "main"; workspace: status closed
 skip round        frontend -> POST /api/live/skip {parentUUID, roundId, skipped}   workspace: status skipped <-> planned
+roster on open    host     -> SDK getBreakoutRoomList, then getMeetingParticipants when rooms are closed
+                  host     -> POST /api/live/roster {parentUUID, participants: RosterEntry[]}   live store: unlisted people dropped, missing people added
                   (launch, close and skip all reply with the workspace as well, because all three change its revision)
 ```
 
@@ -80,7 +82,8 @@ close emits none of them, so `markClosedRound` resets locations instead.
 
 - Draft edits never mutate Zoom. Only Launch / Close do, from the frontend.
 - Backend records what the frontend reports and what Zoom sends; it never verifies against Zoom.
-- Do not poll the SDK for live state; webhooks are the source. Two reads are allowed, both one-shot: `getBreakoutRoomList()` when the app opens on a round the backend still calls live, and again before `closeBreakoutRooms` to skip a close Zoom does not need.
+- Do not poll the SDK for live state; webhooks are the source. Three reads are allowed, all one-shot: `getBreakoutRoomList()` when the app opens on a round the backend still calls live; again before `closeBreakoutRooms` to skip a close Zoom does not need; and the roster read when the host opens the app (`getBreakoutRoomList`, plus `getMeetingParticipants` when no rooms are open).
+- The roster is presence, not location. `applyRoster` drops anyone Zoom no longer lists and adds anyone webhooks missed; a participant webhooks already placed keeps that location, because the SDK's room ids cannot be matched to webhook uuids. A newcomer reported inside a room takes that room only if its webhook uuid is already learned, otherwise "main". With rooms open only the meeting owner receives people, so a co-host sends nothing, and the route refuses an empty list.
 - The app owns the round clock. `configureBreakoutRooms` always sets `closeAfter: 0` and `countDown: 0`: Zoom reports nothing when its own timer fires, and a countdown blocks the next round's rooms. It runs **after** `createBreakoutRooms`, never before: configuring a room set that does not exist yet fails with `No Breakout Room exist.` on the first launch in a fresh meeting. `markLaunchedRound` and `extendRound` share one `armTimer` helper so the two cannot drift.
 - `config()` runs in two stages. `BASE_CAPABILITIES` (`getMeetingUUID`, `getUserContext`) is all any role may request; everything else, including `getMeetingContext` and `onMyUserContextChange`, is host-only and is added by `grantHostCapabilities` once the role is known. Requesting a host capability as an attendee rejects the whole call with `reason:require_meeting_role`. Demotion clears the memo so a later promotion re-runs stage two.
 - `markRoundStatus` bumps the workspace revision but returns nothing, so every route that calls it replies with the workspace too (`LiveActionResponse` for launch and close, a plain `Workspace` for skip) and the client adopts it. Without that the client keeps an old revision and its next workspace edit fails with 409, which nothing recovers from.
@@ -103,7 +106,7 @@ close emits none of them, so `markClosedRound` resets locations instead.
 
 ## Known limits
 
-- All stores are in-memory `Map`s; server restart loses the workspace, drafts, tasks and live state. Zoom never replays webhooks, so anyone who joined before a restart stays invisible until they leave and rejoin. The fix (planned, not built) is a roster read from the SDK on app open: `getMeetingParticipants` when no round is live, `getBreakoutRoomList` when one is, posted to a new `/api/live/roster`. Presence only - the SDK's room ids still do not match the webhook uuids.
+- All stores are in-memory `Map`s; server restart loses the workspace, drafts, tasks and live state. Zoom never replays webhooks; the host's roster read on app open (`/api/live/roster`) fills in who is present, but only when the host reopens the app, and a co-host cannot do it while rooms are open.
 - A room's Zoom UUID is unknown until an assigned participant enters it.
 - The round timer lives in the backend process. A restart loses it, and a round already open in Zoom keeps running with nothing to close it.
 - Every entry in `ZOOM_CAPABILITIES` must stay ticked on the Marketplace API list, or `config()` fails with `reason:app_not_support`.

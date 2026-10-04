@@ -38,6 +38,7 @@ const HOST_CAPABILITIES = [
   "openBreakoutRooms",
   "closeBreakoutRooms",
   "getBreakoutRoomList",
+  "getMeetingParticipants",
 ];
 
 /**

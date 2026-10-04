@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { markRoundClosed, markRoundLaunched, readSavedRoundPlan } from "@/lib/execution-api";
+import { markRoundClosed, markRoundLaunched, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
 import { canManageRooms } from "@/lib/host-gate";
-import { breakoutRoomsAreOpen, closeRoundInZoom, launchRoundInZoom } from "@/lib/launch-round";
+import { breakoutRoomsAreOpen, closeRoundInZoom, launchRoundInZoom, readMeetingRoster } from "@/lib/launch-round";
 import { configureZoomSdk, type ZoomSdk } from "@/lib/zoom-sdk";
 import type { RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
 
@@ -137,5 +137,21 @@ export function useLiveRoomController(input: ControllerInput) {
     })();
   }
 
-  return { operation, launch, close, reconcile };
+  /**
+   * One shot when the host opens the app. Webhooks never replay, so anyone who
+   * joined before a backend restart is invisible until Zoom is asked directly.
+   */
+  function syncRoster() {
+    void (async () => {
+      try {
+        const { sdk, hostUUID } = await hostSdk();
+        const roster = await readMeetingRoster(sdk, input.round, hostUUID);
+        if (roster && roster.length > 0) await postRoster(input.parentUUID, roster);
+      } catch {
+        // Nothing to report: webhooks keep the list current from here on.
+      }
+    })();
+  }
+
+  return { operation, launch, close, reconcile, syncRoster };
 }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
-import { extendRound, getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
-import type { ApiResponse, LiveActionResponse, LiveState, Workspace } from "../types/breakout.ts";
+import { applyRoster, extendRound, getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
+import type { ApiResponse, LiveActionResponse, LiveState, RosterEntry, Workspace } from "../types/breakout.ts";
 
 const router = Router();
 
@@ -133,6 +133,43 @@ router.post("/skip", (req, res) => {
     return;
   }
   const body: ApiResponse<Workspace> = { success: true, data: workspace };
+  res.json(body);
+});
+
+function isRosterEntry(value: unknown): value is RosterEntry {
+  const entry = value as Partial<RosterEntry> | null;
+  return (
+    typeof entry?.participantUUID === "string" &&
+    entry.participantUUID.length > 0 &&
+    typeof entry.name === "string" &&
+    typeof entry.isHost === "boolean" &&
+    (entry.roomId === null || typeof entry.roomId === "string")
+  );
+}
+
+/** The whole list or nothing: a partly valid roster would drop real participants. */
+function rosterFrom(value: unknown): RosterEntry[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  return value.every(isRosterEntry) ? value : null;
+}
+
+/**
+ * Who Zoom says is in the meeting, read by the host when the app opens.
+ * An empty list is refused: a co-host's room list carries no people, and that
+ * must not be read as everyone having left.
+ */
+router.post("/roster", (req, res) => {
+  const parentUUID = parentUUIDFrom(req.body?.parentUUID);
+  const participants = rosterFrom(req.body?.participants);
+  if (!parentUUID || !participants) {
+    const body: ApiResponse<never> = {
+      success: false,
+      error: "parentUUID and a non-empty list of valid participants are required.",
+    };
+    res.status(400).json(body);
+    return;
+  }
+  const body: ApiResponse<LiveState> = { success: true, data: applyRoster(parentUUID, participants) };
   res.json(body);
 });
 

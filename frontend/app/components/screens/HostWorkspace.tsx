@@ -151,6 +151,17 @@ export default function HostWorkspace({
     controller.reconcile();
   }, [runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Once per app open: fill in people webhooks missed. With a round running, wait
+  // for its plan, because Zoom's room names map back to planned rooms through it.
+  const rosterSynced = useRef(false);
+  const liveKnown = live.liveState !== null;
+  useEffect(() => {
+    if (rosterSynced.current || !liveKnown) return;
+    if (runningRoundId && !livePlan) return;
+    rosterSynced.current = true;
+    controller.syncRoster();
+  }, [liveKnown, runningRoundId, livePlan]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The backend owns the clock: it flips timerEnded and pushes it over SSE.
   const timerEnded = live.liveState?.round?.timerEnded ?? false;
   const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;

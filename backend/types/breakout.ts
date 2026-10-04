@@ -88,6 +88,21 @@ export interface LiveState {
   roomRevisions: Record<string, number>;
 }
 
+/** One person the Zoom SDK reports present when the host opens the app. */
+export interface RosterEntry {
+  participantUUID: string;
+  name: string;
+  isHost: boolean;
+  /** Planned room id when Zoom reports the person inside a room; null for the main room. */
+  roomId: string | null;
+}
+
+/** Everyone in the meeting right now. Webhooks never replay, so this fills what they missed. */
+export interface RosterRequest {
+  parentUUID: string;
+  participants: RosterEntry[];
+}
+
 export type RoundStatus = "planned" | "launched" | "closed" | "skipped";
 
 /** Per-round metadata. Room lists live in RoundPlan, keyed by the same roundId. */
