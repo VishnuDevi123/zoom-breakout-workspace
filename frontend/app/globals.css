@@ -13,7 +13,9 @@
   --bw-surface: #ffffff;
   --bw-surface-sunken: #f8f9fb;
   --bw-surface-muted: #f3f4f6;
-  --bw-chrome: #1f2430;
+  /* Live round bars, kept apart so each can be recoloured on its own. */
+  --bw-live-header-bg: #1f2430;
+  --bw-live-nav-bg: #1f2430;
 
   /* Borders: cards and dividers use --bw-border, form controls the strong one (3:1). */
   --bw-border: #d8dee8;
@@ -1056,7 +1058,7 @@ input[type="checkbox"] {
   border-radius: var(--bw-radius-sm);
   background: var(--bw-surface);
   color: var(--bw-ink);
-  font: 500 10.5px var(--bw-font-ui);
+  font: 500 var(--bw-fs-secondary) var(--bw-font-ui);
 }
 
 .bw-placement-select:focus-visible {
@@ -1546,7 +1548,7 @@ a.bw-resource-row:hover {
   gap: 12px;
   min-width: 0;
   padding: 0 16px;
-  background: var(--bw-chrome);
+  background: var(--bw-live-header-bg);
   color: #fff;
 }
 .bw-live-bar .bw-header-title {
@@ -1560,22 +1562,32 @@ a.bw-resource-row:hover {
 .bw-live-bar .bw-live-badge__label--off {
   color: #9aa3b2;
 }
+.bw-live-bar .bw-stepper button {
+  color: var(--bw-ink);
+}
 .bw-live-bar__clock {
   font-size: var(--bw-fs-display);
   font-weight: 600;
   line-height: 1;
 }
-.bw-live-page {
+/* Holds the scrolling page and the sheet laid over its bottom edge. */
+.bw-live-main {
+  position: relative;
   min-height: 0;
+  overflow: hidden;
+}
+.bw-live-page {
+  height: 100%;
   overflow: auto;
   container: live-page / inline-size;
 }
+/* The sheet covers the bottom of the page, so the last rooms can scroll above it. */
 .bw-live-page__content {
-  padding: 20px;
+  padding: 20px 20px calc(20px + var(--bw-sheet-h, 0px));
 }
 @container live-page (max-width: 639px) {
   .bw-live-page__content {
-    padding: 12px;
+    padding: 12px 12px calc(12px + var(--bw-sheet-h, 0px));
   }
 }
 .bw-live-room-name {
@@ -1610,16 +1622,95 @@ a.bw-resource-row:hover {
   flex-direction: column;
   gap: 12px;
 }
-.bw-live-nav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  background: var(--bw-chrome);
+/* ── Not yet placed: a resizable sheet over the bottom of the room grid ── */
+.bw-sheet {
+  position: absolute;
+  inset: auto 0 0;
+  max-height: 40%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bw-surface);
+  border-radius: var(--bw-radius-lg) var(--bw-radius-lg) 0 0;
+  box-shadow: 0 -6px 20px rgb(23 32 51 / 10%);
+  overflow: hidden;
 }
-.bw-live-nav__item {
+.bw-sheet__handle {
+  flex: none;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+.bw-sheet__handle::before {
+  content: "";
+  width: 36px;
+  height: 4px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-border-strong);
+}
+.bw-sheet__handle:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: -2px;
+}
+.bw-sheet__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px 10px;
+}
+.bw-sheet__title {
+  font-size: var(--bw-fs-title);
+  font-weight: 600;
+}
+.bw-sheet__list {
+  min-height: 0;
+  margin: 0;
+  padding: 0 20px 16px;
+  list-style: none;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.bw-sheet__person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+}
+.bw-sheet__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-secondary);
+  font-weight: 500;
+}
+.bw-sheet__person .bw-placement-select {
+  width: 104px;
+  height: 32px;
+}
+
+/* Each tab is only as large as its pill, so the bar around it is not clickable. */
+.bw-live-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: var(--bw-live-nav-bg);
+}
+.bw-live-nav__item {
+  padding: 8px 20px;
   border: 0;
+  border-radius: var(--bw-radius-pill);
   background: none;
   font: inherit;
   font-size: var(--bw-fs-body);
@@ -1627,18 +1718,12 @@ a.bw-resource-row:hover {
   color: #9aa3b2;
   cursor: pointer;
 }
-.bw-live-nav__item > span {
-  padding: 8px 20px;
-  border-radius: var(--bw-radius-pill);
-}
 .bw-live-nav__item:hover {
   color: #fff;
 }
 .bw-live-nav__item[aria-current="page"] {
-  color: #fff;
-}
-.bw-live-nav__item[aria-current="page"] > span {
   background: var(--bw-accent);
+  color: #fff;
 }
 
 /* ── Skip rounds panel ─────────────────────────────────────────────── */

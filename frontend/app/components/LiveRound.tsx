@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { adjustRoundTime } from "@/lib/execution-api";
 import { initialsFrom } from "@/lib/participant-status";
+import { assignParticipantToRoom, autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
 import { useRoundTasks } from "@/lib/use-round-tasks";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 
 import ActivityList from "./ActivityList";
 import EditTaskModal from "./EditTaskModal";
+import NotPlacedSheet from "./NotPlacedSheet";
 import SkipRoundsModal from "./SkipRoundsModal";
 import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 
@@ -43,6 +45,7 @@ export default function LiveRound({
   onSkipRound,
   onEndRound,
   onLaunchNext,
+  onPlace,
 }: {
   workspace: Workspace;
   round: RoundPlanDraft;
@@ -55,10 +58,13 @@ export default function LiveRound({
   onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
   onEndRound: () => void;
   onLaunchNext: () => void;
+  /** Saves the round with people added to rooms and moves them in Zoom. Reports its own errors. */
+  onPlace: (next: RoundPlanDraft) => Promise<void>;
 }) {
   const [editingTask, setEditingTask] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const [page, setPage] = useState<LivePage>("rooms");
+  const [placing, setPlacing] = useState<string | null>(null);
   const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
   const busy = operation.kind === "running";
 
@@ -78,6 +84,21 @@ export default function LiveRound({
   const open = live.round !== null;
   const remainingSec = useRemainingSec(live.round?.endsAt ?? 0);
   const participants = live.participants;
+
+  // Waiting: in the main room, not the host, and in no room or main-room choice of this round's plan.
+  const planned = new Set([
+    ...round.rooms.flatMap((room) => room.participantUUIDs),
+    ...round.stayInMainParticipantUUIDs,
+  ]);
+  const waiting = participants.filter(
+    (p) => p.location === "main" && !p.isHost && !planned.has(p.participantUUID),
+  );
+
+  async function place(key: string, next: RoundPlanDraft) {
+    setPlacing(key);
+    await onPlace(next);
+    setPlacing(null);
+  }
 
   function membersOf(roomId: string): LiveParticipant[] {
     const uuid = live.round?.roomUUIDs[roomId];
@@ -140,67 +161,83 @@ export default function LiveRound({
         {actionButton}
       </header>
 
-      <main className="bw-live-page">
-        <div className="bw-live-page__content">
-          {page === "rooms" ? (
-            <div className="bw-room-grid">
-              {round.rooms.map((room) => (
-                <LiveRoomCard
-                  key={room.id}
-                  name={room.name}
-                  dot={room.dot}
-                  members={membersOf(room.id)}
-                  plannedCount={room.participantUUIDs.length}
-                  open={open}
-                />
-              ))}
-            </div>
-          ) : (
-            // Placeholder: the current rail, kept reachable until the Session page is rebuilt.
-            <div className="bw-live-session">
-              <SectionLabel>Session plan</SectionLabel>
-              {workspace.rounds.map((meta, index) => (
-                <Card
-                  key={meta.roundId}
-                  tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
-                  className="bw-plan-row"
-                >
-                  <span
-                    className="bw-member-name"
-                    style={meta.status === "skipped" ? { color: "var(--bw-muted-4)" } : undefined}
+      <div className="bw-live-main">
+        <main className="bw-live-page">
+          <div className="bw-live-page__content">
+            {page === "rooms" ? (
+              <div className="bw-room-grid">
+                {round.rooms.map((room) => (
+                  <LiveRoomCard
+                    key={room.id}
+                    name={room.name}
+                    dot={room.dot}
+                    members={membersOf(room.id)}
+                    plannedCount={room.participantUUIDs.length}
+                    open={open}
+                  />
+                ))}
+              </div>
+            ) : (
+              // Placeholder: the current rail, kept reachable until the Session page is rebuilt.
+              <div className="bw-live-session">
+                <SectionLabel>Session plan</SectionLabel>
+                {workspace.rounds.map((meta, index) => (
+                  <Card
+                    key={meta.roundId}
+                    tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
+                    className="bw-plan-row"
                   >
-                    R{index + 1}: {roundLabel(workspace, meta.roundId)}
-                  </span>
-                  <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)" }}>
-                    {meta.status === "closed"
-                      ? "✓"
-                      : meta.status === "skipped"
-                        ? "skipped"
-                        : formatClock(meta.durationSec)}
-                  </span>
-                </Card>
-              ))}
-              <Button variant="secondary" size="sm" onClick={() => setSkipping(true)}>
-                Skip rounds
-              </Button>
+                    <span
+                      className="bw-member-name"
+                      style={meta.status === "skipped" ? { color: "var(--bw-muted-4)" } : undefined}
+                    >
+                      R{index + 1}: {roundLabel(workspace, meta.roundId)}
+                    </span>
+                    <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)" }}>
+                      {meta.status === "closed"
+                        ? "✓"
+                        : meta.status === "skipped"
+                          ? "skipped"
+                          : formatClock(meta.durationSec)}
+                    </span>
+                  </Card>
+                ))}
+                <Button variant="secondary" size="sm" onClick={() => setSkipping(true)}>
+                  Skip rounds
+                </Button>
 
-              <SectionLabel>Task this round</SectionLabel>
-              <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
-                <span className="bw-task-summary__goal">
-                  {tasks.task.goal || "No task set for this round"}
-                </span>
-                <span className="bw-task-summary__action">
-                  {tasks.task.goal ? "Edit task" : "Add a task"}
-                </span>
-              </button>
+                <SectionLabel>Task this round</SectionLabel>
+                <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
+                  <span className="bw-task-summary__goal">
+                    {tasks.task.goal || "No task set for this round"}
+                  </span>
+                  <span className="bw-task-summary__action">
+                    {tasks.task.goal ? "Edit task" : "Add a task"}
+                  </span>
+                </button>
 
-              {open ? (
-                <ActivityList activities={tasks.activities} live onSave={tasks.saveActivities} />
-              ) : null}
-            </div>
-          )}
-        </div>
-      </main>
+                {open ? (
+                  <ActivityList activities={tasks.activities} live onSave={tasks.saveActivities} />
+                ) : null}
+              </div>
+            )}
+          </div>
+        </main>
+
+        {page === "rooms" && open ? (
+          <NotPlacedSheet
+            people={waiting}
+            rooms={round.rooms}
+            placing={placing}
+            onPlace={(participantUUID, roomId) =>
+              void place(participantUUID, assignParticipantToRoom(round, { participantUUID, roomId }))
+            }
+            onPlaceEvenly={() =>
+              void place("all", autoAssignParticipantsEvenly(round, waiting.map((p) => p.participantUUID)))
+            }
+          />
+        ) : null}
+      </div>
 
       <nav className="bw-live-nav" aria-label="Live round views">
         {LIVE_PAGES.map((option) => (
@@ -211,7 +248,7 @@ export default function LiveRound({
             aria-current={page === option.page ? "page" : undefined}
             onClick={() => setPage(option.page)}
           >
-            <span>{option.label}</span>
+            {option.label}
           </button>
         ))}
       </nav>

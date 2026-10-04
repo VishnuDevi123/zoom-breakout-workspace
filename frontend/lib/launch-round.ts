@@ -107,6 +107,25 @@ export async function breakoutRoomsAreOpen(sdk: ZoomSdk): Promise<boolean> {
 }
 
 /**
+ * Move people still in the main room into rooms that are already open. Zoom wants
+ * its own room ids, which launch does not keep, so the room list is read once and
+ * matched by name, exactly as at launch. Zoom sends each person an invitation.
+ */
+export async function assignToOpenRooms(
+  sdk: ZoomSdk,
+  placements: { participantUUID: string; roomName: string }[],
+): Promise<void> {
+  const { rooms, state } = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList());
+  if (state !== "open") throw new Error("Zoom has no breakout rooms open.");
+  const zoomIdByName = new Map(rooms.map((room) => [room.name, room.breakoutRoomId]));
+  for (const { participantUUID, roomName } of placements) {
+    const uuid = zoomIdByName.get(roomName);
+    if (!uuid) throw new Error(`Zoom has no open room named "${roomName}".`);
+    await withZoomTimeout(`Assign to ${roomName}`, sdk.assignParticipantToBreakoutRoom({ participantUUID, uuid }));
+  }
+}
+
+/**
  * Everyone Zoom reports in the meeting, or null when this caller cannot see them all.
  * With rooms open only the room list covers every room, and only the meeting
  * owner receives its people; a co-host gets empty rooms, which is not an empty meeting.

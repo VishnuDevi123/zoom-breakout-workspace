@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { readSavedRoundPlan, setRoundSkipped } from "@/lib/execution-api";
+import { readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execution-api";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
+import { newPlacements } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
@@ -12,7 +13,7 @@ import { useRoomPlan } from "@/lib/use-room-plan";
 import { useRoundSummaries } from "@/lib/use-round-summaries";
 import type { RoundTemplate } from "@/lib/round-templates";
 import { roundLabel, useWorkspace } from "@/lib/use-workspace";
-import type { LiveState, RoundMeta, Workspace, ZoomRole } from "@/types/breakout";
+import type { LiveState, RoundMeta, RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
 
 import LiveRound from "../LiveRound";
 import MeetingBadge from "../MeetingBadge";
@@ -171,6 +172,20 @@ export default function HostWorkspace({
     controller.close();
   }, [timerEnded]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Zoom first, then the plan: a participant's own app finds their room through the saved plan.
+  async function placeInLiveRound(next: RoundPlanDraft) {
+    if (!livePlan) return;
+    try {
+      await controller.placeInOpenRooms(newPlacements(livePlan, next));
+      await saveRoundPlan(meetingUUID, next, livePlan.revision);
+    } catch (error) {
+      toast.error("Could not place everyone.", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+    reloadPlans();
+  }
+
   const workspaceTitle = "Sample Workflow";
 
   async function start(create: () => Promise<void>, next: HostView) {
@@ -253,6 +268,7 @@ export default function HostWorkspace({
         }}
         onEndRound={controller.close}
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
+        onPlace={placeInLiveRound}
       />
     );
   }

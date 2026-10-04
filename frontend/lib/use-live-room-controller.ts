@@ -5,7 +5,13 @@ import { toast } from "sonner";
 
 import { markRoundClosed, markRoundLaunched, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
 import { canManageRooms } from "@/lib/host-gate";
-import { breakoutRoomsAreOpen, closeRoundInZoom, launchRoundInZoom, readMeetingRoster } from "@/lib/launch-round";
+import {
+  assignToOpenRooms,
+  breakoutRoomsAreOpen,
+  closeRoundInZoom,
+  launchRoundInZoom,
+  readMeetingRoster,
+} from "@/lib/launch-round";
 import { configureZoomSdk, type ZoomSdk } from "@/lib/zoom-sdk";
 import type { RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
 
@@ -153,5 +159,11 @@ export function useLiveRoomController(input: ControllerInput) {
     })();
   }
 
-  return { operation, launch, close, reconcile, syncRoster };
+  /** Send people waiting in the main room to rooms that are already open. Throws on failure. */
+  async function placeInOpenRooms(placements: { participantUUID: string; roomName: string }[]) {
+    const { sdk } = await hostSdk();
+    await assignToOpenRooms(sdk, placements);
+  }
+
+  return { operation, launch, close, reconcile, syncRoster, placeInOpenRooms };
 }

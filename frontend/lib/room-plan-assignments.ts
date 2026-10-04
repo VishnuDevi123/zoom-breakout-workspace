@@ -110,3 +110,16 @@ export function autoAssignParticipantsEvenly(
     })),
   };
 }
+
+/** People a later draft puts in a room who were in no room before, with the room they got. */
+export function newPlacements(
+  before: RoundPlanDraft,
+  after: RoundPlanDraft,
+): (ParticipantRoomAssignment & { roomName: string })[] {
+  const placedBefore = new Set(before.rooms.flatMap((room) => room.participantUUIDs));
+  return after.rooms.flatMap((room) =>
+    room.participantUUIDs
+      .filter((participantUUID) => !placedBefore.has(participantUUID))
+      .map((participantUUID) => ({ participantUUID, roomId: room.id, roomName: room.name })),
+  );
+}
