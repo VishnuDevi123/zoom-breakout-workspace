@@ -82,7 +82,7 @@ export default function LiveRound({
         <BrandMark onHome={onHome} />
         <span className="bw-header-divider" />
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title}</span>
+          <span className="bw-header-title">{round.title}</span>
           <div className="bw-live-badge">
             <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
             <span
@@ -121,15 +121,15 @@ export default function LiveRound({
           </>
         ) : null}
 
-        <Button variant="outline" size="sm" onClick={() => setSkipping(true)}>
+        <Button variant="secondary" size="sm" onClick={() => setSkipping(true)}>
           Skip rounds
         </Button>
-        <Button variant="outline" size="sm" disabled={!open || busy} onClick={onEndRound}>
+        <Button variant="secondary" size="sm" disabled={!open || busy} onClick={onEndRound}>
           End round
         </Button>
         {nextRound ? (
           <Button
-            variant="accent"
+            variant="primary"
             size="sm"
             disabled={open || busy}
             title={open ? "End this round first." : undefined}
@@ -156,7 +156,7 @@ export default function LiveRound({
               >
                 R{index + 1}: {roundLabel(workspace, meta.roundId)}
               </span>
-              <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-ink)" }}>
+              <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-ink)" }}>
                 {meta.status === "closed"
                   ? "✓"
                   : meta.status === "skipped"
@@ -197,7 +197,7 @@ export default function LiveRound({
                     <MemberRow key={p.participantUUID} participant={p} />
                   ))}
                   {members.length === 0 ? (
-                    <span style={{ fontSize: 11.5, color: "var(--bw-muted-3)" }}>
+                    <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-3)" }}>
                       {open ? "Nobody here yet" : "Round closed"}
                     </span>
                   ) : null}

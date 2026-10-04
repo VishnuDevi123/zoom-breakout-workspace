@@ -113,7 +113,7 @@ export default function Rooms({
       <header className="bw-header">
         <BrandMark onHome={onHome ? () => void navigate(onHome) : undefined} />
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>
+          <span className="bw-header-title">
             Rooms &amp; people - {round.title}
           </span>
         </div>
@@ -142,7 +142,7 @@ export default function Rooms({
 
         <div className="bw-auto-assign relative group inline-block">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() =>
               onAutoAssign(
@@ -217,7 +217,7 @@ export default function Rooms({
           {onBack || onNext ? (
             <div className="bw-navigation">
               {onBack ? (
-                <Button variant="outline" onClick={() => void navigate(onBack)}>
+                <Button variant="secondary" onClick={() => void navigate(onBack)}>
                   {backLabel}
                 </Button>
               ) : null}
@@ -264,11 +264,11 @@ function SaveFeedback({
         <SectionLabel>Save failed</SectionLabel>
         <Pill tone="red">{save.conflict ? "Conflict" : "Not saved"}</Pill>
       </div>
-      <span style={{ fontSize: 11, lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
+      <span style={{ fontSize: "var(--bw-fs-meta)", lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
         {save.message} {save.conflict ? "Retry keeps your local draft." : ""}
       </span>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <Button variant="outline" size="sm" onClick={onRetry}>Retry save</Button>
+        <Button variant="secondary" size="sm" onClick={onRetry}>Retry save</Button>
         {save.conflict && onReload ? (
           <Button
             variant="ghost"

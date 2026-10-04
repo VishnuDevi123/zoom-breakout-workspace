@@ -54,8 +54,8 @@ export default function TaskEditor({
           ←
         </button>
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Task &amp; activities - {label}</span>
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+          <span className="bw-header-title">Task &amp; activities - {label}</span>
+          <span className="bw-header-subtitle">
             {round.title ?? label} · step 2 of 2 for this round
           </span>
         </div>
@@ -73,7 +73,7 @@ export default function TaskEditor({
           <ActivityList activities={activities} live={false} onSave={saveActivities} />
 
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 7 }}>
-            <Button variant="outline" onClick={() => void leave(onBackToRounds)}>
+            <Button variant="secondary" onClick={() => void leave(onBackToRounds)}>
               Back to rounds
             </Button>
             <Button onClick={() => void leave(onNext)}>{nextLabel}</Button>

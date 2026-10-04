@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-
 import type { useRoundTasks } from "@/lib/use-round-tasks";
 
 import TaskFields from "./TaskFields";
-import { Button, SectionLabel } from "./ui";
+import { Button, Modal } from "./ui";
 
 /**
  * Editing the running round's task without leaving the live screen.
@@ -28,51 +26,35 @@ export default function EditTaskModal({
 }) {
   const { task, setTask, state, save } = tasks;
 
-  async function close() {
-    if (state === "loading") return;
-    // The hook reports a failure; the panel stays open so the edit is not lost.
-    if (await save(task)) onClose();
+  /** The hook reports a failure; the panel then stays open so the edit is not lost. */
+  async function saveBeforeClose() {
+    if (state === "loading") return false;
+    return save(task);
   }
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") void close();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  });
-
   return (
-    <div
-      className="bw-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Task for ${roundTitle}`}
-      // Only a press that both starts and ends on the backdrop closes the panel,
-      // so a text selection dragged out of a field does not dismiss it.
-      onClick={(event) => {
-        if (event.target === event.currentTarget) void close();
-      }}
-    >
-      <div className="bw-overlay__panel">
-        <header className="bw-overlay__header">
-          <div className="bw-round-heading">
-            <span style={{ fontSize: 15, fontWeight: 600 }}>Task - {roundTitle}</span>
-          </div>
-          <div className="bw-header-spacer" />
-          <Button variant="outline" size="sm" onClick={() => void close()}>
-            Done
-          </Button>
-        </header>
+    <Modal label={`Task for ${roundTitle}`} beforeClose={saveBeforeClose} onClose={onClose}>
+      {(close) => (
+        <>
+          <header className="bw-overlay__header">
+            <div className="bw-round-heading">
+              <span className="bw-modal-title">Task - {roundTitle}</span>
+            </div>
+            <div className="bw-header-spacer" />
+            <Button variant="secondary" size="sm" onClick={close}>
+              Done
+            </Button>
+          </header>
 
-        <div className="bw-overlay__body">
-          {state === "loading" ? (
-            <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading the task…</span>
-          ) : (
-            <TaskFields task={task} setTask={setTask} save={(next) => void save(next)} />
-          )}
-        </div>
-      </div>
-    </div>
+          <div className="bw-overlay__body">
+            {state === "loading" ? (
+              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading the task…</span>
+            ) : (
+              <TaskFields task={task} setTask={setTask} save={(next) => void save(next)} />
+            )}
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }

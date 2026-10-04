@@ -84,8 +84,8 @@ export default function ParticipantScreen({
               <span className="bw-mono bw-participant-card__label bw-participant-card__label--accent">
                 THIS ROUND
               </span>
-              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{roundTitle}</span>
-              <span style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
+              <span style={{ fontSize: "var(--bw-fs-title)", fontWeight: 600 }}>{roundTitle}</span>
+              <span style={{ fontSize: "var(--bw-fs-secondary)", lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
                 {task
                   ? `${task.instructions.length} instructions · ${task.resources.length} resources`
                   : "Nothing set yet"}
@@ -140,10 +140,10 @@ function TimeCard({ endsAt }: { endsAt: number }) {
   return (
     <Card className="bw-participant-card">
       <span className="bw-mono bw-participant-card__label">TIME</span>
-      <span className="bw-mono" style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px" }}>
+      <span className="bw-mono" style={{ fontSize: "var(--bw-fs-display)", fontWeight: 500, letterSpacing: "-0.5px" }}>
         {remainingSec === null ? "--:--" : formatClock(remainingSec)}
       </span>
-      <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
+      <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
         {remainingSec === null ? "Runs until the host ends it" : "left in this round"}
       </span>
     </Card>
@@ -173,12 +173,12 @@ function Roster({
   return (
     <div className="bw-participant-roster">
       <StatusDot color={room.dot} />
-      <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>With you:</span>
-      <span style={{ fontSize: 11.5 }}>
+      <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>With you:</span>
+      <span style={{ fontSize: "var(--bw-fs-secondary)" }}>
         {names.length > 0 ? names.join(", ") : "nobody else has arrived yet"}
       </span>
       <div style={{ flex: 1 }} />
-      <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-muted-3)" }}>
+      <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
         {others.length + 1} of {room.participantUUIDs.length} here
       </span>
     </div>

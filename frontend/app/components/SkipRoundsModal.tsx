@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { roundLabel } from "@/lib/use-workspace";
 import type { RoundMeta, Workspace } from "@/types/breakout";
 
-import { Button, SectionLabel, StatusDot } from "./ui";
+import { Button, Modal, SectionLabel, StatusDot } from "./ui";
 
 /**
  * Choosing which of the remaining rounds to leave out, from the live screen.
@@ -31,14 +31,6 @@ export default function SkipRoundsModal({
 }) {
   const [pending, setPending] = useState<string | null>(null);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   const liveIndex = workspace.rounds.findIndex((round) => round.roundId === liveRoundId);
   const upcoming = workspace.rounds.slice(liveIndex + 1);
 
@@ -56,46 +48,40 @@ export default function SkipRoundsModal({
   }
 
   return (
-    <div
-      className="bw-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Skip rounds"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="bw-overlay__panel">
-        <header className="bw-overlay__header">
-          <div className="bw-round-heading">
-            <span style={{ fontSize: 15, fontWeight: 600 }}>Skip rounds</span>
-            <SectionLabel>Skipped rounds are passed over when this round ends</SectionLabel>
-          </div>
-          <div className="bw-header-spacer" />
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Done
-          </Button>
-        </header>
+    <Modal label="Skip rounds" onClose={onClose}>
+      {(close) => (
+        <>
+          <header className="bw-overlay__header">
+            <div className="bw-round-heading">
+              <span className="bw-modal-title">Skip rounds</span>
+              <SectionLabel>Skipped rounds are passed over when this round ends</SectionLabel>
+            </div>
+            <div className="bw-header-spacer" />
+            <Button variant="secondary" size="sm" onClick={close}>
+              Done
+            </Button>
+          </header>
 
-        <div className="bw-overlay__body">
-          {upcoming.length === 0 ? (
-            <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
-              Nothing after this round. Add another round to plan further ahead.
-            </span>
-          ) : (
-            upcoming.map((round) => (
-              <SkipRow
-                key={round.roundId}
-                round={round}
-                label={roundLabel(workspace, round.roundId)}
-                busy={pending === round.roundId}
-                onToggle={() => void toggle(round)}
-              />
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+          <div className="bw-overlay__body">
+            {upcoming.length === 0 ? (
+              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
+                Nothing after this round. Add another round to plan further ahead.
+              </span>
+            ) : (
+              upcoming.map((round) => (
+                <SkipRow
+                  key={round.roundId}
+                  round={round}
+                  label={roundLabel(workspace, round.roundId)}
+                  busy={pending === round.roundId}
+                  onToggle={() => void toggle(round)}
+                />
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -120,11 +106,11 @@ function SkipRow({
       <span className="bw-member-name">{label}</span>
       <div style={{ flex: 1 }} />
       {settled ? (
-        <span style={{ fontSize: 11, color: "var(--bw-muted-3)" }}>
+        <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
           {round.status === "closed" ? "already run" : "running"}
         </span>
       ) : (
-        <Button variant={skipped ? "accent" : "outline"} size="sm" disabled={busy} onClick={onToggle}>
+        <Button variant={skipped ? "primary" : "secondary"} size="sm" busy={busy} onClick={onToggle}>
           {skipped ? "Put back" : "Skip"}
         </Button>
       )}

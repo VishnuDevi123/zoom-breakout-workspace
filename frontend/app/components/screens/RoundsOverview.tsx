@@ -163,7 +163,7 @@ export default function RoundsOverview({
               )
             }
           />
-          <span style={{ fontSize: 11, color: "var(--bw-ink)" }}>
+          <span className="bw-header-subtitle">
             {anyLaunched ? "A round is live" : "Draft workspace · not launched"}
           </span>
         </div>
@@ -174,7 +174,7 @@ export default function RoundsOverview({
       <div className="bw-body">
         <main className="bw-main">
           <div className="bw-section-heading">
-            <span style={{ fontSize: 12, color: "var(--bw-ink)" }}>
+            <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-ink)" }}>
               Add and Edit round configurations.
 
             </span>
@@ -231,7 +231,7 @@ export default function RoundsOverview({
               }
             />
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={applying || eligibleUUIDs.length === 0}
               title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
@@ -252,7 +252,6 @@ export default function RoundsOverview({
             <label className="bw-switch-row">
               <input
                 type="checkbox"
-                style={{ accentColor: "#0d9488" }}
                 checked={workspace.sameRoomsEveryRound}
                 onChange={(event) =>
                   void run(() => onUpdateWorkspace({ sameRoomsEveryRound: event.target.checked }))
@@ -263,7 +262,6 @@ export default function RoundsOverview({
             <label className="bw-switch-row">
               <input
                 type="checkbox"
-                style={{ accentColor: "#0d9488" }}
                 checked={workspace.samePeopleEveryRound}
                 onChange={(event) =>
                   void run(() => onUpdateWorkspace({ samePeopleEveryRound: event.target.checked }))
@@ -278,7 +276,6 @@ export default function RoundsOverview({
             <label className="bw-switch-row">
               <input
                 type="checkbox"
-                style={{ accentColor: "#0d9488" }}
                 checked={workspace.autoStartNextRound}
                 onChange={(event) =>
                   void run(() => onUpdateWorkspace({ autoStartNextRound: event.target.checked }))
@@ -333,8 +330,9 @@ function LaunchWorkflow({
 
   return (
     <Button
-      variant="accent"
-      disabled={!ready || controller.operation.kind === "running"}
+      variant="primary"
+      disabled={!ready}
+      busy={controller.operation.kind === "running"}
       title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
       onClick={() => controller.launch()}
     >
@@ -367,7 +365,7 @@ function RoomsForEveryRound({
         onChange={(event) => setValue(event.target.value)}
       />
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         disabled={busy || !valid}
         title={valid ? undefined : `Enter 1 to ${MAX_ROOMS}.`}
@@ -405,7 +403,7 @@ function RoundRow({
       </div>
 
       <div className="bw-round-row-side">
-        <span style={{ fontSize: 11.5, color: "var(--bw-ink)" }}>
+        <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-ink)" }}>
           {roomCount === 0
             ? "No rooms yet"
             : `${roomCount} ${roomCount === 1 ? "room" : "rooms"} · ${placedCount} placed`}

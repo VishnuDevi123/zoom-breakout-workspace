@@ -62,7 +62,7 @@ function HostShell({
       <header className="bw-header">
         <BrandMark />
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{heading}</span>
+          <span className="bw-header-title">{heading}</span>
         </div>
         <div className="bw-header-spacer" />
       </header>
@@ -191,7 +191,7 @@ export default function HostWorkspace({
   if (workspace.state.kind === "loading") {
     return (
       <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
-        <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading rounds…</Card>
+        <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading rounds…</Card>
       </HostShell>
     );
   }
@@ -200,8 +200,8 @@ export default function HostWorkspace({
       <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
         <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
           <SectionLabel>Workspace load failed</SectionLabel>
-          <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
-          <Button variant="outline" size="sm" onClick={workspace.reload}>Retry load</Button>
+          <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
+          <Button variant="secondary" size="sm" onClick={workspace.reload}>Retry load</Button>
         </Card>
       </HostShell>
     );
@@ -224,7 +224,7 @@ export default function HostWorkspace({
     if (!livePlan || !live.liveState) {
       return (
         <HostShell meetingUUID={meetingUUID} role={role} heading="Live round">
-          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading live round…</Card>
+          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading live round…</Card>
         </HostShell>
       );
     }
@@ -355,14 +355,14 @@ function RoundEditor({
     return (
       <HostShell meetingUUID={meetingUUID} role={role} heading={`Rooms & people - ${label}`}>
         {plan.state.kind === "loading" ? (
-          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
+          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
             {seedLabel ? `Configuring ${label} from ${seedLabel}…` : `Loading ${label} draft…`}
           </Card>
         ) : (
           <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
             <SectionLabel>Draft load failed</SectionLabel>
-            <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>{plan.state.message}</span>
-            <Button variant="outline" size="sm" onClick={plan.retryLoad}>Retry load</Button>
+            <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{plan.state.message}</span>
+            <Button variant="secondary" size="sm" onClick={plan.retryLoad}>Retry load</Button>
           </Card>
         )}
       </HostShell>

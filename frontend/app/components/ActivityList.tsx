@@ -73,10 +73,10 @@ export default function ActivityList({
                   : "Rooms will not see it."}
               </span>
               <div className="bw-activity-card__actions">
-                <Button variant="outline" size="sm" onClick={() => setConfirmingId(null)}>
+                <Button variant="secondary" size="sm" onClick={() => setConfirmingId(null)}>
                   Cancel
                 </Button>
-                <Button size="sm" className="bw-danger-button" onClick={() => void remove(activity.id)}>
+                <Button variant="danger" size="sm" onClick={() => void remove(activity.id)}>
                   Remove
                 </Button>
               </div>
