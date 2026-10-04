@@ -25,6 +25,13 @@ import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
 /** One press of the timer stepper. */
 const ADJUST_STEP_SEC = 60;
 
+type LivePage = "rooms" | "session";
+
+const LIVE_PAGES: { page: LivePage; label: string }[] = [
+  { page: "rooms", label: "Rooms" },
+  { page: "session", label: "Session" },
+];
+
 export default function LiveRound({
   workspace,
   round,
@@ -51,6 +58,7 @@ export default function LiveRound({
 }) {
   const [editingTask, setEditingTask] = useState(false);
   const [skipping, setSkipping] = useState(false);
+  const [page, setPage] = useState<LivePage>("rooms");
   const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
   const busy = operation.kind === "running";
 
@@ -76,11 +84,20 @@ export default function LiveRound({
     return uuid ? participants.filter((p) => p.location === uuid) : [];
   }
 
+  const actionButton = open ? (
+    <Button variant="danger" size="sm" busy={busy} onClick={onEndRound}>
+      End round
+    </Button>
+  ) : nextRound ? (
+    <Button size="sm" busy={busy} onClick={onLaunchNext}>
+      Launch {roundLabel(workspace, nextRound.roundId)}
+    </Button>
+  ) : null;
+
   return (
-    <div className="bw-shell">
-      <header className="bw-header bw-live-header">
+    <div className="bw-live">
+      <header className="bw-live-bar">
         <BrandMark onHome={onHome} />
-        <span className="bw-header-divider" />
         <div className="bw-round-heading">
           <span className="bw-header-title">{round.title}</span>
           <div className="bw-live-badge">
@@ -98,10 +115,9 @@ export default function LiveRound({
 
         {remainingSec !== null ? (
           <>
-            <div className="bw-timer">
-              <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
-              <span className="bw-timer__label">remaining</span>
-            </div>
+            <span className="bw-live-bar__clock bw-mono" title="Time left in this round">
+              {formatClock(remainingSec)}
+            </span>
             <div className="bw-stepper">
               <button
                 disabled={!open || remainingSec <= ADJUST_STEP_SEC}
@@ -121,92 +137,84 @@ export default function LiveRound({
           </>
         ) : null}
 
-        <Button variant="secondary" size="sm" onClick={() => setSkipping(true)}>
-          Skip rounds
-        </Button>
-        <Button variant="secondary" size="sm" disabled={!open || busy} onClick={onEndRound}>
-          End round
-        </Button>
-        {nextRound ? (
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={open || busy}
-            title={open ? "End this round first." : undefined}
-            onClick={onLaunchNext}
-          >
-            Launch {roundLabel(workspace, nextRound.roundId)}
-          </Button>
-        ) : null}
+        {actionButton}
       </header>
 
-      <div className="bw-body">
-        <aside className="bw-rail bw-rail--left">
-          <SectionLabel>Session plan</SectionLabel>
-          {workspace.rounds.map((meta, index) => (
-            <Card
-              key={meta.roundId}
-              tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
-              className="bw-plan-row"
-            >
-              
-              <span
-                className="bw-member-name"
-                style={meta.status === "skipped" ? { color: "var(--bw-muted-3)" } : undefined}
-              >
-                R{index + 1}: {roundLabel(workspace, meta.roundId)}
-              </span>
-              <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-ink)" }}>
-                {meta.status === "closed"
-                  ? "✓"
-                  : meta.status === "skipped"
-                    ? "skipped"
-                    : formatClock(meta.durationSec)}
-              </span>
-            </Card>
-          ))}
-
-          <SectionLabel>Task this round</SectionLabel>
-          <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
-            <span className="bw-task-summary__goal">
-              {tasks.task.goal || "No task set for this round"}
-            </span>
-            <span className="bw-task-summary__action">
-              {tasks.task.goal ? "Edit task" : "Add a task"}
-            </span>
-          </button>
-
-          {open ? (
-            <ActivityList activities={tasks.activities} live onSave={tasks.saveActivities} />
-          ) : null}
-        </aside>
-
-        <main className="bw-main">
-          <div className="bw-room-grid">
-            {round.rooms.map((room) => {
-              const members = membersOf(room.id);
-              return (
-                <Card className="bw-room-card" key={room.id}>
-                  <div className="bw-room-card__header">
-                    <StatusDot color={room.dot} />
-                    <span className="bw-room-name" title={room.name}>{room.name}</span>
-                    <div style={{ flex: 1 }} />
-                    <Pill tone="outline">{members.length} / {room.participantUUIDs.length}</Pill>
-                  </div>
-                  {members.map((p) => (
-                    <MemberRow key={p.participantUUID} participant={p} />
-                  ))}
-                  {members.length === 0 ? (
-                    <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-3)" }}>
-                      {open ? "Nobody here yet" : "Round closed"}
-                    </span>
-                  ) : null}
+      <main className="bw-live-page">
+        <div className="bw-live-page__content">
+          {page === "rooms" ? (
+            <div className="bw-room-grid">
+              {round.rooms.map((room) => (
+                <LiveRoomCard
+                  key={room.id}
+                  name={room.name}
+                  dot={room.dot}
+                  members={membersOf(room.id)}
+                  plannedCount={room.participantUUIDs.length}
+                  open={open}
+                />
+              ))}
+            </div>
+          ) : (
+            // Placeholder: the current rail, kept reachable until the Session page is rebuilt.
+            <div className="bw-live-session">
+              <SectionLabel>Session plan</SectionLabel>
+              {workspace.rounds.map((meta, index) => (
+                <Card
+                  key={meta.roundId}
+                  tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
+                  className="bw-plan-row"
+                >
+                  <span
+                    className="bw-member-name"
+                    style={meta.status === "skipped" ? { color: "var(--bw-muted-4)" } : undefined}
+                  >
+                    R{index + 1}: {roundLabel(workspace, meta.roundId)}
+                  </span>
+                  <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)" }}>
+                    {meta.status === "closed"
+                      ? "✓"
+                      : meta.status === "skipped"
+                        ? "skipped"
+                        : formatClock(meta.durationSec)}
+                  </span>
                 </Card>
-              );
-            })}
-          </div>
-        </main>
-      </div>
+              ))}
+              <Button variant="secondary" size="sm" onClick={() => setSkipping(true)}>
+                Skip rounds
+              </Button>
+
+              <SectionLabel>Task this round</SectionLabel>
+              <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
+                <span className="bw-task-summary__goal">
+                  {tasks.task.goal || "No task set for this round"}
+                </span>
+                <span className="bw-task-summary__action">
+                  {tasks.task.goal ? "Edit task" : "Add a task"}
+                </span>
+              </button>
+
+              {open ? (
+                <ActivityList activities={tasks.activities} live onSave={tasks.saveActivities} />
+              ) : null}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <nav className="bw-live-nav" aria-label="Live round views">
+        {LIVE_PAGES.map((option) => (
+          <button
+            key={option.page}
+            type="button"
+            className="bw-live-nav__item"
+            aria-current={page === option.page ? "page" : undefined}
+            onClick={() => setPage(option.page)}
+          >
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {skipping ? (
         <SkipRoundsModal
@@ -228,11 +236,45 @@ export default function LiveRound({
   );
 }
 
-function MemberRow({ participant }: { participant: LiveParticipant }) {
+/** One room as the host sees it live: who has entered so far, as initials. */
+function LiveRoomCard({
+  name,
+  dot,
+  members,
+  plannedCount,
+  open,
+}: {
+  name: string;
+  dot: string;
+  members: LiveParticipant[];
+  plannedCount: number;
+  open: boolean;
+}) {
   return (
-    <div className="bw-member-row">
-      <span className="bw-avatar">{initialsFrom(participant.name)}</span>
-      <span className="bw-member-name">{participant.name}</span>
-    </div>
+    <Card className="bw-room-card">
+      <div className="bw-room-card__header">
+        <StatusDot color={dot} />
+        <span className="bw-room-name bw-live-room-name" title={name}>{name}</span>
+        <div style={{ flex: 1 }} />
+        <Pill tone="outline">{members.length} / {plannedCount}</Pill>
+      </div>
+      {members.length > 0 ? (
+        <div className="bw-initials-list">
+          {members.map((member) => (
+            <span
+              key={member.participantUUID}
+              className="bw-initials"
+              title={member.name}
+              aria-label={member.name}
+              role="img"
+            >
+              {initialsFrom(member.name)}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="bw-live-room-empty">{open ? "Nobody here yet" : "Round closed"}</span>
+      )}
+    </Card>
   );
 }

@@ -1155,10 +1155,6 @@ input[type="checkbox"] {
     border-top: 1px solid var(--bw-border);
     border-left: 0;
   }
-
-  .bw-live-header .bw-button {
-    flex: 1;
-  }
 }
 
 /* ── Participant landing ───────────────────────────────────────────── */
@@ -1535,6 +1531,114 @@ a.bw-resource-row:hover {
 }
 .bw-live-badge__label--off {
   color: var(--bw-muted-3);
+}
+
+/* ── Live round: dark header, one page at a time, dark bottom navbar ── */
+.bw-live {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr) 70px;
+  background: var(--bw-bg);
+}
+.bw-live-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 16px;
+  background: var(--bw-chrome);
+  color: #fff;
+}
+.bw-live-bar .bw-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bw-live-bar .bw-live-badge__label {
+  color: var(--bw-red);
+}
+.bw-live-bar .bw-live-badge__label--off {
+  color: #9aa3b2;
+}
+.bw-live-bar__clock {
+  font-size: var(--bw-fs-display);
+  font-weight: 600;
+  line-height: 1;
+}
+.bw-live-page {
+  min-height: 0;
+  overflow: auto;
+  container: live-page / inline-size;
+}
+.bw-live-page__content {
+  padding: 20px;
+}
+@container live-page (max-width: 639px) {
+  .bw-live-page__content {
+    padding: 12px;
+  }
+}
+.bw-live-room-name {
+  font-size: var(--bw-fs-title);
+}
+.bw-live-room-empty {
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
+}
+.bw-initials-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bw-initials {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+  font-size: var(--bw-fs-secondary);
+  font-weight: 600;
+  cursor: default;
+}
+.bw-live-session {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bw-live-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bw-chrome);
+}
+.bw-live-nav__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  color: #9aa3b2;
+  cursor: pointer;
+}
+.bw-live-nav__item > span {
+  padding: 8px 20px;
+  border-radius: var(--bw-radius-pill);
+}
+.bw-live-nav__item:hover {
+  color: #fff;
+}
+.bw-live-nav__item[aria-current="page"] {
+  color: #fff;
+}
+.bw-live-nav__item[aria-current="page"] > span {
+  background: var(--bw-accent);
 }
 
 /* ── Skip rounds panel ─────────────────────────────────────────────── */
