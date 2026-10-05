@@ -18,6 +18,7 @@ import type {
   ZoomRole,
 } from "@/types/breakout";
 
+import ZoomActionOverlay from "../ZoomActionOverlay";
 import { Button, Card, EditableName, Pill, SectionLabel } from "../ui";
 
 const DURATION_STEP_SEC = 30;
@@ -329,15 +330,18 @@ function LaunchWorkflow({
   const ready = (plan?.rooms.length ?? 0) > 0;
 
   return (
-    <Button
-      variant="primary"
-      disabled={!ready}
-      busy={controller.operation.kind === "running"}
-      title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
-      onClick={() => controller.launch()}
-    >
-      Launch Workflow
-    </Button>
+    <>
+      <Button
+        variant="primary"
+        disabled={!ready}
+        busy={controller.operation.kind === "running"}
+        title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
+        onClick={() => controller.launch()}
+      >
+        Launch Workflow
+      </Button>
+      <ZoomActionOverlay operation={controller.operation} />
+    </>
   );
 }
 

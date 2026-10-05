@@ -7,6 +7,7 @@ import type {
   LiveState,
   RoundPlan,
   RemoveIdeaRequest,
+  RoomResponsesHostView,
   RoomResponsesView,
   RosterEntry,
   RoundPlanDraft,
@@ -190,6 +191,16 @@ export async function postRoster(
 
 function roomResponsesUrl(roundId: string, roomId: string): string {
   return `/api/responses/${encodeURIComponent(roundId)}/rooms/${encodeURIComponent(roomId)}`;
+}
+
+/** The host's view of a room: every submitted answer, every note and tick. Drafts carry no text. */
+export async function readRoomResultsForHost(
+  parentUUID: string,
+  roundId: string,
+  roomId: string,
+): Promise<RoomResponsesHostView> {
+  const query = `parentUUID=${encodeURIComponent(parentUUID)}`;
+  return apiResult(await fetch(`${roomResponsesUrl(roundId, roomId)}/all?${query}`, { cache: "no-store" }));
 }
 
 /** The caller's view of their room: notes, ticks, own answers, everyone's answer status. */

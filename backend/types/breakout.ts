@@ -269,6 +269,8 @@ export interface RoomResponsesView extends Omit<RoomResponses, "answers" | "idea
   /** activityId -> participantUUID -> status, for the room's submission list. */
   statuses: Record<string, Record<string, AnswerStatus>>;
 }
+/** The host's view of one room: every answer (text only once submitted), every note and tick. */
+export type RoomResponsesHostView = Omit<RoomResponses, "ideaCounters">;
 // ---- Request bodies. parentUUID and participantUUID identify the caller. ----
 
 interface ResponseCaller {

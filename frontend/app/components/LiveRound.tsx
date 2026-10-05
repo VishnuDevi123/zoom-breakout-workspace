@@ -7,16 +7,20 @@ import { initialsFrom } from "@/lib/participant-status";
 import { assignParticipantToRoom, autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
+import { useRoomResults } from "@/lib/use-room-results";
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
 import type { LiveParticipant, LiveState, RoundMeta, RoundPlan, RoundPlanDraft, Workspace } from "@/types/breakout";
 
 import { toast } from "sonner";
 
+import ActivityResultsPage from "./ActivityResultsPage";
 import EditTaskModal from "./EditTaskModal";
 import NotPlacedSheet from "./NotPlacedSheet";
+import RoomResultsPage from "./RoomResultsPage";
 import SessionPage from "./SessionPage";
-import { BrandMark, Button, Card, Pill, StatusDot } from "./ui";
+import { BrandMark, Button, Card, ConfirmModal, Pill, StatusDot } from "./ui";
+import ZoomActionOverlay from "./ZoomActionOverlay";
 
 /**
  * The running round. Room names and dots come from the round's draft; who is
@@ -27,6 +31,14 @@ import { BrandMark, Button, Card, Pill, StatusDot } from "./ui";
 const ADJUST_STEP_SEC = 60;
 
 type LivePage = "rooms" | "session";
+
+/** Where the Rooms tab is: the grid, one room's work, or one activity's submissions. */
+type RoomsLevel =
+  | { kind: "grid" }
+  | { kind: "room"; roomId: string }
+  | { kind: "activity"; roomId: string; activityId: string };
+
+const GRID: RoomsLevel = { kind: "grid" };
 
 const LIVE_PAGES: { page: LivePage; label: string }[] = [
   { page: "rooms", label: "Rooms" },
@@ -72,7 +84,11 @@ export default function LiveRound({
   const [editingTask, setEditingTask] = useState(false);
   const [page, setPage] = useState<LivePage>("rooms");
   const [placing, setPlacing] = useState<string | null>(null);
-  const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
+  // Remembered per round: switching to Session and back keeps the level, a new round starts at the grid.
+  const [rooms, setRooms] = useState<{ roundId: string; level: RoomsLevel }>({ roundId: round.roundId, level: GRID });
+  // The shown round, not the live one: after a close its task and results stay readable until the next launch.
+  const tasks = useRoundTasks(live.parentUUID, round.roundId);
   const busy = operation.kind === "running";
 
   // The backend re-arms the timer and pushes the new endsAt over SSE, so there
@@ -107,13 +123,34 @@ export default function LiveRound({
     setPlacing(null);
   }
 
+  const level = rooms.roundId === round.roundId ? rooms.level : GRID;
+  const openRoom = level.kind === "grid" ? null : (round.rooms.find((room) => room.id === level.roomId) ?? null);
+  const openActivity =
+    level.kind === "activity" ? (tasks.activities.find((activity) => activity.id === level.activityId) ?? null) : null;
+  const results = useRoomResults({
+    parentUUID: live.parentUUID,
+    roundId: round.roundId,
+    roomId: openRoom?.id ?? "",
+    roomRevision: openRoom ? (live.roomRevisions[openRoom.id] ?? 0) : 0,
+  });
+  const goTo = (next: RoomsLevel) => setRooms({ roundId: round.roundId, level: next });
+
+  /** Everyone the plan puts in a room, named from the live store where it knows them. */
+  function peopleIn(roomId: string) {
+    const planned = round.rooms.find((room) => room.id === roomId)?.participantUUIDs ?? [];
+    return planned.map((participantUUID) => ({
+      participantUUID,
+      name: participants.find((p) => p.participantUUID === participantUUID)?.name || "Participant",
+    }));
+  }
+
   function membersOf(roomId: string): LiveParticipant[] {
     const uuid = live.round?.roomUUIDs[roomId];
     return uuid ? participants.filter((p) => p.location === uuid) : [];
   }
 
   const actionButton = open ? (
-    <Button variant="danger" size="sm" busy={busy} onClick={onEndRound}>
+    <Button variant="danger" size="sm" busy={busy} onClick={() => setConfirmingEnd(true)}>
       End round
     </Button>
   ) : nextRound ? (
@@ -171,7 +208,26 @@ export default function LiveRound({
       <div className="bw-live-main">
         <main className="bw-live-page">
           <div className="bw-live-page__content">
-            {page === "rooms" ? (
+            {page === "rooms" && openRoom && openActivity ? (
+              <ActivityResultsPage
+                activity={openActivity}
+                roomName={openRoom.name}
+                people={peopleIn(openRoom.id)}
+                results={results}
+                onBack={() => goTo({ kind: "room", roomId: openRoom.id })}
+              />
+            ) : page === "rooms" && openRoom ? (
+              <RoomResultsPage
+                room={openRoom}
+                people={peopleIn(openRoom.id)}
+                presentCount={membersOf(openRoom.id).length}
+                checklist={tasks.task.checklist}
+                activities={tasks.activities}
+                results={results}
+                onBack={() => goTo(GRID)}
+                onOpenActivity={(activityId) => goTo({ kind: "activity", roomId: openRoom.id, activityId })}
+              />
+            ) : page === "rooms" ? (
               <div className="bw-room-grid">
                 {round.rooms.map((room) => (
                   <LiveRoomCard
@@ -181,6 +237,7 @@ export default function LiveRound({
                     members={membersOf(room.id)}
                     plannedCount={room.participantUUIDs.length}
                     open={open}
+                    onOpen={() => goTo({ kind: "room", roomId: room.id })}
                   />
                 ))}
               </div>
@@ -200,7 +257,7 @@ export default function LiveRound({
           </div>
         </main>
 
-        {page === "rooms" && open ? (
+        {page === "rooms" && !openRoom && open ? (
           <NotPlacedSheet
             people={waiting}
             rooms={round.rooms}
@@ -229,6 +286,18 @@ export default function LiveRound({
         ))}
       </nav>
 
+      {confirmingEnd ? (
+        <ConfirmModal
+          title={`End ${round.title} now?`}
+          message={`${remainingSec === null ? "" : `${formatClock(remainingSec)} left. `}Everyone returns to the main room.`}
+          confirmLabel="End round"
+          onConfirm={async () => onEndRound()}
+          onClose={() => setConfirmingEnd(false)}
+        />
+      ) : null}
+
+      <ZoomActionOverlay operation={operation} />
+
       {editingTask ? (
         <EditTaskModal
           roundTitle={round.title}
@@ -240,22 +309,36 @@ export default function LiveRound({
   );
 }
 
-/** One room as the host sees it live: who has entered so far, as initials. */
+/** One room as the host sees it live: who has entered so far, as initials. Opens the room's work. */
 function LiveRoomCard({
   name,
   dot,
   members,
   plannedCount,
   open,
+  onOpen,
 }: {
   name: string;
   dot: string;
   members: LiveParticipant[];
   plannedCount: number;
   open: boolean;
+  /** Opens this room's work: checklist and activities. */
+  onOpen: () => void;
 }) {
   return (
-    <Card className="bw-room-card">
+    <Card
+      className="bw-room-card bw-room-card--clickable"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${name}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onOpen();
+      }}
+    >
       <div className="bw-room-card__header">
         <StatusDot color={dot} />
         <span className="bw-room-name bw-live-room-name" title={name}>{name}</span>

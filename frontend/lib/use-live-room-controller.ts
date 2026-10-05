@@ -81,20 +81,19 @@ export function useLiveRoomController(input: ControllerInput) {
   async function run(kind: "launch" | "close", task: (step: (s: string) => void) => Promise<string>) {
     if (operation.kind === "running") return;
     let lastStep = "Checking Zoom…";
-    const toastId = toast.loading(lastStep);
+    // Progress shows on the full-screen overlay; only the outcome is a toast.
     const step = (s: string) => {
       lastStep = s;
-      toast.loading(s, { id: toastId });
       setOperation({ kind: "running", operation: kind, step: s });
     };
     step(lastStep);
     try {
       const message = await task(step);
-      toast.success(message, { id: toastId });
+      toast.success(message);
       if (aliveRef.current) setOperation({ kind: "success", message });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Zoom operation failed.";
-      toast.error(lastStep, { id: toastId, description: reason });
+      toast.error(lastStep, { description: reason });
       if (aliveRef.current) setOperation({ kind: "error", message: `${lastStep} ${reason}` });
     }
   }

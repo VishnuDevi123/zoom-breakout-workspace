@@ -121,7 +121,7 @@ export default function ActivityList({
 
       {activities.length === 0 ? (
         <Card tone="dashed" className="bw-activity-empty">
-          No activity is required. A round can run with just a task and a timer.
+          No activity added yet.... 
         </Card>
       ) : null}
 

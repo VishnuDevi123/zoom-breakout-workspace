@@ -36,6 +36,8 @@ edit task         host     -> GET/PUT /api/tasks/:roundId            tasks store
                                                                       (activities and the checklist ride in the same record)
                   backend  -> pruneResponses(saved)                    responses for removed activities / checklist items deleted
 read task         participant -> GET /api/tasks/:roundId             rooms[myRoomId] ?? all, plus activities
+read results      host     -> GET /api/responses/:roundId/rooms/:roomId/all?parentUUID     RoomResponsesHostView: all answers (text once submitted), notes, ticks
+                  host     -> refetch on roomRevisions[roomId]; live Rooms tab: grid -> room page -> activity page
 read responses    participant -> GET /api/responses/:roundId/rooms/:roomId?parentUUID&participantUUID
                                                                       RoomResponsesView: notes, ticks, own answers, everyone's status
 write response    participant -> PUT  .../answers/:activityId          {status: "working" (autosave) | "submitted"}
@@ -121,7 +123,7 @@ close emits none of them, so `markClosedRound` resets locations instead.
 - One task per round. The store holds per-room overrides and every save preserves them, but no screen writes them yet. A checklist saves only with a goal: an empty goal saves `all: null`.
 - No auth: the backend trusts the `participantUUID` a client sends. Hiding others' answers is a server filter, not a lock.
 - Note and tick author names come from the live store; after a restart they read "Participant".
-- No host view of answers yet. Submitted answers are stored; a results view is not planned this week.
+- The host results view (`GET /api/responses/:roundId/rooms/:roomId/all`, `getRoomResponsesForHost`) returns every answer, note and tick in a room; a "working" answer comes back with its status and no text. Like the participant filter, it hides drafts but locks nothing: the backend has no login.
 - Room count and auto-assign from the overview rail apply to every round at once; per-round differences need the editor. Rounds already launched are skipped.
 - Active scope: week 6, the activity system (individual responses, shared idea board, task checklist). Still open in week 6: toasts for an edited activity and for a removed one that is not open, and UI refinement. Help requests, room status and host messages (the room page's message panel is a placeholder) are later weeks.
 - Seeding copies from the first round only, once, on first open of a round with no draft. Later edits to round 1 do not flow forward.

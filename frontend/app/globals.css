@@ -67,7 +67,7 @@
   --bw-fs-title: 16px;
   --bw-fs-body: 14px;
   --bw-fs-secondary: 13px;
-  --bw-fs-meta: 12px;
+  --bw-fs-meta: 13px;
   --bw-fs-label: 12px;
   --bw-fs-display: 26px;
 
@@ -1680,12 +1680,199 @@ a.bw-resource-row:hover {
 .bw-stepper--inline {
   align-self: flex-start;
 }
+/* Zoom launch/close progress: centred spinner and the current step. */
+.bw-zoom-progress {
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px;
+  text-align: center;
+  color: var(--bw-accent);
+}
+.bw-zoom-progress .bw-modal-title {
+  color: var(--bw-ink);
+}
+.bw-zoom-progress__step {
+  font-size: var(--bw-fs-body);
+  color: var(--bw-muted);
+}
 .bw-confirm-message {
   margin: 0;
   font-size: var(--bw-fs-body);
   line-height: 1.5;
   color: var(--bw-muted);
 }
+/* ── Host results: a room's work, then one activity's submissions ───── */
+.bw-room-card--clickable {
+  cursor: pointer;
+}
+.bw-room-card--clickable:hover,
+.bw-room-card--clickable:focus-visible {
+  border-color: var(--bw-accent);
+  outline: none;
+}
+.bw-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.bw-results__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* Back is a quiet text link above the page, not a button competing with the title. */
+.bw-results__back {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-secondary);
+  font-weight: 600;
+  color: var(--bw-accent);
+  cursor: pointer;
+}
+.bw-results__back:hover {
+  color: var(--bw-accent-deep);
+}
+.bw-results__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bw-border);
+}
+.bw-results__heading-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bw-results__question {
+  margin: 0;
+  font-size: var(--bw-fs-title);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.bw-results__details {
+  margin: 0;
+  font-size: var(--bw-fs-secondary);
+  line-height: 1.5;
+  color: var(--bw-muted);
+  white-space: pre-wrap;
+}
+.bw-results__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-title);
+  font-weight: 600;
+}
+.bw-results__meta {
+  flex: none;
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
+}
+.bw-results__split {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.bw-results__people,
+.bw-results__work {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-results__person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.bw-results__person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-secondary);
+  font-weight: 500;
+}
+/* Narrow: people become one wrapping row above the work. */
+@container live-page (max-width: 639px) {
+  .bw-results__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bw-results__people {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+}
+.bw-results__activity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  box-shadow: var(--bw-shadow-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bw-results__activity:hover,
+.bw-results__activity:focus-visible {
+  border-color: var(--bw-accent);
+}
+.bw-results__activity-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+.bw-results__chevron {
+  font-size: var(--bw-fs-title);
+  color: var(--bw-muted);
+}
+.bw-results__answers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-results__answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-results__answer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* The submitted answer sits in its own box, apart from the name and status. */
+.bw-results__answer-text {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface-sunken);
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* ── Not yet placed: a resizable sheet over the bottom of the room grid ── */
 .bw-sheet {
   position: absolute;
@@ -1851,7 +2038,7 @@ a.bw-resource-row:hover {
   padding: 2px 7px;
   border-radius: var(--bw-radius-sm);
   font-family: "IBM Plex Mono", monospace;
-  font-size: var(--bw-fs-meta);
+  font-size: var(--bw-fs-body);
   font-weight: 600;
 }
 .bw-activity-empty {
