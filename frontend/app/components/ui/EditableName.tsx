@@ -35,7 +35,10 @@ export default function EditableName({
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") commit();
-          if (event.key === "Escape") setEditing(false);
+          if (event.key !== "Escape") return;
+          // Cancels the rename only, not a modal this field sits in.
+          event.stopPropagation();
+          setEditing(false);
         }}
       />
     );

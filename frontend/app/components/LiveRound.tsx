@@ -9,15 +9,14 @@ import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
-import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace } from "@/types/breakout";
+import type { LiveParticipant, LiveState, RoundMeta, RoundPlan, RoundPlanDraft, Workspace } from "@/types/breakout";
 
 import { toast } from "sonner";
 
-import ActivityList from "./ActivityList";
 import EditTaskModal from "./EditTaskModal";
 import NotPlacedSheet from "./NotPlacedSheet";
-import SkipRoundsModal from "./SkipRoundsModal";
-import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
+import SessionPage from "./SessionPage";
+import { BrandMark, Button, Card, Pill, StatusDot } from "./ui";
 
 /**
  * The running round. Room names and dots come from the round's draft; who is
@@ -46,6 +45,10 @@ export default function LiveRound({
   onEndRound,
   onLaunchNext,
   onPlace,
+  plans,
+  onAddRound,
+  onUpdateRound,
+  onDeleteRound,
 }: {
   workspace: Workspace;
   round: RoundPlanDraft;
@@ -60,9 +63,13 @@ export default function LiveRound({
   onLaunchNext: () => void;
   /** Saves the round with people added to rooms and moves them in Zoom. Reports its own errors. */
   onPlace: (next: RoundPlanDraft) => Promise<void>;
+  /** Every round's saved plan, for the Session page's room summaries. */
+  plans: Record<string, RoundPlan | null>;
+  onAddRound: () => Promise<void>;
+  onUpdateRound: (roundId: string, patch: Partial<Pick<RoundMeta, "title" | "durationSec">>) => Promise<void>;
+  onDeleteRound: (roundId: string) => Promise<void>;
 }) {
   const [editingTask, setEditingTask] = useState(false);
-  const [skipping, setSkipping] = useState(false);
   const [page, setPage] = useState<LivePage>("rooms");
   const [placing, setPlacing] = useState<string | null>(null);
   const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
@@ -178,48 +185,17 @@ export default function LiveRound({
                 ))}
               </div>
             ) : (
-              // Placeholder: the current rail, kept reachable until the Session page is rebuilt.
-              <div className="bw-live-session">
-                <SectionLabel>Session plan</SectionLabel>
-                {workspace.rounds.map((meta, index) => (
-                  <Card
-                    key={meta.roundId}
-                    tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
-                    className="bw-plan-row"
-                  >
-                    <span
-                      className="bw-member-name"
-                      style={meta.status === "skipped" ? { color: "var(--bw-muted-4)" } : undefined}
-                    >
-                      R{index + 1}: {roundLabel(workspace, meta.roundId)}
-                    </span>
-                    <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)" }}>
-                      {meta.status === "closed"
-                        ? "✓"
-                        : meta.status === "skipped"
-                          ? "skipped"
-                          : formatClock(meta.durationSec)}
-                    </span>
-                  </Card>
-                ))}
-                <Button variant="secondary" size="sm" onClick={() => setSkipping(true)}>
-                  Skip rounds
-                </Button>
-
-                <SectionLabel>Task this round</SectionLabel>
-                <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
-                  <span className="bw-task-summary__goal">
-                    {tasks.task.goal || "No task set for this round"}
-                  </span>
-                  <span className="bw-task-summary__action">
-                    {tasks.task.goal ? "Edit task" : "Add a task"}
-                  </span>
-                </button>
-
-                {open ? (
-                  <ActivityList activities={tasks.activities} live onSave={tasks.saveActivities} />
-                ) : null}
-              </div>
+              <SessionPage
+                workspace={workspace}
+                plans={plans}
+                tasks={tasks}
+                open={open}
+                onEditTask={() => setEditingTask(true)}
+                onAddRound={onAddRound}
+                onUpdateRound={onUpdateRound}
+                onDeleteRound={onDeleteRound}
+                onSkipRound={onSkipRound}
+              />
             )}
           </div>
         </main>
@@ -252,15 +228,6 @@ export default function LiveRound({
           </button>
         ))}
       </nav>
-
-      {skipping ? (
-        <SkipRoundsModal
-          workspace={workspace}
-          liveRoundId={live.round?.roundId ?? null}
-          onSkipRound={onSkipRound}
-          onClose={() => setSkipping(false)}
-        />
-      ) : null}
 
       {editingTask ? (
         <EditTaskModal

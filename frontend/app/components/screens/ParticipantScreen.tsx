@@ -20,9 +20,9 @@ const HOW_IT_WORKS = [
  *
  * Everything here is read-only: a participant never calls a breakout method.
  * The running round arrives over SSE, room membership comes from the host's
- * saved draft, and the task comes from the task store. Three states, in the
- * order they are checked: no round running, running but staying in main, and
- * placed in a room.
+ * saved draft, and the task comes from the task store. Four states, in the
+ * order they are checked: no round running, running but staying in main,
+ * placed but still in the main room, and inside the room.
  */
 export default function ParticipantScreen({
   parentUUID,
@@ -34,11 +34,14 @@ export default function ParticipantScreen({
   const [showWorkspace, setShowWorkspace] = useState(false);
   const { liveState } = useLiveState(parentUUID);
   const roundId = liveState?.round?.roundId ?? "";
+  // Empty when webhooks have not reported this person yet; then the plan alone decides.
+  const location = liveState?.participants.find((p) => p.participantUUID === participantUUID)?.location ?? "";
   const round = useParticipantRound({
     parentUUID,
     participantUUID,
     roundId,
     taskRevision: liveState?.taskRevision ?? 0,
+    location,
   });
   const { room, task, roundTitle } = round;
 
@@ -53,6 +56,17 @@ export default function ParticipantScreen({
       <Waiting
         headline="You are staying in the main room"
         lede="The host did not place you in a breakout room for this round."
+      />
+    );
+  }
+
+  if (location === "main") {
+    // Placed, but not inside the room: just launched and not joined yet, or stepped back out.
+    if (showWorkspace) setShowWorkspace(false);
+    return (
+      <Waiting
+        headline="You are in the main room"
+        lede={`Your room for this round is ${room.name}. Open Zoom's Breakout Rooms button to join it.`}
       />
     );
   }
