@@ -4,17 +4,23 @@ import { useState } from "react";
 
 import { adjustRoundTime } from "@/lib/execution-api";
 import { initialsFrom } from "@/lib/participant-status";
+import { assignParticipantToRoom, autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
+import { useRoomResults } from "@/lib/use-room-results";
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
-import type { LiveParticipant, LiveState, RoundMeta, RoundPlanDraft, Workspace } from "@/types/breakout";
+import type { LiveParticipant, LiveState, RoundMeta, RoundPlan, RoundPlanDraft, Workspace } from "@/types/breakout";
 
 import { toast } from "sonner";
 
+import ActivityResultsPage from "./ActivityResultsPage";
 import EditTaskModal from "./EditTaskModal";
-import SkipRoundsModal from "./SkipRoundsModal";
-import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
+import NotPlacedSheet from "./NotPlacedSheet";
+import RoomResultsPage from "./RoomResultsPage";
+import SessionPage from "./SessionPage";
+import { BrandMark, Button, Card, ConfirmModal, Pill, StatusDot } from "./ui";
+import ZoomActionOverlay from "./ZoomActionOverlay";
 
 /**
  * The running round. Room names and dots come from the round's draft; who is
@@ -23,6 +29,21 @@ import { BrandMark, Button, Card, Pill, SectionLabel, StatusDot } from "./ui";
  */
 /** One press of the timer stepper. */
 const ADJUST_STEP_SEC = 60;
+
+type LivePage = "rooms" | "session";
+
+/** Where the Rooms tab is: the grid, one room's work, or one activity's submissions. */
+type RoomsLevel =
+  | { kind: "grid" }
+  | { kind: "room"; roomId: string }
+  | { kind: "activity"; roomId: string; activityId: string };
+
+const GRID: RoomsLevel = { kind: "grid" };
+
+const LIVE_PAGES: { page: LivePage; label: string }[] = [
+  { page: "rooms", label: "Rooms" },
+  { page: "session", label: "Session" },
+];
 
 export default function LiveRound({
   workspace,
@@ -35,6 +56,11 @@ export default function LiveRound({
   onSkipRound,
   onEndRound,
   onLaunchNext,
+  onPlace,
+  plans,
+  onAddRound,
+  onUpdateRound,
+  onDeleteRound,
 }: {
   workspace: Workspace;
   round: RoundPlanDraft;
@@ -47,10 +73,22 @@ export default function LiveRound({
   onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
   onEndRound: () => void;
   onLaunchNext: () => void;
+  /** Saves the round with people added to rooms and moves them in Zoom. Reports its own errors. */
+  onPlace: (next: RoundPlanDraft) => Promise<void>;
+  /** Every round's saved plan, for the Session page's room summaries. */
+  plans: Record<string, RoundPlan | null>;
+  onAddRound: () => Promise<void>;
+  onUpdateRound: (roundId: string, patch: Partial<Pick<RoundMeta, "title" | "durationSec">>) => Promise<void>;
+  onDeleteRound: (roundId: string) => Promise<void>;
 }) {
   const [editingTask, setEditingTask] = useState(false);
-  const [skipping, setSkipping] = useState(false);
-  const tasks = useRoundTasks(live.parentUUID, live.round?.roundId ?? "");
+  const [page, setPage] = useState<LivePage>("rooms");
+  const [placing, setPlacing] = useState<string | null>(null);
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
+  // Remembered per round: switching to Session and back keeps the level, a new round starts at the grid.
+  const [rooms, setRooms] = useState<{ roundId: string; level: RoomsLevel }>({ roundId: round.roundId, level: GRID });
+  // The shown round, not the live one: after a close its task and results stay readable until the next launch.
+  const tasks = useRoundTasks(live.parentUUID, round.roundId);
   const busy = operation.kind === "running";
 
   // The backend re-arms the timer and pushes the new endsAt over SSE, so there
@@ -70,18 +108,63 @@ export default function LiveRound({
   const remainingSec = useRemainingSec(live.round?.endsAt ?? 0);
   const participants = live.participants;
 
+  // Waiting: in the main room, not the host, and in no room or main-room choice of this round's plan.
+  const planned = new Set([
+    ...round.rooms.flatMap((room) => room.participantUUIDs),
+    ...round.stayInMainParticipantUUIDs,
+  ]);
+  const waiting = participants.filter(
+    (p) => p.location === "main" && !p.isHost && !planned.has(p.participantUUID),
+  );
+
+  async function place(key: string, next: RoundPlanDraft) {
+    setPlacing(key);
+    await onPlace(next);
+    setPlacing(null);
+  }
+
+  const level = rooms.roundId === round.roundId ? rooms.level : GRID;
+  const openRoom = level.kind === "grid" ? null : (round.rooms.find((room) => room.id === level.roomId) ?? null);
+  const openActivity =
+    level.kind === "activity" ? (tasks.activities.find((activity) => activity.id === level.activityId) ?? null) : null;
+  const results = useRoomResults({
+    parentUUID: live.parentUUID,
+    roundId: round.roundId,
+    roomId: openRoom?.id ?? "",
+    roomRevision: openRoom ? (live.roomRevisions[openRoom.id] ?? 0) : 0,
+  });
+  const goTo = (next: RoomsLevel) => setRooms({ roundId: round.roundId, level: next });
+
+  /** Everyone the plan puts in a room, named from the live store where it knows them. */
+  function peopleIn(roomId: string) {
+    const planned = round.rooms.find((room) => room.id === roomId)?.participantUUIDs ?? [];
+    return planned.map((participantUUID) => ({
+      participantUUID,
+      name: participants.find((p) => p.participantUUID === participantUUID)?.name || "Participant",
+    }));
+  }
+
   function membersOf(roomId: string): LiveParticipant[] {
     const uuid = live.round?.roomUUIDs[roomId];
     return uuid ? participants.filter((p) => p.location === uuid) : [];
   }
 
+  const actionButton = open ? (
+    <Button variant="danger" size="sm" busy={busy} onClick={() => setConfirmingEnd(true)}>
+      End round
+    </Button>
+  ) : nextRound ? (
+    <Button size="sm" busy={busy} onClick={onLaunchNext}>
+      Launch {roundLabel(workspace, nextRound.roundId)}
+    </Button>
+  ) : null;
+
   return (
-    <div className="bw-shell">
-      <header className="bw-header bw-live-header">
+    <div className="bw-live">
+      <header className="bw-live-bar">
         <BrandMark onHome={onHome} />
-        <span className="bw-header-divider" />
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{round.title}</span>
+          <span className="bw-header-title">{round.title}</span>
           <div className="bw-live-badge">
             <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
             <span
@@ -97,10 +180,9 @@ export default function LiveRound({
 
         {remainingSec !== null ? (
           <>
-            <div className="bw-timer">
-              <span className="bw-timer__clock bw-mono">{formatClock(remainingSec)}</span>
-              <span className="bw-timer__label">remaining</span>
-            </div>
+            <span className="bw-live-bar__clock bw-mono" title="Time left in this round">
+              {formatClock(remainingSec)}
+            </span>
             <div className="bw-stepper">
               <button
                 disabled={!open || remainingSec <= ADJUST_STEP_SEC}
@@ -120,97 +202,101 @@ export default function LiveRound({
           </>
         ) : null}
 
-        <Button variant="outline" size="sm" onClick={() => setSkipping(true)}>
-          Skip rounds
-        </Button>
-        <Button variant="outline" size="sm" disabled={!open || busy} onClick={onEndRound}>
-          End round
-        </Button>
-        {nextRound ? (
-          <Button
-            variant="accent"
-            size="sm"
-            disabled={open || busy}
-            title={open ? "End this round first." : undefined}
-            onClick={onLaunchNext}
-          >
-            Launch {roundLabel(workspace, nextRound.roundId)}
-          </Button>
-        ) : null}
+        {actionButton}
       </header>
 
-      <div className="bw-body">
-        <aside className="bw-rail bw-rail--left">
-          <SectionLabel>Session plan</SectionLabel>
-          {workspace.rounds.map((meta, index) => (
-            <Card
-              key={meta.roundId}
-              tone={meta.roundId === live.round?.roundId ? "default" : "sunken"}
-              className="bw-plan-row"
-            >
-              
-              <span
-                className="bw-member-name"
-                style={meta.status === "skipped" ? { color: "var(--bw-muted-3)" } : undefined}
-              >
-                R{index + 1}: {roundLabel(workspace, meta.roundId)}
-              </span>
-              <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-ink)" }}>
-                {meta.status === "closed"
-                  ? "✓"
-                  : meta.status === "skipped"
-                    ? "skipped"
-                    : formatClock(meta.durationSec)}
-              </span>
-            </Card>
-          ))}
-
-          <SectionLabel>Task this round</SectionLabel>
-          <button className="bw-task-summary" disabled={!open} onClick={() => setEditingTask(true)}>
-            <span className="bw-task-summary__goal">
-              {tasks.task.goal || "No task set for this round"}
-            </span>
-            <span className="bw-task-summary__action">
-              {tasks.task.goal ? "Edit task" : "Add a task"} -&gt;
-            </span>
-          </button>
-        </aside>
-
-        <main className="bw-main">
-          <div className="bw-room-grid">
-            {round.rooms.map((room) => {
-              const members = membersOf(room.id);
-              return (
-                <Card className="bw-room-card" key={room.id}>
-                  <div className="bw-room-card__header">
-                    <StatusDot color={room.dot} />
-                    <span className="bw-room-name" title={room.name}>{room.name}</span>
-                    <div style={{ flex: 1 }} />
-                    <Pill tone="outline">{members.length} / {room.participantUUIDs.length}</Pill>
-                  </div>
-                  {members.map((p) => (
-                    <MemberRow key={p.participantUUID} participant={p} />
-                  ))}
-                  {members.length === 0 ? (
-                    <span style={{ fontSize: 11.5, color: "var(--bw-muted-3)" }}>
-                      {open ? "Nobody here yet" : "Round closed"}
-                    </span>
-                  ) : null}
-                </Card>
-              );
-            })}
+      <div className="bw-live-main">
+        <main className="bw-live-page">
+          <div className="bw-live-page__content">
+            {page === "rooms" && openRoom && openActivity ? (
+              <ActivityResultsPage
+                activity={openActivity}
+                roomName={openRoom.name}
+                people={peopleIn(openRoom.id)}
+                results={results}
+                onBack={() => goTo({ kind: "room", roomId: openRoom.id })}
+              />
+            ) : page === "rooms" && openRoom ? (
+              <RoomResultsPage
+                room={openRoom}
+                people={peopleIn(openRoom.id)}
+                presentCount={membersOf(openRoom.id).length}
+                checklist={tasks.task.checklist}
+                activities={tasks.activities}
+                results={results}
+                onBack={() => goTo(GRID)}
+                onOpenActivity={(activityId) => goTo({ kind: "activity", roomId: openRoom.id, activityId })}
+              />
+            ) : page === "rooms" ? (
+              <div className="bw-room-grid">
+                {round.rooms.map((room) => (
+                  <LiveRoomCard
+                    key={room.id}
+                    name={room.name}
+                    dot={room.dot}
+                    members={membersOf(room.id)}
+                    plannedCount={room.participantUUIDs.length}
+                    open={open}
+                    onOpen={() => goTo({ kind: "room", roomId: room.id })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <SessionPage
+                workspace={workspace}
+                plans={plans}
+                tasks={tasks}
+                open={open}
+                onEditTask={() => setEditingTask(true)}
+                onAddRound={onAddRound}
+                onUpdateRound={onUpdateRound}
+                onDeleteRound={onDeleteRound}
+                onSkipRound={onSkipRound}
+              />
+            )}
           </div>
         </main>
+
+        {page === "rooms" && !openRoom && open ? (
+          <NotPlacedSheet
+            people={waiting}
+            rooms={round.rooms}
+            placing={placing}
+            onPlace={(participantUUID, roomId) =>
+              void place(participantUUID, assignParticipantToRoom(round, { participantUUID, roomId }))
+            }
+            onPlaceEvenly={() =>
+              void place("all", autoAssignParticipantsEvenly(round, waiting.map((p) => p.participantUUID)))
+            }
+          />
+        ) : null}
       </div>
 
-      {skipping ? (
-        <SkipRoundsModal
-          workspace={workspace}
-          liveRoundId={live.round?.roundId ?? null}
-          onSkipRound={onSkipRound}
-          onClose={() => setSkipping(false)}
+      <nav className="bw-live-nav" aria-label="Live round views">
+        {LIVE_PAGES.map((option) => (
+          <button
+            key={option.page}
+            type="button"
+            className="bw-live-nav__item"
+            aria-current={page === option.page ? "page" : undefined}
+            onClick={() => setPage(option.page)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </nav>
+
+      {confirmingEnd ? (
+        <ConfirmModal
+          title={`End ${round.title} now?`}
+          message={`${remainingSec === null ? "" : `${formatClock(remainingSec)} left. `}Everyone returns to the main room.`}
+          confirmLabel="End round"
+          onConfirm={async () => onEndRound()}
+          onClose={() => setConfirmingEnd(false)}
         />
       ) : null}
+
+      <ZoomActionOverlay operation={operation} />
 
       {editingTask ? (
         <EditTaskModal
@@ -223,11 +309,59 @@ export default function LiveRound({
   );
 }
 
-function MemberRow({ participant }: { participant: LiveParticipant }) {
+/** One room as the host sees it live: who has entered so far, as initials. Opens the room's work. */
+function LiveRoomCard({
+  name,
+  dot,
+  members,
+  plannedCount,
+  open,
+  onOpen,
+}: {
+  name: string;
+  dot: string;
+  members: LiveParticipant[];
+  plannedCount: number;
+  open: boolean;
+  /** Opens this room's work: checklist and activities. */
+  onOpen: () => void;
+}) {
   return (
-    <div className="bw-member-row">
-      <span className="bw-avatar">{initialsFrom(participant.name)}</span>
-      <span className="bw-member-name">{participant.name}</span>
-    </div>
+    <Card
+      className="bw-room-card bw-room-card--clickable"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${name}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onOpen();
+      }}
+    >
+      <div className="bw-room-card__header">
+        <StatusDot color={dot} />
+        <span className="bw-room-name bw-live-room-name" title={name}>{name}</span>
+        <div style={{ flex: 1 }} />
+        <Pill tone="outline">{members.length} / {plannedCount}</Pill>
+      </div>
+      {members.length > 0 ? (
+        <div className="bw-initials-list">
+          {members.map((member) => (
+            <span
+              key={member.participantUUID}
+              className="bw-initials"
+              title={member.name}
+              aria-label={member.name}
+              role="img"
+            >
+              {initialsFrom(member.name)}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="bw-live-room-empty">{open ? "Nobody here yet" : "Round closed"}</span>
+      )}
+    </Card>
   );
 }

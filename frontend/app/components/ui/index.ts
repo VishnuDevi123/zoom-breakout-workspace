@@ -5,3 +5,6 @@ export { default as SectionLabel } from "./SectionLabel";
 export { default as StatusDot } from "./StatusDot";
 export { default as BrandMark } from "./BrandMark";
 export { default as EditableName } from "./EditableName";
+export { default as Modal } from "./Modal";
+export { default as Spinner } from "./Spinner";
+export { default as ConfirmModal } from "./ConfirmModal";

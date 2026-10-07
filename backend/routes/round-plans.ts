@@ -1,7 +1,8 @@
 import { Router, type ErrorRequestHandler } from "express";
 
-import { getRoundPlan, RoundPlanError, saveRoundPlan } from "../store/round-plans.ts";
-import type { ApiResponse, RoundPlan, SaveRoundPlanRequest } from "../types/breakout.ts";
+import { carryPlacement, getRoundPlan, RoundPlanError, saveRoundPlan } from "../store/round-plans.ts";
+import { getWorkspace } from "../store/workspace.ts";
+import type { ApiResponse, CarryPlacementRequest, RoundPlan, SaveRoundPlanRequest } from "../types/breakout.ts";
 
 // Router is the named Express export. The default export creates an entire app.
 const router = Router();
@@ -45,6 +46,37 @@ router.put("/:roundId/rooms", (req, res) => {
   const saved = saveRoundPlan(request, request.expectedRevision);
   const body: ApiResponse<RoundPlan> = { success: true, data: saved };
   res.status(saved.revision === 1 ? 201 : 200).json(body);
+});
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+// POST /api/rounds/round-2/carry: someone placed mid-round in round-2 also goes
+// into the same-named room of every later round that has not run yet.
+router.post("/:roundId/carry", (req, res) => {
+  const request = (req.body ?? {}) as Partial<CarryPlacementRequest>;
+  const parentUUID = nonEmptyString(request.parentUUID);
+  const participantUUID = nonEmptyString(request.participantUUID);
+  const roomName = nonEmptyString(request.roomName);
+  if (!parentUUID || !participantUUID || !roomName || request.roundId !== req.params.roundId) {
+    throw new RoundPlanError(
+      "parentUUID, participantUUID, roomName and a roundId matching the URL are required.",
+      400,
+    );
+  }
+
+  // Later rounds in workspace order; a round that ran or is running keeps its plan.
+  const rounds = getWorkspace(parentUUID)?.rounds ?? [];
+  const from = rounds.findIndex((round) => round.roundId === req.params.roundId);
+  // An unknown round has no "later"; carrying into every round would be wrong.
+  const laterRoundIds = (from < 0 ? [] : rounds.slice(from + 1))
+    .filter((round) => round.status === "planned" || round.status === "skipped")
+    .map((round) => round.roundId);
+
+  const updatedRoundIds = carryPlacement(parentUUID, laterRoundIds, participantUUID, roomName);
+  const body: ApiResponse<{ updatedRoundIds: string[] }> = { success: true, data: { updatedRoundIds } };
+  res.json(body);
 });
 
 // Express catches synchronous throws from the handlers above. Return the same

@@ -39,8 +39,8 @@ export default function LandingScreen({
       <header className="bw-header">
         <BrandMark />
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Breakout Workspace</span>
-          <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+          <span className="bw-header-title">Breakout Workspace</span>
+          <span className="bw-header-subtitle">
             {"Create workflows and add activities!"}
           </span>
         </div>
@@ -59,22 +59,22 @@ export default function LandingScreen({
             <Card large>
               <SectionLabel>In the room</SectionLabel>
               <span className="bw-landing-stat">{participantCount ?? "–"}</span>
-              <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>people waiting · no breakout rooms yet</span>
+              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>people waiting · no breakout rooms yet</span>
             </Card>
             {roundCount !== null ? (
               <Card large tone="sunken">
                 <SectionLabel>Start from</SectionLabel>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{roundCount} {roundCount === 1 ? "round" : "rounds"} planned</span>
-                <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Edit anything before you launch.</span>
+                <span style={{ fontSize: "var(--bw-fs-title)", fontWeight: 600 }}>{roundCount} {roundCount === 1 ? "round" : "rounds"} planned</span>
+                <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Edit anything before you launch.</span>
               </Card>
             ) : null}
           </div>
 
           {roundCount === null ? (
             <div className="bw-landing-starts">
-              <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Other starts:</span>
+              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Other starts:</span>
               {ROUND_TEMPLATES.map((template) => (
-                <Button key={template.name} variant="outline" size="sm" disabled={busy} onClick={() => onUseTemplate(template)}>
+                <Button key={template.name} variant="secondary" size="sm" disabled={busy} onClick={() => onUseTemplate(template)}>
                   {template.name} · {template.rounds.length} rounds
                 </Button>
               ))}
@@ -83,10 +83,10 @@ export default function LandingScreen({
 
           <div className="bw-landing-actions">
             {roundCount === null ? (
-              <Button variant="outline" disabled={busy} onClick={onStartRoundOne}>Start Round 1</Button>
+              <Button variant="secondary" disabled={busy} onClick={onStartRoundOne}>Start Round 1</Button>
             ) : null}
-            <Button variant="accent" disabled={busy} onClick={onBuildRounds}>
-              {roundCount === null ? "Build the rounds →" : "Open the ongoing rounds"}
+            <Button variant="primary" disabled={busy} onClick={onBuildRounds}>
+              {roundCount === null ? "Build the rounds" : "Open the ongoing rounds"}
             </Button>
           </div>
         </main>

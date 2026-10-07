@@ -20,9 +20,9 @@ const HOW_IT_WORKS = [
  *
  * Everything here is read-only: a participant never calls a breakout method.
  * The running round arrives over SSE, room membership comes from the host's
- * saved draft, and the task comes from the task store. Three states, in the
- * order they are checked: no round running, running but staying in main, and
- * placed in a room.
+ * saved draft, and the task comes from the task store. Four states, in the
+ * order they are checked: no round running, running but staying in main,
+ * placed but still in the main room, and inside the room.
  */
 export default function ParticipantScreen({
   parentUUID,
@@ -34,11 +34,14 @@ export default function ParticipantScreen({
   const [showWorkspace, setShowWorkspace] = useState(false);
   const { liveState } = useLiveState(parentUUID);
   const roundId = liveState?.round?.roundId ?? "";
+  // Empty when webhooks have not reported this person yet; then the plan alone decides.
+  const location = liveState?.participants.find((p) => p.participantUUID === participantUUID)?.location ?? "";
   const round = useParticipantRound({
     parentUUID,
     participantUUID,
     roundId,
     taskRevision: liveState?.taskRevision ?? 0,
+    location,
   });
   const { room, task, roundTitle } = round;
 
@@ -53,6 +56,17 @@ export default function ParticipantScreen({
       <Waiting
         headline="You are staying in the main room"
         lede="The host did not place you in a breakout room for this round."
+      />
+    );
+  }
+
+  if (location === "main") {
+    // Placed, but not inside the room: just launched and not joined yet, or stepped back out.
+    if (showWorkspace) setShowWorkspace(false);
+    return (
+      <Waiting
+        headline="You are in the main room"
+        lede={`Your room for this round is ${room.name}. Open Zoom's Breakout Rooms button to join it.`}
       />
     );
   }
@@ -84,8 +98,8 @@ export default function ParticipantScreen({
               <span className="bw-mono bw-participant-card__label bw-participant-card__label--accent">
                 THIS ROUND
               </span>
-              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{roundTitle}</span>
-              <span style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
+              <span style={{ fontSize: "var(--bw-fs-title)", fontWeight: 600 }}>{roundTitle}</span>
+              <span style={{ fontSize: "var(--bw-fs-secondary)", lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
                 {task
                   ? `${task.instructions.length} instructions · ${task.resources.length} resources`
                   : "Nothing set yet"}
@@ -140,10 +154,10 @@ function TimeCard({ endsAt }: { endsAt: number }) {
   return (
     <Card className="bw-participant-card">
       <span className="bw-mono bw-participant-card__label">TIME</span>
-      <span className="bw-mono" style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.5px" }}>
+      <span className="bw-mono" style={{ fontSize: "var(--bw-fs-display)", fontWeight: 500, letterSpacing: "-0.5px" }}>
         {remainingSec === null ? "--:--" : formatClock(remainingSec)}
       </span>
-      <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
+      <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
         {remainingSec === null ? "Runs until the host ends it" : "left in this round"}
       </span>
     </Card>
@@ -173,12 +187,12 @@ function Roster({
   return (
     <div className="bw-participant-roster">
       <StatusDot color={room.dot} />
-      <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>With you:</span>
-      <span style={{ fontSize: 11.5 }}>
+      <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>With you:</span>
+      <span style={{ fontSize: "var(--bw-fs-secondary)" }}>
         {names.length > 0 ? names.join(", ") : "nobody else has arrived yet"}
       </span>
       <div style={{ flex: 1 }} />
-      <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-muted-3)" }}>
+      <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
         {others.length + 1} of {room.participantUUIDs.length} here
       </span>
     </div>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { readRoundTasks, readSavedRoundPlan, readWorkspace } from "@/lib/execution-api";
-import type { PlannedRoom, RoomTask } from "@/types/breakout";
+import type { Activity, PlannedRoom, RoomTask } from "@/types/breakout";
 
 /**
  * What one participant needs to see for the running round.
@@ -20,6 +20,8 @@ export interface ParticipantRound {
   room: PlannedRoom | null;
   /** Per-room override, else the round-level task, else null. */
   task: RoomTask | null;
+  /** Round-wide, in the host's order. Empty when none. */
+  activities: Activity[];
   /** The round's own title, from the saved draft. */
   roundTitle: string;
   /** 1-based place in the workspace, and how many rounds there are. 0 when unknown. */
@@ -41,6 +43,7 @@ export function useParticipantRound({
   participantUUID,
   roundId,
   taskRevision,
+  location,
 }: {
   parentUUID: string;
   participantUUID: string;
@@ -48,9 +51,16 @@ export function useParticipantRound({
   roundId: string;
   /** From LiveState. Every host task save bumps it. */
   taskRevision: number;
+  /**
+   * The caller's own location from LiveState. The host can place someone mid-round,
+   * which saves the plan but pushes nothing; entering the room changes this, so the
+   * placement is read again then.
+   */
+  location: string;
 }): ParticipantRound {
   const [placement, setPlacement] = useState<Placement>(NOWHERE);
   const [task, setTask] = useState<RoomTask | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -83,30 +93,37 @@ export function useParticipantRound({
     return () => {
       alive = false;
     };
-  }, [parentUUID, roundId, participantUUID]);
+  }, [parentUUID, roundId, participantUUID, location]);
 
   const roomId = placement.room?.id ?? "";
 
-  /** True while a task is on screen, so the toast below can tell a change from an arrival. */
-  const taskOnScreen = useRef(false);
+  /** What is on screen, and for which round and room, so a refetch can say what changed. */
+  const shown = useRef<{ key: string; task: RoomTask | null; activities: Activity[] } | null>(null);
 
   useEffect(() => {
     let alive = true;
 
-    async function readTask(): Promise<RoomTask | null> {
-      if (!parentUUID || !roundId) return null;
+    async function readTask(): Promise<{ task: RoomTask | null; activities: Activity[] }> {
+      if (!parentUUID || !roundId) return { task: null, activities: [] };
       try {
         const tasks = await readRoundTasks(parentUUID, roundId);
-        return (roomId ? tasks?.rooms[roomId] : null) ?? tasks?.all ?? null;
+        return {
+          task: (roomId ? tasks?.rooms[roomId] : null) ?? tasks?.all ?? null,
+          activities: tasks?.activities ?? [],
+        };
       } catch {
-        return null;
+        return { task: null, activities: [] };
       }
     }
 
     void readTask().then((next) => {
       if (!alive) return;
-      taskOnScreen.current = next !== null;
-      setTask(next);
+      const key = `${roundId}:${roomId}`;
+      const previous = shown.current?.key === key ? shown.current : null;
+      shown.current = { key, ...next };
+      if (previous) announceChanges(previous, next);
+      setTask(next.task);
+      setActivities(next.activities);
     });
 
     return () => {
@@ -114,22 +131,30 @@ export function useParticipantRound({
     };
   }, [parentUUID, roundId, roomId, taskRevision]);
 
-  // Announce a live edit, never the first task of the round: arriving content
-  // explains itself, changed content does not. This runs before the fetch above
-  // resolves, so it still sees whether something was already displayed.
-  const announcedRevision = useRef(taskRevision);
-
-  useEffect(() => {
-    if (announcedRevision.current === taskRevision) return;
-    announcedRevision.current = taskRevision;
-    if (taskOnScreen.current) toast("Host updated the task");
-  }, [taskRevision]);
-
   return {
     room: placement.room,
     task,
+    activities,
     roundTitle: placement.roundTitle,
     roundPosition: placement.roundPosition,
     roundCount: placement.roundCount,
   };
+}
+
+/**
+ * Toasts for a live host edit, compared with what was on screen in the same
+ * round and room. Never on first load: arriving content explains itself.
+ * A first task appearing mid-round is an arrival too, so it is not announced.
+ */
+function announceChanges(
+  previous: { task: RoomTask | null; activities: Activity[] },
+  next: { task: RoomTask | null; activities: Activity[] },
+): void {
+  const known = new Set(previous.activities.map((activity) => activity.id));
+  for (const activity of next.activities) {
+    if (!known.has(activity.id)) toast("New activity from your host", { description: activity.title });
+  }
+  if (previous.task && JSON.stringify(previous.task) !== JSON.stringify(next.task)) {
+    toast("Host updated the task");
+  }
 }

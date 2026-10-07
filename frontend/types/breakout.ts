@@ -84,6 +84,33 @@ export interface LiveState {
   participants: LiveParticipant[];
   /** Bumped on every task save; participants refetch /api/tasks when it changes. */
   taskRevision: number;
+  /** roomId -> counter, bumped on every response write in that room. Clients refetch their own room only. */
+  roomRevisions: Record<string, number>;
+}
+
+/** One person the Zoom SDK reports present when the host opens the app. */
+export interface RosterEntry {
+  participantUUID: string;
+  name: string;
+  isHost: boolean;
+  /** Planned room id when Zoom reports the person inside a room; null for the main room. */
+  roomId: string | null;
+}
+
+/** Everyone in the meeting right now. Webhooks never replay, so this fills what they missed. */
+export interface RosterRequest {
+  parentUUID: string;
+  participants: RosterEntry[];
+}
+
+/** Carry a mid-round placement into the later rounds that have not run. */
+export interface CarryPlacementRequest {
+  parentUUID: string;
+  /** The running round the person was just placed in; only rounds after it change. */
+  roundId: string;
+  participantUUID: string;
+  /** Matched by name in each later round, since every round has its own room ids. */
+  roomName: string;
 }
 
 export type RoundStatus = "planned" | "launched" | "closed" | "skipped";
@@ -133,6 +160,8 @@ export interface RoomTask {
   goal: string;
   instructions: string[];
   resources: string[];
+  /** Shared done-list for the room; anyone in the room ticks items. */
+  checklist: CheckListItem[];
 }
 
 /** One record per (parentUUID, roundId). `rooms` overrides `all`, keyed by PlannedRoom.id. */
@@ -143,6 +172,8 @@ export interface RoundTasks {
   rooms: Record<string, RoomTask>;
   /** Server-owned version: first save is 1; each successful update adds 1. */
   revision: number;
+  // round wide, empty array means missing actvities
+  activities: Activity[];
 }
 
 /** PUT body. Use 0 to create. */
@@ -150,9 +181,125 @@ export interface SaveRoundTasksRequest extends Omit<RoundTasks, "revision"> {
   expectedRevision: number;
 }
 
-
 export interface LiveActionResponse {
   live: LiveState;
   /** Null when this meeting has no workspace; launch never gates on one. */
   workspace: Workspace | null;
 }
+
+// Host written activity interface
+export interface IndividualActivity {
+  kind: "individual";
+  id: string;
+  title: string;
+  /** Host's extra info: a clue or a longer description of the question. */
+  description: string;
+}
+
+export interface IdeaBoardActivity {
+  kind: "ideaBoard";
+  id: string;
+  title: string;
+  description: string;
+}
+
+export interface CheckListItem {
+  id: string;
+  label: string;
+}
+
+export type Activity = IndividualActivity | IdeaBoardActivity;
+
+// ---- Responses: participant-written, one record per (parentUUID, roundId, roomId) ----
+
+export const NOTE_COLORS = [
+  "#fff4c4",
+  "#c3faf5",
+  "#fde0f0",
+  "#eef1ff",
+  "#e3f7d4",
+] as const;
+export type NoteColor = (typeof NOTE_COLORS)[number];
+
+/** "working" = draft autosaved; "submitted" = sent to host. No entry = not started. */
+export type AnswerStatus = "working" | "submitted";
+
+/** One person's private answer to an individual activity. Editing after submit sets it back to "working". */
+export interface IndividualAnswer {
+  participantUUID: string;
+  text: string;
+  status: AnswerStatus;
+}
+
+/** A sticky note on an idea board. Only its author may edit or remove it. */
+export interface IdeaNote {
+  id: string;
+  participantUUID: string;
+  authorName: string;
+  /** Server sets "Idea N" on create; the author renames it. */
+  title: string;
+  description: string;
+  /** Server-owned: picked on create, never changed by edits. */
+  color: NoteColor;
+}
+
+export interface ChecklistTick {
+  participantUUID: string;
+  authorName: string;
+}
+
+export interface RoomResponses {
+  parentUUID: string;
+  roundId: string;
+  roomId: string;
+  /** activityId -> participantUUID -> answer. GET returns only the caller's own. */
+  answers: Record<string, Record<string, IndividualAnswer>>;
+  /** activityId -> notes, oldest first. */
+  ideas: Record<string, IdeaNote[]>;
+  /** Task checklist itemId -> who ticked it. A missing item means unticked. */
+  ticks: Record<string, ChecklistTick>;
+  /** activityId -> last "Idea N" number handed out. Never goes down. */
+  ideaCounters: Record<string, number>;
+}
+
+/** What GET and every write return to one participant. Others' answer text is never included. */
+export interface RoomResponsesView extends Omit<RoomResponses, "answers" | "ideaCounters"> {
+  /** activityId -> the caller's own answer (draft or submitted). */
+  myAnswers: Record<string, IndividualAnswer>;
+  /** activityId -> participantUUID -> status, for the room's submission list. */
+  statuses: Record<string, Record<string, AnswerStatus>>;
+}
+/** The host's view of one room: every answer (text only once submitted), every note and tick. */
+export type RoomResponsesHostView = Omit<RoomResponses, "ideaCounters">;
+// ---- Request bodies. parentUUID and participantUUID identify the caller. ----
+
+interface ResponseCaller {
+  parentUUID: string;
+  participantUUID: string;
+}
+
+/** PUT .../answers/:activityId. Autosave sends "working"; "Submit to host" sends "submitted". */
+export interface SaveAnswerRequest extends ResponseCaller {
+  text: string;
+  status: AnswerStatus;
+}
+
+/** POST .../ideas/:activityId. The server fills in id, author, title and color. */
+export interface AddIdeaRequest extends ResponseCaller {
+  description: string;
+}
+
+/** PUT .../ideas/:activityId/:noteId. Author only. */
+export interface EditIdeaRequest extends ResponseCaller {
+  title: string;
+  description: string;
+}
+
+/** DELETE .../ideas/:activityId/:noteId. Author only. */
+export type RemoveIdeaRequest = ResponseCaller;
+
+/** PUT .../ticks/:itemId */
+export interface TickRequest extends ResponseCaller {
+  done: boolean;
+}
+

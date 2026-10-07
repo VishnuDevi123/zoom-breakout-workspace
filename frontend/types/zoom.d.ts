@@ -70,14 +70,29 @@ declare global {
     names?: string[];
   }
 
+  interface ZoomBreakoutRoomParticipant {
+    participantUUID: string;
+    displayName: string;
+  }
+
   interface ZoomBreakoutRoom {
     breakoutRoomId: string;
     name: string;
+    /** Only the meeting owner receives people; a co-host gets rooms without them. */
+    participants?: (ZoomBreakoutRoomParticipant & { participantStatus: "assigned" | "joined" })[];
+  }
+
+  interface ZoomMeetingParticipant {
+    screenName: string;
+    participantUUID: string;
+    role: string;
   }
 
   interface ZoomBreakoutRoomsResponse {
     rooms: ZoomBreakoutRoom[];
     state: "open" | "closed";
+    /** Owner only: people in the main room. */
+    unassigned?: ZoomBreakoutRoomParticipant[];
   }
 
   /**
@@ -136,11 +151,17 @@ declare global {
       closeBreakoutRooms: () => Promise<unknown>;
 
       /**
-       * Read once when the app opens, to tell a stale live round from a real one.
-       * Zoom sends no webhook when its rooms close, so this is the only way to
-       * learn that the round the backend still records is already over.
+       * Read once when the app opens, to tell a stale live round from a real one
+       * and to learn who is in the rooms. Zoom sends no webhook when its rooms
+       * close, so this is the only way to learn the round is already over.
        */
-      getBreakoutRoomList: () => Promise<{ state: "open" | "closed" }>;
+      getBreakoutRoomList: () => Promise<ZoomBreakoutRoomsResponse>;
+
+      /**
+       * Host and co-host only. Inside a breakout room it returns that room's
+       * people, not the whole meeting's.
+       */
+      getMeetingParticipants: () => Promise<{ participants: ZoomMeetingParticipant[] }>;
 
       /**
        * Fires only for the current user's own context. The SDK has no matching

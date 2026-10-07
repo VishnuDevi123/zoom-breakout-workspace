@@ -30,11 +30,11 @@ export default function UnsupportedScreen({ error }: { error: SdkErrorInfo | nul
           <Pill tone="red">SDK error</Pill>
         </div>
 
-        <span style={{ fontSize: 15, fontWeight: 600 }}>
+        <span className="bw-header-title">
           This Zoom client cannot manage breakout rooms
         </span>
 
-        <span style={{ fontSize: 11.5, lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
+        <span style={{ fontSize: "var(--bw-fs-secondary)", lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
           Common causes are a Zoom client that is too old, or an account where
           the administrator turned breakout rooms off.
         </span>
@@ -43,13 +43,13 @@ export default function UnsupportedScreen({ error }: { error: SdkErrorInfo | nul
           className="bw-card bw-card--sunken"
           style={{ display: "flex", flexDirection: "column", gap: 4 }}
         >
-          <span className="bw-mono" style={{ fontSize: 11, color: "var(--bw-red-deep)" }}>
+          <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-red-deep)" }}>
             {error?.code ?? "UNKNOWN_ERROR"}
           </span>
 
           <span
             style={{
-              fontSize: 11,
+              fontSize: "var(--bw-fs-meta)",
               lineHeight: 1.45,
               color: "var(--bw-muted-2)",
               overflowWrap: "anywhere",

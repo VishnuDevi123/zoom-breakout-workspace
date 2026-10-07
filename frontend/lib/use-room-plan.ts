@@ -12,7 +12,7 @@ import {
 } from "@/types/breakout";
 import {
   assignParticipantToRoom,
-  autoAssignParticipantsEvenly,
+  rebalanceEvenly,
   clearParticipantPlacement,
   keepParticipantInMain as keepInMain,
 } from "@/lib/room-plan-assignments";
@@ -454,7 +454,7 @@ export function useRoomPlan(
 
   const autoAssignParticipants = useCallback(
     (participantUUIDs: string[]) => {
-      updateDraft((draft) => autoAssignParticipantsEvenly(draft, participantUUIDs));
+      updateDraft((draft) => rebalanceEvenly(draft, participantUUIDs));
     },
     [updateDraft],
   );

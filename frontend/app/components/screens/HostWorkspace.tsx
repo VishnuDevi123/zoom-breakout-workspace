@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { readSavedRoundPlan, setRoundSkipped } from "@/lib/execution-api";
+import { carryPlacement, readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execution-api";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
+import { newPlacements } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
@@ -12,7 +13,7 @@ import { useRoomPlan } from "@/lib/use-room-plan";
 import { useRoundSummaries } from "@/lib/use-round-summaries";
 import type { RoundTemplate } from "@/lib/round-templates";
 import { roundLabel, useWorkspace } from "@/lib/use-workspace";
-import type { LiveState, RoundMeta, Workspace, ZoomRole } from "@/types/breakout";
+import type { LiveState, RoundMeta, RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
 
 import LiveRound from "../LiveRound";
 import MeetingBadge from "../MeetingBadge";
@@ -62,7 +63,7 @@ function HostShell({
       <header className="bw-header">
         <BrandMark />
         <div className="bw-round-heading">
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{heading}</span>
+          <span className="bw-header-title">{heading}</span>
         </div>
         <div className="bw-header-spacer" />
       </header>
@@ -151,6 +152,17 @@ export default function HostWorkspace({
     controller.reconcile();
   }, [runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Once per app open: fill in people webhooks missed. With a round running, wait
+  // for its plan, because Zoom's room names map back to planned rooms through it.
+  const rosterSynced = useRef(false);
+  const liveKnown = live.liveState !== null;
+  useEffect(() => {
+    if (rosterSynced.current || !liveKnown) return;
+    if (runningRoundId && !livePlan) return;
+    rosterSynced.current = true;
+    controller.syncRoster();
+  }, [liveKnown, runningRoundId, livePlan]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The backend owns the clock: it flips timerEnded and pushes it over SSE.
   const timerEnded = live.liveState?.round?.timerEnded ?? false;
   const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;
@@ -159,6 +171,55 @@ export default function HostWorkspace({
     closedByTimer.current = autoStart;
     controller.close();
   }, [timerEnded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Zoom first, then the plan: a participant's own app finds their room through the saved plan.
+  // With the same people every round, later rounds get them too, in the same-named room.
+  async function placeInLiveRound(next: RoundPlanDraft) {
+    if (!livePlan) return;
+    const placements = newPlacements(livePlan, next);
+    try {
+      await controller.placeInOpenRooms(placements);
+      await saveRoundPlan(meetingUUID, next, livePlan.revision);
+      if (workspace.state.kind === "ready" && workspace.state.workspace.samePeopleEveryRound) {
+        for (const { participantUUID, roomName } of placements) {
+          await carryPlacement({ parentUUID: meetingUUID, roundId: livePlan.roundId, participantUUID, roomName });
+        }
+      }
+    } catch (error) {
+      toast.error("Could not place everyone.", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+    reloadPlans();
+  }
+
+  /** Runs a live-page action and turns a failure into a toast; the caller's spinner then stops. */
+  async function reportFailure(failure: string, action: () => Promise<unknown>) {
+    try {
+      await action();
+    } catch (error) {
+      toast.error(failure, { description: error instanceof Error ? error.message : undefined });
+    }
+  }
+
+  // A round added mid-session takes the last round's rooms and time, and its
+  // people too when the workflow keeps the same people every round.
+  async function addLiveRound() {
+    const last = rounds.at(-1);
+    await reportFailure("Could not add a round.", async () => {
+      const saved = await workspace.addRound({ durationSec: last?.durationSec });
+      const added = saved.rounds.at(-1);
+      if (!added) return;
+      const label = roundLabel(saved, added.roundId);
+      const source = last ? plans[last.roundId] : null;
+      if (source) {
+        const target = { parentUUID: meetingUUID, roundId: added.roundId, title: label };
+        await saveRoundPlan(meetingUUID, copyRooms(source, target, { withPeople: saved.samePeopleEveryRound }), 0);
+      }
+      toast.success(`${label} added.`);
+    });
+    reloadPlans();
+  }
 
   const workspaceTitle = "Sample Workflow";
 
@@ -191,7 +252,7 @@ export default function HostWorkspace({
   if (workspace.state.kind === "loading") {
     return (
       <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
-        <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading rounds…</Card>
+        <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading rounds…</Card>
       </HostShell>
     );
   }
@@ -200,8 +261,8 @@ export default function HostWorkspace({
       <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
         <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
           <SectionLabel>Workspace load failed</SectionLabel>
-          <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
-          <Button variant="outline" size="sm" onClick={workspace.reload}>Retry load</Button>
+          <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
+          <Button variant="secondary" size="sm" onClick={workspace.reload}>Retry load</Button>
         </Card>
       </HostShell>
     );
@@ -224,7 +285,7 @@ export default function HostWorkspace({
     if (!livePlan || !live.liveState) {
       return (
         <HostShell meetingUUID={meetingUUID} role={role} heading="Live round">
-          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>Loading live round…</Card>
+          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading live round…</Card>
         </HostShell>
       );
     }
@@ -237,11 +298,22 @@ export default function HostWorkspace({
         operation={controller.operation}
         nextRound={nextRound}
         onHome={() => setView("rounds")}
-        onSkipRound={async (roundId, skipped) => {
-          workspace.applyWorkspace(await setRoundSkipped(meetingUUID, roundId, skipped));
-        }}
+        onSkipRound={(roundId, skipped) =>
+          reportFailure("Could not change that round.", async () =>
+            workspace.applyWorkspace(await setRoundSkipped(meetingUUID, roundId, skipped)),
+          )
+        }
         onEndRound={controller.close}
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
+        onPlace={placeInLiveRound}
+        plans={plans}
+        onAddRound={addLiveRound}
+        onUpdateRound={(roundId, patch) =>
+          reportFailure("Could not change that round.", () => workspace.updateRound(roundId, patch))
+        }
+        onDeleteRound={(roundId) =>
+          reportFailure("Could not delete that round.", () => workspace.deleteRound(roundId))
+        }
       />
     );
   }
@@ -259,7 +331,7 @@ export default function HostWorkspace({
           setView("live");
         }}
         onHome={() => setView("landing")}
-        onAddRound={workspace.addRound}
+        onAddRound={async () => void (await workspace.addRound())}
         onDeleteRound={workspace.deleteRound}
         onUpdateRound={workspace.updateRound}
         onUpdateWorkspace={workspace.updateWorkspace}
@@ -355,14 +427,14 @@ function RoundEditor({
     return (
       <HostShell meetingUUID={meetingUUID} role={role} heading={`Rooms & people - ${label}`}>
         {plan.state.kind === "loading" ? (
-          <Card tone="sunken" style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>
+          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
             {seedLabel ? `Configuring ${label} from ${seedLabel}…` : `Loading ${label} draft…`}
           </Card>
         ) : (
           <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
             <SectionLabel>Draft load failed</SectionLabel>
-            <span style={{ fontSize: 11.5, color: "var(--bw-muted-2)" }}>{plan.state.message}</span>
-            <Button variant="outline" size="sm" onClick={plan.retryLoad}>Retry load</Button>
+            <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{plan.state.message}</span>
+            <Button variant="secondary" size="sm" onClick={plan.retryLoad}>Retry load</Button>
           </Card>
         )}
       </HostShell>

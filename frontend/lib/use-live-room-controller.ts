@@ -3,9 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { markRoundClosed, markRoundLaunched, readSavedRoundPlan } from "@/lib/execution-api";
+import { markRoundClosed, markRoundLaunched, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
 import { canManageRooms } from "@/lib/host-gate";
-import { breakoutRoomsAreOpen, closeRoundInZoom, launchRoundInZoom } from "@/lib/launch-round";
+import {
+  assignToOpenRooms,
+  breakoutRoomsAreOpen,
+  closeRoundInZoom,
+  launchRoundInZoom,
+  readMeetingRoster,
+} from "@/lib/launch-round";
 import { configureZoomSdk, type ZoomSdk } from "@/lib/zoom-sdk";
 import type { RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
 
@@ -75,20 +81,19 @@ export function useLiveRoomController(input: ControllerInput) {
   async function run(kind: "launch" | "close", task: (step: (s: string) => void) => Promise<string>) {
     if (operation.kind === "running") return;
     let lastStep = "Checking Zoom…";
-    const toastId = toast.loading(lastStep);
+    // Progress shows on the full-screen overlay; only the outcome is a toast.
     const step = (s: string) => {
       lastStep = s;
-      toast.loading(s, { id: toastId });
       setOperation({ kind: "running", operation: kind, step: s });
     };
     step(lastStep);
     try {
       const message = await task(step);
-      toast.success(message, { id: toastId });
+      toast.success(message);
       if (aliveRef.current) setOperation({ kind: "success", message });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Zoom operation failed.";
-      toast.error(lastStep, { id: toastId, description: reason });
+      toast.error(lastStep, { description: reason });
       if (aliveRef.current) setOperation({ kind: "error", message: `${lastStep} ${reason}` });
     }
   }
@@ -137,5 +142,32 @@ export function useLiveRoomController(input: ControllerInput) {
     })();
   }
 
-  return { operation, launch, close, reconcile };
+  /**
+   * One shot when the host opens the app. Webhooks never replay, so anyone who
+   * joined before a backend restart is invisible until Zoom is asked directly.
+   */
+  function syncRoster() {
+    void (async () => {
+      try {
+        const { sdk, hostUUID } = await hostSdk();
+        const roster = await readMeetingRoster(sdk, input.round, hostUUID);
+        if (!roster || roster.length === 0) {
+          console.warn("Roster: Zoom returned no participants list; nothing sent.");
+          return;
+        }
+        await postRoster(input.parentUUID, roster);
+      } catch (error) {
+        // The host is not interrupted: webhooks keep the list current from here on.
+        console.warn("Roster: reading participants from Zoom failed.", error);
+      }
+    })();
+  }
+
+  /** Send people waiting in the main room to rooms that are already open. Throws on failure. */
+  async function placeInOpenRooms(placements: { participantUUID: string; roomName: string }[]) {
+    const { sdk } = await hostSdk();
+    await assignToOpenRooms(sdk, placements);
+  }
+
+  return { operation, launch, close, reconcile, syncRoster, placeInOpenRooms };
 }

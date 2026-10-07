@@ -1,18 +1,20 @@
 import {
-    type LiveParticipant,
-    type LiveRound,
-    type LiveState,
-} from "../types/breakout.ts"; 
+  type LiveParticipant,
+  type LiveRound,
+  type LiveState,
+  type RosterEntry,
+} from "../types/breakout.ts";
 import {getRoundPlan } from "./round-plans.ts";
 
 // tracking the current live state participant, rooms and rounds and push any updates to the store
 
-interface LiveMeeting{
-    round: LiveRound | null;
-    participants: Map<string, LiveParticipant>;
-    // Undefined rather than null so clearTimeout() needs no guard.
-    timer?: ReturnType<typeof setTimeout>;
-    taskRevision: number;
+interface LiveMeeting {
+  round: LiveRound | null;
+  participants: Map<string, LiveParticipant>;
+  // Undefined rather than null so clearTimeout() needs no guard.
+  timer?: ReturnType<typeof setTimeout>;
+  taskRevision: number;
+  roomRevisions: Record<string, number>;
 }
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
@@ -26,6 +28,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
             round: null,
             participants: new Map(),
             taskRevision: 0,
+            roomRevisions: {},
         });
     }
     return live.get(parentUUID)!;
@@ -39,6 +42,7 @@ export function getLive(parentUUID: string): LiveState{
         round: liveMeeting.round,
         participants: [...liveMeeting.participants.values()],
         taskRevision: liveMeeting.taskRevision,
+        roomRevisions: { ...liveMeeting.roomRevisions },
     }
 }
 
@@ -61,6 +65,13 @@ export function subscribe(parentUUID: string, fn: (state: LiveState) => void): (
 // Tasks live in store/tasks.ts; this only tells SSE clients that something changed.
 export function bumpTaskRevision(parentUUID: string): void {
     meetingFor(parentUUID).taskRevision += 1
+    notify(parentUUID)
+}
+
+/** Called on every response write in one room; that room's participants refetch their board. */
+export function bumpRoomRevision(parentUUID: string, roomId: string): void {
+    const meeting = meetingFor(parentUUID)
+    meeting.roomRevisions[roomId] = (meeting.roomRevisions[roomId] ?? 0) + 1
     notify(parentUUID)
 }
 
@@ -123,6 +134,40 @@ export function markClosedRound(parentUUID: string): LiveState {
     }
     notify(parentUUID)
     return getLive(parentUUID)
+}
+
+/**
+ * Presence from the Zoom SDK, read by the host when the app opens. Webhooks never
+ * replay, so anyone who joined before a restart is missing until this runs.
+ *
+ * The roster is the whole meeting: anyone not in it has left and is dropped. A
+ * participant webhooks already placed keeps that location, because the SDK's room
+ * ids cannot be matched to the webhook ones; only newcomers take the roster's room.
+ */
+export function applyRoster(parentUUID: string, entries: RosterEntry[]): LiveState {
+    const meeting = meetingFor(parentUUID)
+    const present = new Set(entries.map((entry) => entry.participantUUID))
+    for (const participantUUID of meeting.participants.keys()) {
+        if (!present.has(participantUUID)) meeting.participants.delete(participantUUID)
+    }
+
+    for (const entry of entries) {
+        const known = meeting.participants.get(entry.participantUUID)
+        if (known && known.location !== "left") continue
+        meeting.participants.set(entry.participantUUID, {
+            participantUUID: entry.participantUUID,
+            name: entry.name,
+            isHost: entry.isHost || Boolean(known?.isHost),
+            location: rosterLocation(meeting, entry.roomId),
+        })
+    }
+    notify(parentUUID)
+    return getLive(parentUUID)
+}
+
+// A room's webhook uuid is only known once someone has entered it; until then "main".
+function rosterLocation(meeting: LiveMeeting, roomId: string | null): string {
+    return (roomId && meeting.round?.roomUUIDs[roomId]) || "main"
 }
 
 // Zoom webhook body. Only the fields we read; Zoom owns the full shape.

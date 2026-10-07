@@ -81,7 +81,7 @@ export default function RoomCard({
               }}
             />
             <Button size="sm" onClick={finishEditing}>Save</Button>
-            <Button variant="outline" size="sm" onClick={cancelEditing} aria-label="Cancel rename">
+            <Button variant="secondary" size="sm" onClick={cancelEditing} aria-label="Cancel rename">
               Cancel
             </Button>
           </>
@@ -102,7 +102,7 @@ export default function RoomCard({
               ✎
             </button>
             <div style={{ flex: 1 }} />
-            <span className="bw-mono" style={{ fontSize: 10, color: "var(--bw-muted-3)" }}>
+            <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
               {room.participantUUIDs.length}
             </span>
             <details className="bw-room-menu" data-dismissible-menu>
@@ -151,7 +151,7 @@ export default function RoomCard({
         })}
 
         {participants.length === 0 ? (
-          <span style={{ fontSize: 11.5, color: "var(--bw-muted-3)" }}>
+          <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-3)" }}>
             Nobody planned here yet
           </span>
         ) : null}

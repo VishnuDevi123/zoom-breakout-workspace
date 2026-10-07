@@ -1,17 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { ParticipantRound } from "@/lib/use-participant-round";
+import { useRoomResponses } from "@/lib/use-room-responses";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
-import { Card, SectionLabel, StatusDot } from "../ui";
+import ActivityCards from "../ActivityCards";
+import ActivityPage from "./ActivityPage";
+import RoomSidebar from "../RoomSidebar";
+import SharedChecklist from "../SharedChecklist";
+import { Card, SectionLabel } from "../ui";
 
 /**
- * The room a participant works in for one round: the task on the left, and the
- * activities they are asked to complete in the middle.
- *
- * Read-only for now. Activities land in a later week, so the middle column
- * carries the placeholder rather than the cards.
+ * The room a participant works in for one round: the task and its shared
+ * checklist on the left, the activities in the middle, and the room's people
+ * and the host's message on the right. Opening an activity swaps the whole
+ * page for that activity until the participant goes back.
  */
 export default function ParticipantWorkspace({
   round,
@@ -26,7 +33,25 @@ export default function ParticipantWorkspace({
   participantUUID: string;
   onBack: () => void;
 }) {
-  const { task, roundTitle, roundPosition, roundCount } = round;
+  const { task, activities, roundTitle, roundPosition, roundCount } = round;
+  const roundId = live?.round?.roundId ?? "";
+  const [openActivityId, setOpenActivityId] = useState<string | null>(null);
+  const responses = useRoomResponses({
+    parentUUID: live?.parentUUID ?? "",
+    roundId,
+    roomId: room.id,
+    participantUUID,
+    roomRevision: live?.roomRevisions[room.id] ?? 0,
+  });
+  const { view, setTick } = responses;
+  const openIndex = activities.findIndex((activity) => activity.id === openActivityId);
+
+  // The host removed the open activity: the cards show again (no match below),
+  // and the toast says why. The stale id is replaced on the next Open.
+  const removedWhileOpen = openActivityId !== null && openIndex === -1;
+  useEffect(() => {
+    if (removedWhileOpen) toast("Your host removed that activity.");
+  }, [removedWhileOpen]);
   const remainingSec = useRemainingSec(live?.round?.endsAt ?? 0);
   const roomUUID = live?.round?.roomUUIDs[room.id] ?? null;
   const others = (live?.participants ?? [])
@@ -34,8 +59,23 @@ export default function ParticipantWorkspace({
     .map((p) => p.name)
     .filter(Boolean);
 
+  if (openIndex !== -1) {
+    return (
+      <ActivityPage
+        activity={activities[openIndex]}
+        position={openIndex + 1}
+        room={room}
+        live={live}
+        participantUUID={participantUUID}
+        checklist={task?.checklist ?? []}
+        responses={responses}
+        onBack={() => setOpenActivityId(null)}
+      />
+    );
+  }
+
   return (
-    <div className="bw-shell">
+    <div className="bw-shell bw-participant-room">
       <header className="bw-header bw-participant-workspace-header">
         <button className="bw-back" onClick={onBack}>
           ←
@@ -45,8 +85,8 @@ export default function ParticipantWorkspace({
           <span className="bw-room-header-dot" />
 
           <div className="bw-round-heading">
-            <span style={{ fontSize: 15, fontWeight: 600 }}>{room.name}</span>
-            <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+            <span className="bw-header-title">{room.name}</span>
+            <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-2)" }}>
               {others.length > 0
                 ? `You, ${others.join(", ")}`
                 : "You are the only one here so far"}
@@ -57,7 +97,7 @@ export default function ParticipantWorkspace({
         <span className="bw-header-divider" />
 
         <div className="bw-round-heading">
-          <span style={{ fontSize: 12.5, fontWeight: 500 }}>
+          <span style={{ fontSize: "var(--bw-fs-body)", fontWeight: 500 }}>
             {roundPosition > 0
               ? `Round ${roundPosition} of ${roundCount} · `
               : ""}
@@ -115,18 +155,28 @@ export default function ParticipantWorkspace({
               ))}
             </div>
           ) : null}
+
+          {task ? (
+            <SharedChecklist items={task.checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
+          ) : null}
         </aside>
 
         <main className="bw-main">
-          <div className="bw-activities-heading">
-            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Activities</span>
-            <div style={{ flex: 1 }} />
-          </div>
-
-          <Card tone="dashed" className="bw-activities-empty">
-            Nothing to submit this round.
-          </Card>
+          <ActivityCards
+            activities={activities}
+            view={view}
+            participantUUID={participantUUID}
+            onOpen={(activity) => setOpenActivityId(activity.id)}
+          />
         </main>
+
+        <RoomSidebar
+          room={room}
+          live={live}
+          activities={activities}
+          view={view}
+          participantUUID={participantUUID}
+        />
       </div>
     </div>
   );
