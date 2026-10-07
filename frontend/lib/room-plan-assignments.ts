@@ -76,6 +76,11 @@ export function keepParticipantInMain(
   };
 }
 
+/**
+ * Place only people who are not placed yet, each into the smallest room. Nobody
+ * already placed moves, which is what the live sheet needs: people in open rooms
+ * must stay put. The planner rebalances with `rebalanceEvenly` instead.
+ */
 export function autoAssignParticipantsEvenly(
   draft: RoundPlanDraft,
   participantUUIDs: string[],
@@ -108,6 +113,43 @@ export function autoAssignParticipantsEvenly(
       ...room,
       participantUUIDs: assignments[index],
     })),
+  };
+}
+
+/**
+ * Spread the given people evenly across the rooms, moving as few as possible.
+ * The planner's "Auto-assign evenly" uses this, so a changed room count
+ * rebalances rather than only placing newcomers.
+ *
+ * Room sizes differ by at most one, earlier rooms taking the remainder. Everyone
+ * keeps their room while it is not over its size; an over-full room gives up its
+ * most recently added people first. People kept in the main room stay there,
+ * and planned people missing from the list stay put and do not count.
+ */
+export function rebalanceEvenly(draft: RoundPlanDraft, participantUUIDs: string[]): RoundPlanDraft {
+  if (draft.rooms.length === 0) return draft;
+  const keptInMain = new Set(draft.stayInMainParticipantUUIDs);
+  const movable = new Set(participantUUIDs.filter((uuid) => !keptInMain.has(uuid)));
+
+  const base = Math.floor(movable.size / draft.rooms.length);
+  const remainder = movable.size % draft.rooms.length;
+  const sizeFor = (index: number) => base + (index < remainder ? 1 : 0);
+
+  const placed = new Set(draft.rooms.flatMap((room) => room.participantUUIDs));
+  const waiting = [...movable].filter((uuid) => !placed.has(uuid));
+  const staying = draft.rooms.map((room, index) => {
+    const movableHere = room.participantUUIDs.filter((uuid) => movable.has(uuid));
+    waiting.push(...movableHere.slice(sizeFor(index)));
+    return movableHere.slice(0, sizeFor(index));
+  });
+
+  return {
+    ...draft,
+    rooms: draft.rooms.map((room, index) => {
+      const absent = room.participantUUIDs.filter((uuid) => !movable.has(uuid));
+      const joining = waiting.splice(0, sizeFor(index) - staying[index].length);
+      return { ...room, participantUUIDs: [...absent, ...staying[index], ...joining] };
+    }),
   };
 }
 

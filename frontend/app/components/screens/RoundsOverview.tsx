@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
-import { autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
+import { rebalanceEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { MAX_ROOMS, newRoom } from "@/lib/use-room-plan";
@@ -239,7 +239,7 @@ export default function RoundsOverview({
               onClick={() =>
                 void applyToAllRounds(
                   (draft) =>
-                    autoAssignParticipantsEvenly(
+                    rebalanceEvenly(
                       draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft,
                       eligibleUUIDs,
                     ),

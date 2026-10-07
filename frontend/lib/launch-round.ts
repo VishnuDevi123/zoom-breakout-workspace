@@ -135,8 +135,10 @@ export async function readMeetingRoster(
   plan: RoundPlanDraft,
   hostUUID: string,
 ): Promise<RosterEntry[] | null> {
-  const rooms = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList());
-  if (rooms.state === "closed") {
+  // A meeting that never had breakout rooms can answer with an error instead of
+  // "closed"; either way nobody is in a room, so the meeting's list is the answer.
+  const rooms = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList()).catch(() => null);
+  if (!rooms || rooms.state === "closed") {
     const { participants } = await withZoomTimeout("Read participants", sdk.getMeetingParticipants());
     return participants.map((person) => ({
       participantUUID: person.participantUUID,

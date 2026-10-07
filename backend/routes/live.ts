@@ -162,6 +162,7 @@ router.post("/roster", (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const participants = rosterFrom(req.body?.participants);
   if (!parentUUID || !participants) {
+    console.log("roster: rejected, missing parentUUID or an empty/invalid participants list");
     const body: ApiResponse<never> = {
       success: false,
       error: "parentUUID and a non-empty list of valid participants are required.",
@@ -169,7 +170,10 @@ router.post("/roster", (req, res) => {
     res.status(400).json(body);
     return;
   }
-  const body: ApiResponse<LiveState> = { success: true, data: applyRoster(parentUUID, participants) };
+  const state = applyRoster(parentUUID, participants);
+  const present = state.participants.filter((p) => p.location !== "left").length;
+  console.log(`roster: ${participants.length} from Zoom for ${parentUUID}, ${present} now present`);
+  const body: ApiResponse<LiveState> = { success: true, data: state };
   res.json(body);
 });
 
