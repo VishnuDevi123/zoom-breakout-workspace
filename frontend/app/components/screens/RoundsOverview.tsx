@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
-import { autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
+import { rebalanceEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { MAX_ROOMS, newRoom } from "@/lib/use-room-plan";
@@ -18,6 +18,7 @@ import type {
   ZoomRole,
 } from "@/types/breakout";
 
+import ZoomActionOverlay from "../ZoomActionOverlay";
 import { Button, Card, EditableName, Pill, SectionLabel } from "../ui";
 
 const DURATION_STEP_SEC = 30;
@@ -163,7 +164,7 @@ export default function RoundsOverview({
               )
             }
           />
-          <span style={{ fontSize: 11, color: "var(--bw-ink)" }}>
+          <span className="bw-header-subtitle">
             {anyLaunched ? "A round is live" : "Draft workspace · not launched"}
           </span>
         </div>
@@ -174,7 +175,7 @@ export default function RoundsOverview({
       <div className="bw-body">
         <main className="bw-main">
           <div className="bw-section-heading">
-            <span style={{ fontSize: 12, color: "var(--bw-ink)" }}>
+            <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-ink)" }}>
               Add and Edit round configurations.
 
             </span>
@@ -231,14 +232,14 @@ export default function RoundsOverview({
               }
             />
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={applying || eligibleUUIDs.length === 0}
               title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
               onClick={() =>
                 void applyToAllRounds(
                   (draft) =>
-                    autoAssignParticipantsEvenly(
+                    rebalanceEvenly(
                       draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft,
                       eligibleUUIDs,
                     ),
@@ -252,7 +253,6 @@ export default function RoundsOverview({
             <label className="bw-switch-row">
               <input
                 type="checkbox"
-                style={{ accentColor: "#0d9488" }}
                 checked={workspace.sameRoomsEveryRound}
                 onChange={(event) =>
                   void run(() => onUpdateWorkspace({ sameRoomsEveryRound: event.target.checked }))
@@ -263,7 +263,6 @@ export default function RoundsOverview({
             <label className="bw-switch-row">
               <input
                 type="checkbox"
-                style={{ accentColor: "#0d9488" }}
                 checked={workspace.samePeopleEveryRound}
                 onChange={(event) =>
                   void run(() => onUpdateWorkspace({ samePeopleEveryRound: event.target.checked }))
@@ -278,7 +277,6 @@ export default function RoundsOverview({
             <label className="bw-switch-row">
               <input
                 type="checkbox"
-                style={{ accentColor: "#0d9488" }}
                 checked={workspace.autoStartNextRound}
                 onChange={(event) =>
                   void run(() => onUpdateWorkspace({ autoStartNextRound: event.target.checked }))
@@ -332,14 +330,18 @@ function LaunchWorkflow({
   const ready = (plan?.rooms.length ?? 0) > 0;
 
   return (
-    <Button
-      variant="accent"
-      disabled={!ready || controller.operation.kind === "running"}
-      title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
-      onClick={() => controller.launch()}
-    >
-      Launch Workflow
-    </Button>
+    <>
+      <Button
+        variant="primary"
+        disabled={!ready}
+        busy={controller.operation.kind === "running"}
+        title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
+        onClick={() => controller.launch()}
+      >
+        Launch Workflow
+      </Button>
+      <ZoomActionOverlay operation={controller.operation} />
+    </>
   );
 }
 
@@ -367,7 +369,7 @@ function RoomsForEveryRound({
         onChange={(event) => setValue(event.target.value)}
       />
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         disabled={busy || !valid}
         title={valid ? undefined : `Enter 1 to ${MAX_ROOMS}.`}
@@ -405,7 +407,7 @@ function RoundRow({
       </div>
 
       <div className="bw-round-row-side">
-        <span style={{ fontSize: 11.5, color: "var(--bw-ink)" }}>
+        <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-ink)" }}>
           {roomCount === 0
             ? "No rooms yet"
             : `${roomCount} ${roomCount === 1 ? "room" : "rooms"} · ${placedCount} placed`}

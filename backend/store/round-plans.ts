@@ -204,3 +204,38 @@ export function saveRoundPlan(
 export function deleteRoundPlan(parentUUID: string, roundId: string) {
   plans.delete(planKey(parentUUID, roundId));
 }
+
+/**
+ * Add one person to the same-named room in each listed round. A round is left
+ * alone when it has no saved draft, no room with that name, or already places
+ * the person anywhere, so the host's own plan is never overridden.
+ * Returns the rounds it changed; each of those gets a new revision.
+ */
+export function carryPlacement(
+  parentUUID: string,
+  roundIds: string[],
+  participantUUID: string,
+  roomName: string,
+): string[] {
+  const changed: string[] = [];
+  for (const roundId of roundIds) {
+    const key = planKey(parentUUID, roundId);
+    const plan = plans.get(key);
+    if (!plan) continue;
+    const alreadyPlaced =
+      plan.stayInMainParticipantUUIDs.includes(participantUUID) ||
+      plan.rooms.some((room) => room.participantUUIDs.includes(participantUUID));
+    const target = plan.rooms.find((room) => room.name === roomName);
+    if (alreadyPlaced || !target) continue;
+
+    plans.set(key, {
+      ...plan,
+      revision: plan.revision + 1,
+      rooms: plan.rooms.map((room) =>
+        room === target ? { ...room, participantUUIDs: [...room.participantUUIDs, participantUUID] } : room,
+      ),
+    });
+    changed.push(roundId);
+  }
+  return changed;
+}

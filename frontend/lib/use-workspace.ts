@@ -114,15 +114,17 @@ export function useWorkspace(parentUUID: string) {
     apply(workspace, workspace.rounds[0]?.roundId ?? null);
   }
 
-  async function addRound(): Promise<void> {
+  /** Appends a round; the new one is last. Returns the workspace so a caller can find it. */
+  async function addRound(options: { durationSec?: number } = {}): Promise<Workspace> {
     const workspace = await apiResult<Workspace>(
       await fetch("/api/workspace/rounds", {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ parentUUID }),
+        body: JSON.stringify({ parentUUID, ...options }),
       }),
     );
     apply(workspace, workspace.rounds.at(-1)?.roundId ?? null);
+    return workspace;
   }
 
   async function deleteRound(roundId: string): Promise<void> {

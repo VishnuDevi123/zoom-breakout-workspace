@@ -24,7 +24,7 @@ export default function CheckingScreen() {
       >
         <SectionLabel>Checking</SectionLabel>
 
-        <span style={{ fontSize: 15, fontWeight: 600 }}>Checking your role</span>
+        <span className="bw-header-title">Checking your role</span>
       </div>
     </div>
   );

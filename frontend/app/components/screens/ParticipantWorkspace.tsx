@@ -85,8 +85,8 @@ export default function ParticipantWorkspace({
           <span className="bw-room-header-dot" />
 
           <div className="bw-round-heading">
-            <span style={{ fontSize: 15, fontWeight: 600 }}>{room.name}</span>
-            <span style={{ fontSize: 11, color: "var(--bw-muted-2)" }}>
+            <span className="bw-header-title">{room.name}</span>
+            <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-2)" }}>
               {others.length > 0
                 ? `You, ${others.join(", ")}`
                 : "You are the only one here so far"}
@@ -97,7 +97,7 @@ export default function ParticipantWorkspace({
         <span className="bw-header-divider" />
 
         <div className="bw-round-heading">
-          <span style={{ fontSize: 12.5, fontWeight: 500 }}>
+          <span style={{ fontSize: "var(--bw-fs-body)", fontWeight: 500 }}>
             {roundPosition > 0
               ? `Round ${roundPosition} of ${roundCount} · `
               : ""}

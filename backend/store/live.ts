@@ -2,7 +2,8 @@ import {
   type LiveParticipant,
   type LiveRound,
   type LiveState,
-} from "../types/breakout.ts"; 
+  type RosterEntry,
+} from "../types/breakout.ts";
 import {getRoundPlan } from "./round-plans.ts";
 
 // tracking the current live state participant, rooms and rounds and push any updates to the store
@@ -133,6 +134,40 @@ export function markClosedRound(parentUUID: string): LiveState {
     }
     notify(parentUUID)
     return getLive(parentUUID)
+}
+
+/**
+ * Presence from the Zoom SDK, read by the host when the app opens. Webhooks never
+ * replay, so anyone who joined before a restart is missing until this runs.
+ *
+ * The roster is the whole meeting: anyone not in it has left and is dropped. A
+ * participant webhooks already placed keeps that location, because the SDK's room
+ * ids cannot be matched to the webhook ones; only newcomers take the roster's room.
+ */
+export function applyRoster(parentUUID: string, entries: RosterEntry[]): LiveState {
+    const meeting = meetingFor(parentUUID)
+    const present = new Set(entries.map((entry) => entry.participantUUID))
+    for (const participantUUID of meeting.participants.keys()) {
+        if (!present.has(participantUUID)) meeting.participants.delete(participantUUID)
+    }
+
+    for (const entry of entries) {
+        const known = meeting.participants.get(entry.participantUUID)
+        if (known && known.location !== "left") continue
+        meeting.participants.set(entry.participantUUID, {
+            participantUUID: entry.participantUUID,
+            name: entry.name,
+            isHost: entry.isHost || Boolean(known?.isHost),
+            location: rosterLocation(meeting, entry.roomId),
+        })
+    }
+    notify(parentUUID)
+    return getLive(parentUUID)
+}
+
+// A room's webhook uuid is only known once someone has entered it; until then "main".
+function rosterLocation(meeting: LiveMeeting, roomId: string | null): string {
+    return (roomId && meeting.round?.roomUUIDs[roomId]) || "main"
 }
 
 // Zoom webhook body. Only the fields we read; Zoom owns the full shape.

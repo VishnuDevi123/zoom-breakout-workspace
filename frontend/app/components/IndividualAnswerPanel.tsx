@@ -101,7 +101,7 @@ export default function IndividualAnswerPanel({
             </div>
           );
         })}
-        <Button variant="outline" className="bw-activity-side__back" onClick={onBack}>
+        <Button variant="secondary" className="bw-activity-side__back" onClick={onBack}>
           Back to activities
         </Button>
       </aside>

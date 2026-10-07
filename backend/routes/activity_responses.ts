@@ -4,6 +4,7 @@ import {
   addIdea,
   editIdea,
   getRoomResponses,
+  getRoomResponsesForHost,
   parseRoom,
   removeIdea,
   ResponseError,
@@ -12,7 +13,7 @@ import {
   type RoomRef,
 } from "../store/activity_responses.ts";
 import { getRoundTasks } from "../store/tasks.ts";
-import type { Activity, ApiResponse, RoomResponsesView } from "../types/breakout.ts";
+import type { Activity, ApiResponse, RoomResponsesHostView, RoomResponsesView } from "../types/breakout.ts";
 
 // Mounted at /api/responses.
 //
@@ -86,6 +87,19 @@ router.get("/:roundId/rooms/:roomId", (req, res) => {
   res.json(body);
 });
 
+
+/**
+ * GET /api/responses/:roundId/rooms/:roomId/all?parentUUID=<meeting uuid>
+ * The host's view of the room: every submitted answer, every note and tick.
+ * No caller check: the backend has no login, so like the participant filter this
+ * hides drafts but does not lock anything.
+ */
+router.get("/:roundId/rooms/:roomId/all", (req, res) => {
+  const { roundId, roomId } = req.params;
+  const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
+  const body: ApiResponse<RoomResponsesHostView> = { success: true, data: getRoomResponsesForHost(room) };
+  res.json(body);
+});
 
 /**
  * PUT /api/responses/:roundId/rooms/:roomId/answers/:activityId

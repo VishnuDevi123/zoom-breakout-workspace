@@ -43,6 +43,7 @@ export function useParticipantRound({
   participantUUID,
   roundId,
   taskRevision,
+  location,
 }: {
   parentUUID: string;
   participantUUID: string;
@@ -50,6 +51,12 @@ export function useParticipantRound({
   roundId: string;
   /** From LiveState. Every host task save bumps it. */
   taskRevision: number;
+  /**
+   * The caller's own location from LiveState. The host can place someone mid-round,
+   * which saves the plan but pushes nothing; entering the room changes this, so the
+   * placement is read again then.
+   */
+  location: string;
 }): ParticipantRound {
   const [placement, setPlacement] = useState<Placement>(NOWHERE);
   const [task, setTask] = useState<RoomTask | null>(null);
@@ -86,7 +93,7 @@ export function useParticipantRound({
     return () => {
       alive = false;
     };
-  }, [parentUUID, roundId, participantUUID]);
+  }, [parentUUID, roundId, participantUUID, location]);
 
   const roomId = placement.room?.id ?? "";
 

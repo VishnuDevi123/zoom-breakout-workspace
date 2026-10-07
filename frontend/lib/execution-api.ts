@@ -1,12 +1,15 @@
 import type {
   AddIdeaRequest,
   ApiResponse,
+  CarryPlacementRequest,
   EditIdeaRequest,
   LiveActionResponse,
   LiveState,
   RoundPlan,
   RemoveIdeaRequest,
+  RoomResponsesHostView,
   RoomResponsesView,
+  RosterEntry,
   RoundPlanDraft,
   RoundTasks,
   SaveRoundPlanRequest,
@@ -161,8 +164,43 @@ export async function markRoundClosed(
   );
 }
 
+/** Adds a mid-round placement to the same-named room of each later round not yet run. */
+export async function carryPlacement(request: CarryPlacementRequest): Promise<{ updatedRoundIds: string[] }> {
+  return apiResult(
+    await fetch(`/api/rounds/${encodeURIComponent(request.roundId)}/carry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }),
+  );
+}
+
+/** Who Zoom reports in the meeting; the backend fills in anyone webhooks missed. */
+export async function postRoster(
+  parentUUID: string,
+  participants: RosterEntry[],
+): Promise<LiveState> {
+  return apiResult(
+    await fetch("/api/live/roster", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentUUID, participants }),
+    }),
+  );
+}
+
 function roomResponsesUrl(roundId: string, roomId: string): string {
   return `/api/responses/${encodeURIComponent(roundId)}/rooms/${encodeURIComponent(roomId)}`;
+}
+
+/** The host's view of a room: every submitted answer, every note and tick. Drafts carry no text. */
+export async function readRoomResultsForHost(
+  parentUUID: string,
+  roundId: string,
+  roomId: string,
+): Promise<RoomResponsesHostView> {
+  const query = `parentUUID=${encodeURIComponent(parentUUID)}`;
+  return apiResult(await fetch(`${roomResponsesUrl(roundId, roomId)}/all?${query}`, { cache: "no-store" }));
 }
 
 /** The caller's view of their room: notes, ticks, own answers, everyone's answer status. */

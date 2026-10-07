@@ -74,7 +74,7 @@ export default function IdeaBoardPanel({
 
       <aside className="bw-rail bw-activity-side">
         <SharedChecklist items={checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
-        <Button variant="outline" className="bw-activity-side__back" onClick={onBack}>
+        <Button variant="secondary" className="bw-activity-side__back" onClick={onBack}>
           Back to activities
         </Button>
       </aside>

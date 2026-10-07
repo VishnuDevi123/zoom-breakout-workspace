@@ -3,6 +3,7 @@ import {
   type AnswerStatus,
   type IndividualAnswer,
   type RoomResponses,
+  type RoomResponsesHostView,
   type RoomResponsesView,
   type RoundTasks,
 } from "../types/breakout.ts";
@@ -161,6 +162,34 @@ export function getRoomResponses(room: RoomRef, participantUUID: unknown): RoomR
   return viewFor(responses.get(key(room)) ?? emptyRecord(room), caller);
 }
 
+
+/**
+ * The host's view of a room, the counterpart of `viewFor`. Every answer is listed,
+ * but drafts stay private: a "working" answer comes back with its status and no
+ * text. ideaCounters is server bookkeeping and is left out.
+ */
+export function getRoomResponsesForHost(room: RoomRef): RoomResponsesHostView {
+  const record = responses.get(key(room)) ?? emptyRecord(room);
+  const answers: RoomResponsesHostView["answers"] = {};
+  for (const [activityId, byParticipant] of Object.entries(record.answers)) {
+    answers[activityId] = {};
+    for (const answer of Object.values(byParticipant)) {
+      answers[activityId][answer.participantUUID] = {
+        ...answer,
+        text: answer.status === "submitted" ? answer.text : "",
+      };
+    }
+  }
+
+  return {
+    parentUUID: record.parentUUID,
+    roundId: record.roundId,
+    roomId: record.roomId,
+    answers,
+    ideas: structuredClone(record.ideas),
+    ticks: structuredClone(record.ticks),
+  };
+}
 
 /**
  * Autosave sends status "working", "Submit to host" sends "submitted". Either

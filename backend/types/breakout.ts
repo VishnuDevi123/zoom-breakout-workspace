@@ -88,6 +88,31 @@ export interface LiveState {
   roomRevisions: Record<string, number>;
 }
 
+/** One person the Zoom SDK reports present when the host opens the app. */
+export interface RosterEntry {
+  participantUUID: string;
+  name: string;
+  isHost: boolean;
+  /** Planned room id when Zoom reports the person inside a room; null for the main room. */
+  roomId: string | null;
+}
+
+/** Everyone in the meeting right now. Webhooks never replay, so this fills what they missed. */
+export interface RosterRequest {
+  parentUUID: string;
+  participants: RosterEntry[];
+}
+
+/** Carry a mid-round placement into the later rounds that have not run. */
+export interface CarryPlacementRequest {
+  parentUUID: string;
+  /** The running round the person was just placed in; only rounds after it change. */
+  roundId: string;
+  participantUUID: string;
+  /** Matched by name in each later round, since every round has its own room ids. */
+  roomName: string;
+}
+
 export type RoundStatus = "planned" | "launched" | "closed" | "skipped";
 
 /** Per-round metadata. Room lists live in RoundPlan, keyed by the same roundId. */
@@ -244,6 +269,8 @@ export interface RoomResponsesView extends Omit<RoomResponses, "answers" | "idea
   /** activityId -> participantUUID -> status, for the room's submission list. */
   statuses: Record<string, Record<string, AnswerStatus>>;
 }
+/** The host's view of one room: every answer (text only once submitted), every note and tick. */
+export type RoomResponsesHostView = Omit<RoomResponses, "ideaCounters">;
 // ---- Request bodies. parentUUID and participantUUID identify the caller. ----
 
 interface ResponseCaller {

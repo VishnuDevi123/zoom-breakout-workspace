@@ -1,6 +1,6 @@
 import { withZoomTimeout } from "@/lib/zoom-call";
 import type { ZoomSdk } from "@/lib/zoom-sdk";
-import type { RoundPlan } from "@/types/breakout";
+import type { RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
 
 /**
  * Zoom is not ready the instant its previous call resolves: the room set stays
@@ -104,4 +104,67 @@ export async function closeRoundInZoom(sdk: ZoomSdk): Promise<void> {
 export async function breakoutRoomsAreOpen(sdk: ZoomSdk): Promise<boolean> {
   const { state } = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList());
   return state === "open";
+}
+
+/**
+ * Move people still in the main room into rooms that are already open. Zoom wants
+ * its own room ids, which launch does not keep, so the room list is read once and
+ * matched by name, exactly as at launch. Zoom sends each person an invitation.
+ */
+export async function assignToOpenRooms(
+  sdk: ZoomSdk,
+  placements: { participantUUID: string; roomName: string }[],
+): Promise<void> {
+  const { rooms, state } = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList());
+  if (state !== "open") throw new Error("Zoom has no breakout rooms open.");
+  const zoomIdByName = new Map(rooms.map((room) => [room.name, room.breakoutRoomId]));
+  for (const { participantUUID, roomName } of placements) {
+    const uuid = zoomIdByName.get(roomName);
+    if (!uuid) throw new Error(`Zoom has no open room named "${roomName}".`);
+    await withZoomTimeout(`Assign to ${roomName}`, sdk.assignParticipantToBreakoutRoom({ participantUUID, uuid }));
+  }
+}
+
+/**
+ * Everyone Zoom reports in the meeting, or null when this caller cannot see them all.
+ * With rooms open only the room list covers every room, and only the meeting
+ * owner receives its people; a co-host gets empty rooms, which is not an empty meeting.
+ */
+export async function readMeetingRoster(
+  sdk: ZoomSdk,
+  plan: RoundPlanDraft,
+  hostUUID: string,
+): Promise<RosterEntry[] | null> {
+  // A meeting that never had breakout rooms can answer with an error instead of
+  // "closed"; either way nobody is in a room, so the meeting's list is the answer.
+  const rooms = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList()).catch(() => null);
+  if (!rooms || rooms.state === "closed") {
+    const { participants } = await withZoomTimeout("Read participants", sdk.getMeetingParticipants());
+    return participants.map((person) => ({
+      participantUUID: person.participantUUID,
+      name: person.screenName,
+      isHost: person.role === "host",
+      roomId: null,
+    }));
+  }
+  if (!rooms.unassigned) return null;
+
+  // Rooms were created with the plan's names, so names map back to planned room ids.
+  const roomIdByName = new Map(plan.rooms.map((room) => [room.name, room.id]));
+  const inRooms = rooms.rooms.flatMap((room) =>
+    (room.participants ?? []).map((person) => ({
+      participantUUID: person.participantUUID,
+      name: person.displayName,
+      isHost: person.participantUUID === hostUUID,
+      // Assigned but not yet entered still means the main room.
+      roomId: person.participantStatus === "joined" ? (roomIdByName.get(room.name) ?? null) : null,
+    })),
+  );
+  const inMain = rooms.unassigned.map((person) => ({
+    participantUUID: person.participantUUID,
+    name: person.displayName,
+    isHost: person.participantUUID === hostUUID,
+    roomId: null,
+  }));
+  return [...inRooms, ...inMain];
 }
