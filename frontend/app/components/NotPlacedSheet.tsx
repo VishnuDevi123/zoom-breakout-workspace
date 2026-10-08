@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 
 import { initialsFrom } from "@/lib/participant-status";
-import type { LiveParticipant, PlannedRoom } from "@/types/breakout";
+import type { PlannedRoom } from "@/types/breakout";
 
 import { Button, Spinner } from "./ui";
 
@@ -18,19 +18,37 @@ const KEY_STEP_PX = 24;
  * room grid. The host drags it taller or shorter; it never pushes the rooms
  * around, so it publishes its height and the grid pads its bottom by that much.
  */
+export interface SheetPerson {
+  participantUUID: string;
+  name: string;
+}
+
+/** Where a choice in a person's drop-down sends them, besides a room. */
+const KEEP_IN_MAIN = "stay-in-main";
+const BACK_TO_WAITING = "not-placed";
+
 export default function NotPlacedSheet({
   people,
   rooms,
   placing,
   onPlace,
   onPlaceEvenly,
+  stayingInMain = [],
+  onKeepInMain,
+  onReturn,
 }: {
-  people: LiveParticipant[];
+  people: SheetPerson[];
   rooms: PlannedRoom[];
   /** The participant being placed, "all" for Place evenly, or null. */
   placing: string | null;
   onPlace: (participantUUID: string, roomId: string) => void;
   onPlaceEvenly: () => void;
+  /** Planning only: people the host chose to keep in the main room. */
+  stayingInMain?: SheetPerson[];
+  /** Planning only: offers "Stay in main" in each waiting person's drop-down. */
+  onKeepInMain?: (participantUUID: string) => void;
+  /** Planning only: moves someone kept in main back to the waiting list. */
+  onReturn?: (participantUUID: string) => void;
 }) {
   const sheetRef = useRef<HTMLElement>(null);
   // Null: size to the content, capped by CSS at 40%.
@@ -140,34 +158,78 @@ export default function NotPlacedSheet({
 
       <ul className="bw-sheet__list">
         {people.map((person) => (
-          <li className="bw-sheet__person" key={person.participantUUID}>
-            <span className="bw-initials" title={person.name} aria-hidden>
-              {initialsFrom(person.name)}
-            </span>
-            <span className="bw-sheet__name" title={person.name}>{person.name}</span>
-            {placing === person.participantUUID ? (
-              <Spinner />
-            ) : (
-              <select
-                className="bw-placement-select"
-                aria-label={`Room for ${person.name}`}
-                value=""
-                disabled={placing !== null}
-                onChange={(event) => onPlace(person.participantUUID, event.target.value)}
-              >
-                <option value="" disabled>
-                  Room…
+          <SheetRow key={person.participantUUID} person={person} busy={placing === person.participantUUID}>
+            <select
+              className="bw-placement-select"
+              aria-label={`Room for ${person.name}`}
+              value=""
+              disabled={placing !== null}
+              onChange={(event) => {
+                const choice = event.target.value;
+                if (choice === KEEP_IN_MAIN) onKeepInMain?.(person.participantUUID);
+                else onPlace(person.participantUUID, choice);
+              }}
+            >
+              <option value="" disabled>
+                Room…
+              </option>
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
                 </option>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </li>
+              ))}
+              {onKeepInMain ? <option value={KEEP_IN_MAIN}>Stay in main</option> : null}
+            </select>
+          </SheetRow>
         ))}
       </ul>
+
+      {stayingInMain.length > 0 ? (
+        <>
+          <span className="bw-sheet__subtitle">Staying in main ({stayingInMain.length})</span>
+          <ul className="bw-sheet__list">
+            {stayingInMain.map((person) => (
+              <SheetRow key={person.participantUUID} person={person} busy={false}>
+                <select
+                  className="bw-placement-select"
+                  aria-label={`Room for ${person.name}`}
+                  value=""
+                  onChange={(event) => {
+                    const choice = event.target.value;
+                    if (choice === BACK_TO_WAITING) onReturn?.(person.participantUUID);
+                    else onPlace(person.participantUUID, choice);
+                  }}
+                >
+                  <option value="" disabled>
+                    Move…
+                  </option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}
+                    </option>
+                  ))}
+                  <option value={BACK_TO_WAITING}>Not yet placed</option>
+                </select>
+              </SheetRow>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </section>
+  );
+}
+
+/** One person on the sheet: initials, name and whatever control places them. */
+function SheetRow({ person, busy, children }: { person: SheetPerson; busy: boolean; children: ReactNode }) {
+  return (
+    <li className="bw-sheet__person">
+      <span className="bw-initials" title={person.name} aria-hidden>
+        {initialsFrom(person.name)}
+      </span>
+      <span className="bw-sheet__name" title={person.name}>
+        {person.name}
+      </span>
+      {busy ? <Spinner /> : children}
+    </li>
   );
 }

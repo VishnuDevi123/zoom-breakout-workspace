@@ -19,6 +19,7 @@ import type {
 } from "@/types/breakout";
 
 import ZoomActionOverlay from "../ZoomActionOverlay";
+import type { SetupTab } from "./RoundSetup";
 import { Button, Card, ConfirmModal, EditableName, SectionLabel } from "../ui";
 
 const DURATION_STEP_SEC = 30;
@@ -44,9 +45,6 @@ function groupingOf(workspace: Workspace): Grouping {
   if (!workspace.sameRoomsEveryRound) return "each";
   return workspace.samePeopleEveryRound ? "same" : "new";
 }
-
-/** Which round setup tab a round card opens. */
-export type SetupTab = "rooms" | "tasks";
 
 /** Grow or shrink a draft to exactly `count` rooms. Shrinking unassigns whoever was in the last rooms. */
 function withRoomCount(draft: RoundPlanDraft, count: number): RoundPlanDraft {

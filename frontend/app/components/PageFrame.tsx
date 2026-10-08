@@ -11,14 +11,18 @@ export interface FrameTab<T extends string> {
  * bottom navbar of tabs. Callers fill the bar and the page; the frame owns layout.
  */
 export default function PageFrame<T extends string>({
+  tone = "live",
   bar,
   tabs,
   activeTab,
   onTabChange,
   tabsLabel,
   sheet,
+  contentKey,
   children,
 }: {
+  /** "planning" lightens the top bar so setting up a round never looks live. */
+  tone?: "live" | "planning";
   /** Contents of the top bar, left to right. */
   bar: ReactNode;
   tabs: FrameTab<T>[];
@@ -28,15 +32,19 @@ export default function PageFrame<T extends string>({
   tabsLabel: string;
   /** Overlays the bottom of the page; it reads its parent's height to size itself. */
   sheet?: ReactNode;
+  /** A new value fades the page in again, e.g. on a tab or round change. */
+  contentKey?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="bw-frame">
+    <div className={tone === "planning" ? "bw-frame bw-frame--planning" : "bw-frame"}>
       <header className="bw-frame__bar">{bar}</header>
 
       <div className="bw-frame__main">
         <main className="bw-frame__page">
-          <div className="bw-frame__content">{children}</div>
+          <div className="bw-frame__content" key={contentKey}>
+            {children}
+          </div>
         </main>
         {sheet}
       </div>

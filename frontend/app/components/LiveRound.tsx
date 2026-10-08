@@ -226,6 +226,7 @@ export default function LiveRound({
         onTabChange={setPage}
         tabsLabel="Live round views"
         sheet={sheet}
+        contentKey={page === "rooms" ? `rooms:${openRoom?.id ?? ""}:${openActivity?.id ?? ""}` : "session"}
       >
         {page === "rooms" && openRoom && openActivity ? (
           <ActivityResultsPage

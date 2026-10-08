@@ -16,6 +16,8 @@
   /* Page frame bars (live round, round setup), kept apart so each can be recoloured on its own. */
   --bw-frame-bar-bg: #1f2430;
   --bw-frame-nav-bg: #1f2430;
+  /* Round setup: a light bar so planning never looks like a live round. */
+  --bw-frame-planning-bar-bg: #ffffff;
 
   /* Borders: cards and dividers use --bw-border, form controls the strong one (3:1). */
   --bw-border: #d8dee8;
@@ -531,13 +533,6 @@ input[type="checkbox"] {
   gap: 12px;
 }
 
-.bw-navigation {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
 .bw-landing {
   display: flex;
   flex-direction: column;
@@ -695,13 +690,6 @@ input[type="checkbox"] {
   min-height: 150px;
 }
 
-.bw-auto-assign {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
 .bw-room-card__header {
   min-height: 25px;
   display: flex;
@@ -828,13 +816,10 @@ input[type="checkbox"] {
   border-radius: var(--bw-radius-sm);
   background: var(--bw-surface-sunken);
 }
-
-.bw-member-row.bw-member-row--unavailable,
-.bw-rail-row.bw-rail-row--unavailable {
+.bw-member-row.bw-member-row--unavailable {
   border: 1px dashed var(--bw-red);
   background: #fffafa;
 }
-
 .bw-member-status {
   flex: none;
   max-width: 96px;
@@ -963,63 +948,6 @@ input[type="checkbox"] {
   opacity: 0.5;
 }
 
-.bw-placement-rail,
-.bw-stay-main {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.bw-stay-main {
-  margin-top: 7px;
-}
-
-.bw-section-heading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.bw-empty-placement {
-  padding: 10px;
-  border: 1px dashed var(--bw-border-strong);
-  border-radius: var(--bw-radius-sm);
-  background: var(--bw-surface);
-  color: var(--bw-muted-2);
-  font-size: var(--bw-fs-meta);
-  line-height: 1.45;
-}
-
-.bw-rail-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 9px;
-  border: 1px solid var(--bw-border-faint);
-  border-radius: var(--bw-radius-sm);
-  background: var(--bw-surface);
-}
-
-.bw-rail-person {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.bw-rail-person > span:first-child {
-  overflow: hidden;
-  font-size: var(--bw-fs-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bw-rail-person > span:last-child {
-  color: var(--bw-muted-4);
-  font-size: var(--bw-fs-meta);
-}
-
 .bw-placement-select {
   width: 84px;
   min-width: 0;
@@ -1054,12 +982,6 @@ input[type="checkbox"] {
   color: var(--bw-muted);
   font-size: var(--bw-fs-meta);
   font-weight: 600;
-}
-
-.bw-avatar--rail {
-  width: 28px;
-  height: 28px;
-  font-size: var(--bw-fs-meta);
 }
 
 .bw-stepper {
@@ -1102,10 +1024,6 @@ input[type="checkbox"] {
 
   .bw-header-spacer {
     min-width: 20px;
-  }
-
-  .bw-auto-assign {
-    align-items: flex-start;
   }
 }
 
@@ -1350,8 +1268,6 @@ a.bw-resource-row:hover {
   max-width: 460px;
 }
 
-
-
 .bw-room-header-group {
   display: flex;
   align-items: flex-start;
@@ -1551,6 +1467,47 @@ a.bw-resource-row:hover {
   line-height: 1;
 }
 /* Holds the scrolling page and the sheet laid over its bottom edge. */
+.bw-frame--planning .bw-frame__bar {
+  background: var(--bw-frame-planning-bar-bg);
+  color: var(--bw-ink);
+  border-bottom: 1px solid var(--bw-border);
+}
+@keyframes bwPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.bw-setup-pending {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--bw-accent);
+}
+.bw-setup-title .bw-room-name {
+  font-size: var(--bw-fs-header);
+}
+.bw-sheet__subtitle {
+  flex: none;
+  padding: 0 20px 8px;
+  font-size: var(--bw-fs-secondary);
+  font-weight: 600;
+  color: var(--bw-muted);
+}
+.bw-save-problem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bw-save-problem__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .bw-frame__main {
   position: relative;
   min-height: 0;
@@ -1562,8 +1519,15 @@ a.bw-resource-row:hover {
   container: frame-page / inline-size;
 }
 /* The sheet covers the bottom of the page, so the last rooms can scroll above it. */
+/* Every new page, tab or round fades in rather than appearing at once. */
 .bw-frame__content {
+  animation: bwPageIn 200ms ease-out both;
   padding: 20px 20px calc(20px + var(--bw-sheet-h, 0px));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-frame__content {
+    animation-name: bwFadeIn;
+  }
 }
 @container frame-page (max-width: 639px) {
   .bw-frame__content {
