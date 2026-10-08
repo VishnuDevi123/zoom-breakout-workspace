@@ -210,6 +210,59 @@ export interface CheckListItem {
 
 export type Activity = IndividualActivity | IdeaBoardActivity;
 
+// ---- Workflows without people: what End Workflow keeps and a template restores ----
+
+/** One round as a template: room names only, no room ids, people or submissions. */
+export interface WorkflowRoundSnapshot {
+  title: string | null;
+  durationSec: number;
+  roomNames: string[];
+  task: RoomTask | null;
+  activities: Activity[];
+}
+
+export interface WorkflowSnapshot {
+  title: string;
+  sameRoomsEveryRound: boolean;
+  samePeopleEveryRound: boolean;
+  autoStartNextRound: boolean;
+  rounds: WorkflowRoundSnapshot[];
+}
+
+/** A workflow the host ended in this meeting. */
+export interface PastWorkflow extends WorkflowSnapshot {
+  id: string;
+  /** ISO time of End Workflow. */
+  endedAt: string;
+}
+
+/** A past workflow the host chose to keep. Keyed by the host's participantUUID until persistence. */
+export interface SavedTemplate extends WorkflowSnapshot {
+  id: string;
+  hostUUID: string;
+  savedAt: string;
+}
+
+/** POST /api/workspace/end. The frontend closes any open round first. */
+export interface EndWorkflowRequest {
+  parentUUID: string;
+  expectedRevision: number;
+}
+
+/** POST /api/workspace/replace. Use expectedRevision 0 when the meeting has no workflow. */
+export interface ReplaceWorkflowRequest {
+  parentUUID: string;
+  expectedRevision: number;
+  snapshot: WorkflowSnapshot;
+}
+
+/** POST /api/templates */
+export interface SaveTemplateRequest {
+  parentUUID: string;
+  pastWorkflowId: string;
+  hostUUID: string;
+}
+
 // ---- Responses: participant-written, one record per (parentUUID, roundId, roomId) ----
 
 export const NOTE_COLORS = [

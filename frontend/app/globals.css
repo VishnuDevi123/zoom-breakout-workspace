@@ -718,6 +718,18 @@ input[type="checkbox"] {
   min-width: 0;
 }
 
+/* While renaming: the input, with any error under it. */
+.bw-editable-name--editing {
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.bw-room-card__name {
+  flex: 1;
+}
+
 /* EditableName puts the text in an inner .bw-room-name, which sets its own size. */
 .bw-workspace-title .bw-room-name {
   font-size: var(--bw-fs-workspace-title);
@@ -879,7 +891,7 @@ input[type="checkbox"] {
 }
 
 .bw-field-error {
-  color: var(--bw-red-deep);
+  color: var(--bw-danger-text);
   font-size: var(--bw-fs-meta);
 }
 

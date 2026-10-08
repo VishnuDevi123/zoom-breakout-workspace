@@ -139,13 +139,13 @@ export default function RoundsOverview({
   }
 
   /**
-   * Apply one change to every round. A launched round is skipped: its rooms are
-   * already open in Zoom, so a draft edit would only desync the live view.
+   * Apply one change to every round that has not run. A launched round's rooms are
+   * open in Zoom, and a closed round's plan decides who may read its submissions.
    */
   async function applyToAllRounds(change: (draft: RoundPlanDraft) => RoundPlanDraft, done: string) {
     setApplying(true);
     try {
-      const editable = workspace.rounds.filter((round) => round.status !== "launched");
+      const editable = workspace.rounds.filter((round) => round.status === "planned" || round.status === "skipped");
       for (const round of editable) await writePlan(round, change);
       onPlansChanged();
       toast.success(done);
@@ -508,8 +508,14 @@ function RoundRow({
           variant="ghost"
           size="sm"
           className="bw-button--danger-text"
-          disabled={round.status === "launched"}
-          title={round.status === "launched" ? "Close the round before removing it" : undefined}
+          disabled={round.status === "launched" || round.status === "closed"}
+          title={
+            round.status === "launched"
+              ? "Close the round before removing it"
+              : round.status === "closed"
+                ? "A round that has run keeps its results"
+                : undefined
+          }
           onClick={onDelete}
         >
           Remove

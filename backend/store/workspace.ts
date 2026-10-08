@@ -1,13 +1,16 @@
 import {
   ROOM_DOTS,
+  type PastWorkflow,
   type RoundMeta,
   type RoundStatus,
   type SaveWorkspaceRequest,
   type Workspace,
+  type WorkflowRoundSnapshot,
 } from "../types/breakout.ts";
 import { deleteRoundResponses } from "./activity_responses.ts";
-import { deleteRoundPlan } from "./round-plans.ts";
-import { deleteRoundTasks } from "./tasks.ts";
+import { deleteRoundPlan, getRoundPlan, saveRoundPlan } from "./round-plans.ts";
+import { deleteRoundTasks, getRoundTasks, saveRoundTasks } from "./tasks.ts";
+import { addPastWorkflow } from "./templates.ts";
 
 // One record per meeting. Room lists live in round-plans, keyed by the same roundId.
 const workspaces = new Map<string, Workspace>();
@@ -203,10 +206,115 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
 
   stored.rounds = stored.rounds.filter((r) => r.roundId !== id);
   stored.revision += 1;
-  deleteRoundPlan(stored.parentUUID, id);
-  deleteRoundTasks(stored.parentUUID, id);
-  deleteRoundResponses(stored.parentUUID, id);
+  deleteRoundData(stored.parentUUID, id);
   return structuredClone(stored);
+}
+
+/** A round's draft, task and submissions, which every removal takes along. */
+function deleteRoundData(parentUUID: string, roundId: string): void {
+  deleteRoundPlan(parentUUID, roundId);
+  deleteRoundTasks(parentUUID, roundId);
+  deleteRoundResponses(parentUUID, roundId);
+}
+
+/** One round without people: room names from its draft, task and activities from its tasks. */
+function roundSnapshot(parentUUID: string, round: RoundMeta): WorkflowRoundSnapshot {
+  const plan = getRoundPlan(parentUUID, round.roundId);
+  const tasks = getRoundTasks(parentUUID, round.roundId);
+  return {
+    title: round.title,
+    durationSec: round.durationSec,
+    roomNames: plan?.rooms.map((room) => room.name) ?? [],
+    task: tasks?.all ?? null,
+    activities: tasks?.activities ?? [],
+  };
+}
+
+/**
+ * End Workflow: keep the workflow without people as a past workflow, then delete
+ * the workspace and every round's draft, task and submissions. The live store's
+ * participant list stays: those people are still in the meeting.
+ */
+export function endWorkflow(input: unknown): PastWorkflow[] {
+  if (!isRecord(input)) throw new WorkspaceError("The request body must be an object.", 400);
+  const stored = workspaceFor(input.parentUUID);
+  checkRevision(stored, input.expectedRevision);
+  if (stored.rounds.some((round) => round.status === "launched")) {
+    throw new WorkspaceError("Close the running round before ending the workflow.", 409);
+  }
+
+  const snapshot = {
+    title: stored.title,
+    sameRoomsEveryRound: stored.sameRoomsEveryRound,
+    samePeopleEveryRound: stored.samePeopleEveryRound,
+    autoStartNextRound: stored.autoStartNextRound,
+    rounds: stored.rounds.map((round) => roundSnapshot(stored.parentUUID, round)),
+  };
+  for (const round of stored.rounds) deleteRoundData(stored.parentUUID, round.roundId);
+  workspaces.delete(stored.parentUUID);
+  return addPastWorkflow(stored.parentUUID, snapshot);
+}
+
+/** Saves one restored round's rooms (no people) and its task. A round with neither stays bare. */
+function restoreRound(parentUUID: string, round: RoundMeta, position: number, snapshot: unknown): void {
+  const source = isRecord(snapshot) ? snapshot : {};
+  const roomNames: unknown[] = Array.isArray(source.roomNames) ? source.roomNames : [];
+  const activities: unknown[] = Array.isArray(source.activities) ? source.activities : [];
+
+  if (roomNames.length > 0) {
+    const rooms = roomNames.map((name, index) => ({
+      id: crypto.randomUUID(),
+      name,
+      dot: ROOM_DOTS[index % ROOM_DOTS.length],
+      participantUUIDs: [],
+    }));
+    const title = round.title ?? `Round ${position}`;
+    saveRoundPlan({ parentUUID, roundId: round.roundId, title, rooms, stayInMainParticipantUUIDs: [] }, 0);
+  }
+  if (source.task || activities.length > 0) {
+    saveRoundTasks({ parentUUID, roundId: round.roundId, all: source.task ?? null, rooms: {}, activities }, 0);
+  }
+}
+
+/**
+ * Replace a workflow that has not started with a template (sample or saved).
+ * Every round comes back planned, with fresh ids. The round stores validate
+ * rooms and tasks; a snapshot from a past workflow already passed them once.
+ */
+export function replaceWorkflow(input: unknown): Workspace {
+  if (!isRecord(input) || !isRecord(input.snapshot)) {
+    throw new WorkspaceError("The request body must be an object with a snapshot.", 400);
+  }
+  const parentUUID = requiredString(input.parentUUID, "parentUUID");
+  const stored = workspaces.get(parentUUID);
+  const currentRevision = checkRevision(stored, input.expectedRevision);
+  if (stored?.rounds.some((round) => round.status === "launched" || round.status === "closed")) {
+    throw new WorkspaceError("This workflow has started. End it before using another.", 409);
+  }
+
+  const snapshotRounds: unknown[] = Array.isArray(input.snapshot.rounds) ? input.snapshot.rounds : [];
+  const draft = validateSaveRequest({
+    ...input.snapshot,
+    parentUUID,
+    rounds: snapshotRounds.map((round, index) => ({
+      ...(isRecord(round) ? round : {}),
+      roundId: `round-${index + 1}`,
+    })),
+  });
+
+  for (const round of stored?.rounds ?? []) deleteRoundData(parentUUID, round.roundId);
+  const saved: Workspace = {
+    ...draft,
+    rounds: draft.rounds.map((round, index) => ({
+      ...round,
+      dot: ROOM_DOTS[index % ROOM_DOTS.length],
+      status: "planned",
+    })),
+    revision: currentRevision + 1,
+  };
+  workspaces.set(parentUUID, saved);
+  saved.rounds.forEach((round, index) => restoreRound(parentUUID, round, index + 1, snapshotRounds[index]));
+  return structuredClone(saved);
 }
 
 /** Called by /api/live/launch and /close. No operatuions when workspace or round is unknown: launch never gates on the workspace. */

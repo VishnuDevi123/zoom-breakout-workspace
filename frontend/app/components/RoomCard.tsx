@@ -1,11 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
-
 import { DRAFT_MEMBER_STATUS_LABEL, type Participant } from "@/lib/participant-status";
 import type { PlannedRoom } from "@/types/breakout";
 
-import { Button, Card, StatusDot } from "./ui";
+import { Card, EditableName, StatusDot } from "./ui";
 
 /** Editable planned-room card. Members come only from draft assignment IDs. */
 export default function RoomCard({
@@ -35,89 +33,30 @@ export default function RoomCard({
   onUnassignParticipant: (participantUUID: string) => void;
   onKeepParticipantInMain: (participantUUID: string) => void;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(room.name);
-  const [error, setError] = useState<string | null>(null);
-  const editButtonRef = useRef<HTMLButtonElement>(null);
-
-  function finishEditing() {
-    const validationError = onRename(name);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setIsEditing(false);
-    setError(null);
-    requestAnimationFrame(() => editButtonRef.current?.focus());
-  }
-
-  function cancelEditing() {
-    setName(room.name);
-    setError(null);
-    setIsEditing(false);
-    requestAnimationFrame(() => editButtonRef.current?.focus());
-  }
-
   return (
     <Card className="bw-room-card">
       <div className="bw-room-card__header">
         <StatusDot color={room.dot} />
 
-        {isEditing ? (
-          <>
-            <input
-              autoFocus
-              className="bw-room-name-input"
-              value={name}
-              aria-label={`New name for ${room.name}`}
-              aria-invalid={Boolean(error)}
-              onChange={(event) => {
-                setName(event.target.value);
-                setError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") finishEditing();
-                if (event.key === "Escape") cancelEditing();
-              }}
-            />
-            <Button size="sm" onClick={finishEditing}>Save</Button>
-            <Button variant="secondary" size="sm" onClick={cancelEditing} aria-label="Cancel rename">
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <>
-            <span className="bw-room-name">{room.name}</span>
-            <button
-              ref={editButtonRef}
-              type="button"
-              className="bw-icon-button"
-              aria-label={`Rename ${room.name}`}
-              title="Rename room"
-              onClick={() => {
-                setName(room.name);
-                setIsEditing(true);
-              }}
-            >
-              ✎
+        <EditableName
+          value={room.name}
+          placeholder={room.name}
+          className="bw-room-card__name"
+          // A room always has a name; the plan rejects empty and duplicate ones.
+          onSave={(next) => onRename(next ?? "")}
+        />
+        <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
+          {room.participantUUIDs.length}
+        </span>
+        <details className="bw-room-menu" data-dismissible-menu>
+          <summary className="bw-icon-button" aria-label={`Menu for ${room.name}`}>⋮</summary>
+          <div className="bw-room-menu__popover">
+            <button type="button" disabled={!canRemove} onClick={onRemove}>
+              Remove room
             </button>
-            <div style={{ flex: 1 }} />
-            <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
-              {room.participantUUIDs.length}
-            </span>
-            <details className="bw-room-menu" data-dismissible-menu>
-              <summary className="bw-icon-button" aria-label={`Menu for ${room.name}`}>⋮</summary>
-              <div className="bw-room-menu__popover">
-                <button type="button" disabled={!canRemove} onClick={onRemove}>
-                  Remove room
-                </button>
-              </div>
-            </details>
-          </>
-        )}
+          </div>
+        </details>
       </div>
-
-      {error ? <span className="bw-field-error" role="alert">{error}</span> : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {participants.map((participant) => {

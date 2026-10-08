@@ -8,7 +8,7 @@ import type { RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
  * straight away. Both answer with their own message and both clear on their own,
  * so the launch waits rather than failing.
  */
-const ZOOM_BUSY_MESSAGES = ["can not edit the breakout room", "not ready"];
+const ZOOM_BUSY_MESSAGES = ["can not edit the breakout room as room are already open", "not ready"];
 const ZOOM_BUSY_WAIT_MS = 1_500;
 const ZOOM_BUSY_ATTEMPTS = 3;
 

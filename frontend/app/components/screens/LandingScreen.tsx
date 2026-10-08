@@ -78,9 +78,12 @@ export default function LandingScreen({
                     {workflow.roundCount} {workflow.roundCount === 1 ? "round" : "rounds"}
                   </span>
                 </div>
-                <Button variant={liveRoundLabel ? "secondary" : "primary"} disabled={busy} onClick={onBuildRounds}>
-                  Continue building
-                </Button>
+                {/* Building is closed while a round runs: past and running rounds must not change. */}
+                {liveRoundLabel ? null : (
+                  <Button disabled={busy} onClick={onBuildRounds}>
+                    Continue building
+                  </Button>
+                )}
               </Card>
             ) : (
               <>

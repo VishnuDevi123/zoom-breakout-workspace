@@ -108,6 +108,9 @@ export function useRoomPlan(
 ) {
   const key = `${parentUUID}\u0000${selectedRound.roundId}`;
   const seedRef = useRef(seed);
+  // Only names a draft created from scratch. Kept out of the load effect's
+  // dependencies, so renaming the round does not throw the draft away and reload it.
+  const titleRef = useRef(selectedRound.title);
   const initialCache = draftCache.get(key);
   const preservedInitial = initialCache && isDirty(initialCache) ? initialCache : null;
   const [state, setState] = useState<RoomPlanState>(() =>
@@ -268,6 +271,10 @@ export function useRoomPlan(
   }, [seed]);
 
   useEffect(() => {
+    titleRef.current = selectedRound.title;
+  }, [selectedRound.title]);
+
+  useEffect(() => {
     const controller = new AbortController();
     keyRef.current = key;
     queuedRef.current = false;
@@ -312,7 +319,7 @@ export function useRoomPlan(
           draft = (await seedRef.current?.()) ?? {
             parentUUID,
             roundId: selectedRound.roundId,
-            title: selectedRound.title,
+            title: titleRef.current,
             rooms: [],
             stayInMainParticipantUUIDs: [],
           };
@@ -346,7 +353,7 @@ export function useRoomPlan(
 
     void load();
     return () => controller.abort();
-  }, [key, loadAttempt, parentUUID, selectedRound.roundId, selectedRound.title]);
+  }, [key, loadAttempt, parentUUID, selectedRound.roundId]);
 
   useEffect(() => () => saveAbortRef.current?.abort(), []);
 
