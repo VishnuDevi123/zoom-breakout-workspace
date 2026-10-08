@@ -5,17 +5,20 @@ import { useState } from "react";
 import Button from "./Button";
 import Modal from "./Modal";
 
-/** Small yes/no for a destructive step. `onConfirm` reports its own errors; the modal closes after it. */
+/** Small yes/no before a step that matters. `onConfirm` reports its own errors; the modal closes after it. */
 export default function ConfirmModal({
   title,
   message,
   confirmLabel,
+  confirmVariant = "danger",
   onConfirm,
   onClose,
 }: {
   title: string;
   message: string;
   confirmLabel: string;
+  /** Red for destructive steps (the default); primary for ones like launching. */
+  confirmVariant?: "danger" | "primary";
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -40,7 +43,7 @@ export default function ConfirmModal({
             <Button variant="secondary" size="sm" disabled={busy} onClick={close}>
               Cancel
             </Button>
-            <Button variant="danger" size="sm" busy={busy} onClick={() => void confirm(close)}>
+            <Button variant={confirmVariant} size="sm" busy={busy} onClick={() => void confirm(close)}>
               {confirmLabel}
             </Button>
           </footer>

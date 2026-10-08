@@ -335,9 +335,9 @@ export default function HostWorkspace({
         onDeleteRound={workspace.deleteRound}
         onUpdateRound={workspace.updateRound}
         onUpdateWorkspace={workspace.updateWorkspace}
-        onEditRound={(roundId) => {
+        onEditRound={(roundId, tab) => {
           workspace.selectRound(roundId);
-          setView("draft");
+          setView(tab === "tasks" ? "task" : "draft");
         }}
       />
     );

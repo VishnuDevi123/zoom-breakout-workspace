@@ -19,12 +19,34 @@ import type {
 } from "@/types/breakout";
 
 import ZoomActionOverlay from "../ZoomActionOverlay";
-import { Button, Card, EditableName, Pill, SectionLabel } from "../ui";
+import { Button, Card, ConfirmModal, EditableName, SectionLabel } from "../ui";
 
 const DURATION_STEP_SEC = 30;
 const MIN_DURATION_SEC = 30;
 
-const SETUP_STEPS = ["01 Build rounds", "02 Configure each round", "03 Review & launch"];
+/** How rounds get their groups. Stored as the workspace's two existing flags. */
+type Grouping = "same" | "new" | "each";
+
+const GROUPING_OPTIONS: { id: Grouping; label: string; hint: string }[] = [
+  { id: "same", label: "Same groups every round", hint: "Set rooms and people once, in Round 1." },
+  { id: "new", label: "New groups each round", hint: "Same rooms, people mixed up each round." },
+  { id: "each", label: "I'll set up each round", hint: "Every round has its own rooms and people." },
+];
+
+const GROUPING_FLAGS: Record<Grouping, Pick<Workspace, "sameRoomsEveryRound" | "samePeopleEveryRound">> = {
+  same: { sameRoomsEveryRound: true, samePeopleEveryRound: true },
+  new: { sameRoomsEveryRound: true, samePeopleEveryRound: false },
+  each: { sameRoomsEveryRound: false, samePeopleEveryRound: false },
+};
+
+/** Same people without the same rooms has no meaning, so it reads as "each round". */
+function groupingOf(workspace: Workspace): Grouping {
+  if (!workspace.sameRoomsEveryRound) return "each";
+  return workspace.samePeopleEveryRound ? "same" : "new";
+}
+
+/** Which round setup tab a round card opens. */
+export type SetupTab = "rooms" | "tasks";
 
 /** Grow or shrink a draft to exactly `count` rooms. Shrinking unassigns whoever was in the last rooms. */
 function withRoomCount(draft: RoundPlanDraft, count: number): RoundPlanDraft {
@@ -72,7 +94,7 @@ export default function RoundsOverview({
       Pick<Workspace, "title" | "sameRoomsEveryRound" | "samePeopleEveryRound" | "autoStartNextRound">
     >,
   ) => Promise<void>;
-  onEditRound: (roundId: string) => void;
+  onEditRound: (roundId: string, tab: SetupTab) => void;
 }) {
   const totalSec = workspace.rounds.reduce((sum, round) => sum + round.durationSec, 0);
   const anyLaunched = workspace.rounds.some((round) => round.status === "launched");
@@ -142,15 +164,13 @@ export default function RoundsOverview({
     }
   }
 
+  const grouping = groupingOf(workspace);
+  const firstRoundId = workspace.rounds[0]?.roundId ?? null;
+
   return (
     <div className="bw-shell">
       <header className="bw-header">
-        <button
-          type="button"
-          className="bw-back"
-          aria-label="Back to start"
-          onClick={onHome}
-        >
+        <button type="button" className="bw-back" aria-label="Back to start" onClick={onHome}>
           ←
         </button>
         <div className="bw-round-heading">
@@ -158,190 +178,200 @@ export default function RoundsOverview({
             value={workspace.title}
             placeholder="Sample Workflow"
             className="bw-workspace-title"
-            onSave={(title) =>
-              void run(() =>
-                onUpdateWorkspace({ title: title ?? "Sample Workflow" }),
-              )
-            }
+            onSave={(title) => void run(() => onUpdateWorkspace({ title: title ?? "Sample Workflow" }))}
           />
           <span className="bw-header-subtitle">
-            {anyLaunched ? "A round is live" : "Draft workspace · not launched"}
+            {anyLaunched ? "A round is live" : `Draft · ${workspace.rounds.length} ${workspace.rounds.length === 1 ? "round" : "rounds"} · ${formatDuration(totalSec)}`}
           </span>
         </div>
         <div className="bw-header-spacer" />
-
       </header>
 
-      <div className="bw-body">
+      <div className="bw-body bw-workflow">
         <main className="bw-main">
-          <div className="bw-section-heading">
-            <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-ink)" }}>
-              Add and Edit round configurations.
-
-            </span>
-          </div>
-
+          <SectionLabel>Rounds</SectionLabel>
           <div className="bw-round-list">
             {workspace.rounds.map((round, index) => (
               <RoundRow
                 key={round.roundId}
                 round={round}
                 position={index + 1}
-                roomCount={plans[round.roundId]?.rooms.length ?? 0}
-                placedCount={
-                  plans[round.roundId]?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0
-                }
-                onRename={(title) =>
-                  run(() => onUpdateRound(round.roundId, { title }))
-                }
-                onDuration={(durationSec) =>
-                  run(() => onUpdateRound(round.roundId, { durationSec }))
-                }
+                plan={plans[round.roundId] ?? null}
+                groupsFromFirst={grouping === "same" && round.roundId !== firstRoundId}
+                onRename={(title) => run(() => onUpdateRound(round.roundId, { title }))}
+                onDuration={(durationSec) => run(() => onUpdateRound(round.roundId, { durationSec }))}
                 onDelete={() => run(() => onDeleteRound(round.roundId))}
-                onEdit={() => onEditRound(round.roundId)}
+                onOpen={(tab) => onEditRound(round.roundId, tab)}
               />
             ))}
-            <button
-              type="button"
-              className="bw-add-round"
-              onClick={() => void run(onAddRound)}
-            >
+            <button type="button" className="bw-add-round" onClick={() => void run(onAddRound)}>
               + Add round
             </button>
           </div>
         </main>
 
-        <aside className="bw-rail">
-          <SectionLabel>Session shape</SectionLabel>
-          <dl className="bw-shape">
-            <dt>Rounds</dt>
-            <dd>{workspace.rounds.length}</dd>
-            <dt>Breakout time</dt>
-            <dd className="bw-mono">{formatDuration(totalSec)}</dd>
-          </dl>
+        <aside className="bw-rail bw-workflow__settings">
+          <SectionLabel>How should groups work?</SectionLabel>
+          <div className="bw-choice-list" role="radiogroup" aria-label="How should groups work?">
+            {GROUPING_OPTIONS.map((option) => (
+              <label className="bw-choice" key={option.id}>
+                <input
+                  type="radio"
+                  name="grouping"
+                  checked={grouping === option.id}
+                  onChange={() => void run(() => onUpdateWorkspace(GROUPING_FLAGS[option.id]))}
+                />
+                <span className="bw-choice__text">
+                  <span className="bw-choice__label">{option.label}</span>
+                  <span className="bw-choice__hint">{option.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
 
-          <SectionLabel>Applies to every round</SectionLabel>
-          <Card tone="sunken" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <RoomsForEveryRound
-              busy={applying}
-              onApply={(count) =>
-                void applyToAllRounds(
-                  (draft) => withRoomCount(draft, count),
-                  `Every round now has ${count} ${count === 1 ? "room" : "rooms"}.`,
-                )
-              }
+          {grouping === "each" ? null : (
+            <>
+              <SectionLabel>Every round</SectionLabel>
+              <RoomsForEveryRound
+                busy={applying}
+                onApply={(count) =>
+                  void applyToAllRounds(
+                    (draft) => withRoomCount(draft, count),
+                    `Every round now has ${count} ${count === 1 ? "room" : "rooms"}.`,
+                  )
+                }
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                busy={applying}
+                disabled={eligibleUUIDs.length === 0}
+                title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
+                onClick={() =>
+                  void applyToAllRounds(
+                    (draft) => rebalanceEvenly(draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft, eligibleUUIDs),
+                    "People spread evenly across every round.",
+                  )
+                }
+              >
+                Auto-assign evenly
+              </Button>
+            </>
+          )}
+
+          <label className="bw-switch-row">
+            <input
+              type="checkbox"
+              checked={workspace.autoStartNextRound}
+              onChange={(event) => void run(() => onUpdateWorkspace({ autoStartNextRound: event.target.checked }))}
             />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={applying || eligibleUUIDs.length === 0}
-              title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
-              onClick={() =>
-                void applyToAllRounds(
-                  (draft) =>
-                    rebalanceEvenly(
-                      draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft,
-                      eligibleUUIDs,
-                    ),
-                  "People spread evenly across every round.",
-                )
-              }
-            >
-              Auto-assign evenly
-            </Button>
+            <span>Start the next round when the timer ends</span>
+          </label>
 
-            <label className="bw-switch-row">
-              <input
-                type="checkbox"
-                checked={workspace.sameRoomsEveryRound}
-                onChange={(event) =>
-                  void run(() => onUpdateWorkspace({ sameRoomsEveryRound: event.target.checked }))
-                }
-              />
-              <span>Same rooms every round</span>
-            </label>
-            <label className="bw-switch-row">
-              <input
-                type="checkbox"
-                checked={workspace.samePeopleEveryRound}
-                onChange={(event) =>
-                  void run(() => onUpdateWorkspace({ samePeopleEveryRound: event.target.checked }))
-                }
-              />
-              <span>Same people in rooms every round</span>
-            </label>
-          </Card>
-
-          <SectionLabel>When a round ends</SectionLabel>
-          <Card tone="sunken">
-            <label className="bw-switch-row">
-              <input
-                type="checkbox"
-                checked={workspace.autoStartNextRound}
-                onChange={(event) =>
-                  void run(() => onUpdateWorkspace({ autoStartNextRound: event.target.checked }))
-                }
-              />
-              <span>Start the next round when the timer ends</span>
-            </label>
-          </Card>
-
-          {target ? (
-            <LaunchWorkflow
-              workspace={workspace}
-              parentUUID={parentUUID}
-              role={role}
-              target={target}
-              plan={plans[target.roundId] ?? null}
-              onLaunched={onLaunched}
-            />
-          ) : null}
+          <LaunchWorkflow
+            workspace={workspace}
+            parentUUID={parentUUID}
+            role={role}
+            target={target}
+            plan={target ? (plans[target.roundId] ?? null) : null}
+            presentUUIDs={eligibleUUIDs}
+            onLaunched={onLaunched}
+          />
         </aside>
       </div>
     </div>
   );
 }
 
-/** Starts the first round that has not run yet. Nothing reaches Zoom until this is pressed. */
+/** What stops a launch, or only deserves a warning. */
+function readiness(workspace: Workspace, target: RoundMeta | null, plan: RoundPlan | null, presentUUIDs: string[]) {
+  if (workspace.rounds.length === 0 || !target) return { blocker: "Add a round to launch.", unplaced: 0 };
+  const label = roundLabel(workspace, target.roundId);
+  if (target.status === "launched") return { blocker: `${label} is already running.`, unplaced: 0 };
+  if (!plan || plan.rooms.length === 0) return { blocker: `${label} has no rooms yet.`, unplaced: 0 };
+  const planned = new Set([...plan.rooms.flatMap((room) => room.participantUUIDs), ...plan.stayInMainParticipantUUIDs]);
+  return { blocker: null, unplaced: presentUUIDs.filter((uuid) => !planned.has(uuid)).length };
+}
+
+/**
+ * Starts the first round that has not run yet, after a confirmation. Always
+ * visible; disabled with the reason shown until the round can actually launch.
+ */
 function LaunchWorkflow({
   workspace,
   parentUUID,
   role,
   target,
   plan,
+  presentUUIDs,
   onLaunched,
 }: {
   workspace: Workspace;
   parentUUID: string;
   role: ZoomRole | null;
-  target: RoundMeta;
+  target: RoundMeta | null;
   plan: RoundPlan | null;
+  presentUUIDs: string[];
   onLaunched: (roundId: string) => void;
 }) {
-  const label = roundLabel(workspace, target.roundId);
+  const [confirming, setConfirming] = useState(false);
+  const label = target ? roundLabel(workspace, target.roundId) : "";
   const controller = useLiveRoomController({
     parentUUID,
     role,
-    round: plan ?? { parentUUID, roundId: target.roundId, title: label, rooms: [], stayInMainParticipantUUIDs: [] },
+    round: plan ?? { parentUUID, roundId: target?.roundId ?? "", title: label, rooms: [], stayInMainParticipantUUIDs: [] },
     // Drafts are saved by the editor; the overview has no pending edits to flush.
     flushSave: () => Promise.resolve(true),
     onLaunched,
   });
-  const ready = (plan?.rooms.length ?? 0) > 0;
+  const { blocker, unplaced } = readiness(workspace, target, plan, presentUUIDs);
+  const roomCount = plan?.rooms.length ?? 0;
+  const placed = plan?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0;
+  const position = target ? workspace.rounds.findIndex((round) => round.roundId === target.roundId) + 1 : 0;
+  // "Round 2 of 3", plus the host's own name for it when it has one.
+  const which = `Round ${position} of ${workspace.rounds.length}${label === `Round ${position}` ? "" : ` (${label})`}`;
 
   return (
-    <>
+    <div className="bw-launch">
+      <ul className="bw-readiness">
+        {blocker ? (
+          <li className="bw-readiness__item bw-readiness__item--block">{blocker}</li>
+        ) : (
+          <li className="bw-readiness__item bw-readiness__item--ok">
+            {label} has {roomCount} {roomCount === 1 ? "room" : "rooms"}
+          </li>
+        )}
+        {!blocker && unplaced > 0 ? (
+          <li className="bw-readiness__item bw-readiness__item--warn">
+            {unplaced} {unplaced === 1 ? "person is" : "people are"} not placed and will stay in the main room
+          </li>
+        ) : null}
+      </ul>
       <Button
         variant="primary"
-        disabled={!ready}
+        disabled={Boolean(blocker)}
         busy={controller.operation.kind === "running"}
-        title={ready ? `Starts ${label}` : `${label} has no rooms yet.`}
-        onClick={() => controller.launch()}
+        onClick={() => setConfirming(true)}
       >
-        Launch Workflow
+        Launch workflow
       </Button>
+
+      {confirming && target ? (
+        <ConfirmModal
+          title="Launch this workflow?"
+          message={
+            `${which} · ${formatDuration(target.durationSec)} · ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. ` +
+            `${placed} placed${unplaced > 0 ? ` · ${unplaced} not placed (stays in the main room)` : ""}. ` +
+            "Zoom opens the rooms and moves everyone in."
+          }
+          confirmLabel="Launch"
+          confirmVariant="primary"
+          onConfirm={async () => controller.launch()}
+          onClose={() => setConfirming(false)}
+        />
+      ) : null}
       <ZoomActionOverlay operation={controller.operation} />
-    </>
+    </div>
   );
 }
 
@@ -359,6 +389,7 @@ function RoomsForEveryRound({
 
   return (
     <div className="bw-switch-row">
+      <span>Rooms per round</span>
       <input
         type="number"
         min={1}
@@ -375,7 +406,7 @@ function RoomsForEveryRound({
         title={valid ? undefined : `Enter 1 to ${MAX_ROOMS}.`}
         onClick={() => onApply(count)}
       >
-        Set rooms
+        Apply
       </Button>
     </div>
   );
@@ -384,34 +415,35 @@ function RoomsForEveryRound({
 function RoundRow({
   round,
   position,
-  roomCount,
-  placedCount,
+  plan,
+  groupsFromFirst,
   onRename,
   onDuration,
   onDelete,
-  onEdit,
+  onOpen,
 }: {
   round: RoundMeta;
   position: number;
-  roomCount: number;
-  placedCount: number;
+  plan: RoundPlan | null;
+  /** "Same groups": this round takes Round 1's rooms and people. */
+  groupsFromFirst: boolean;
   onRename: (title: string | null) => void;
   onDuration: (durationSec: number) => void;
   onDelete: () => void;
-  onEdit: () => void;
+  onOpen: (tab: SetupTab) => void;
 }) {
+  const roomCount = plan?.rooms.length ?? 0;
+  const placedCount = plan?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0;
+  const summary = groupsFromFirst
+    ? "Groups from Round 1"
+    : roomCount === 0
+      ? "No rooms yet"
+      : `${roomCount} ${roomCount === 1 ? "room" : "rooms"} · ${placedCount} placed`;
+
   return (
     <Card className="bw-round-row" style={{ borderLeftColor: round.dot }}>
-      <div className="bw-round-row-title">
+      <div className="bw-round-row__top">
         <EditableName value={round.title} placeholder={`Round ${position}`} onSave={onRename} />
-      </div>
-
-      <div className="bw-round-row-side">
-        <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-ink)" }}>
-          {roomCount === 0
-            ? "No rooms yet"
-            : `${roomCount} ${roomCount === 1 ? "room" : "rooms"} · ${placedCount} placed`}
-        </span>
         <div className="bw-stepper">
           <button
             type="button"
@@ -422,26 +454,30 @@ function RoundRow({
             −
           </button>
           <span className="bw-room-count bw-mono">{formatDuration(round.durationSec)}</span>
-          <button
-            type="button"
-            aria-label="Longer"
-            onClick={() => onDuration(round.durationSec + DURATION_STEP_SEC)}
-          >
+          <button type="button" aria-label="Longer" onClick={() => onDuration(round.durationSec + DURATION_STEP_SEC)}>
             +
           </button>
         </div>
-        <div className="bw-round-row-actions">
-          <Button variant="ghost" size="sm" onClick={onEdit}>Edit Round</Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={round.status === "launched"}
-            title={round.status === "launched" ? "Close the round before removing it" : undefined}
-            onClick={onDelete}
-          >
-            Remove
-          </Button>
-        </div>
+      </div>
+      <span className="bw-round-row__summary">{summary}</span>
+      <div className="bw-round-row__actions">
+        <Button variant="secondary" size="sm" onClick={() => onOpen("rooms")}>
+          Rooms
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => onOpen("tasks")}>
+          Tasks
+        </Button>
+        <div className="bw-header-spacer" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="bw-button--danger-text"
+          disabled={round.status === "launched"}
+          title={round.status === "launched" ? "Close the round before removing it" : undefined}
+          onClick={onDelete}
+        >
+          Remove
+        </Button>
       </div>
     </Card>
   );

@@ -602,36 +602,32 @@ input[type="checkbox"] {
   margin-top: 12px;
 }
 
+/* Workflow page round card: name and time, a summary line, then its buttons. */
 .bw-round-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 8px;
   border-left: 4px solid var(--bw-border);
 }
 
-.bw-round-row-title {
+.bw-round-row__top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
   min-width: 0;
 }
 
-.bw-round-row-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+.bw-round-row__summary {
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
 }
 
-.bw-round-row-actions {
+.bw-round-row__actions {
   display: flex;
-  gap: 2px;
-}
-
-.bw-round-row-actions .bw-button {
-  font-size: var(--bw-fs-meta);
-  padding: 2px 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .bw-editable-name {
@@ -671,24 +667,6 @@ input[type="checkbox"] {
 .bw-add-round:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.bw-shape {
-  margin: 0;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  row-gap: 6px;
-  font-size: var(--bw-fs-secondary);
-}
-
-.bw-shape dt {
-  color: var(--bw-muted-2);
-}
-
-.bw-shape dd {
-  margin: 0;
-  font-weight: 600;
-  text-align: right;
 }
 
 .bw-switch-row {
@@ -1701,6 +1679,95 @@ a.bw-resource-row:hover {
   line-height: 1.5;
   color: var(--bw-muted);
 }
+/* ── Workflow page: rounds (60%) beside workflow settings (40%) ──────── */
+.bw-workflow {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.bw-workflow__settings {
+  width: auto;
+  gap: 14px;
+}
+@media (max-width: 639px) {
+  .bw-workflow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.bw-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bw-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  cursor: pointer;
+}
+.bw-choice:has(input:checked) {
+  border-color: var(--bw-accent);
+  background: var(--bw-accent-tint);
+}
+.bw-choice input {
+  margin-top: 3px;
+  accent-color: var(--bw-accent);
+}
+.bw-choice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bw-choice__label {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+.bw-choice__hint {
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
+}
+.bw-launch {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bw-border);
+}
+.bw-readiness {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--bw-fs-secondary);
+}
+.bw-readiness__item::before {
+  margin-right: 6px;
+  font-weight: 700;
+}
+.bw-readiness__item--ok::before {
+  content: "✓";
+  color: var(--bw-teal-deep);
+}
+.bw-readiness__item--warn {
+  color: var(--bw-amber-deep);
+}
+.bw-readiness__item--warn::before {
+  content: "!";
+}
+.bw-readiness__item--block {
+  color: var(--bw-danger-text);
+}
+.bw-readiness__item--block::before {
+  content: "✕";
+}
+
 /* ── Host results: a room's work, then one activity's submissions ───── */
 .bw-room-card--clickable {
   cursor: pointer;
