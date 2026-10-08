@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 export interface FrameTab<T extends string> {
   id: T;
   label: string;
+  /** Shown but not selectable; `hint` says why. */
+  disabled?: boolean;
+  hint?: string;
 }
 
 /**
@@ -56,6 +59,8 @@ export default function PageFrame<T extends string>({
             type="button"
             className="bw-frame__tab"
             aria-current={activeTab === tab.id ? "page" : undefined}
+            disabled={tab.disabled}
+            title={tab.hint}
             onClick={() => onTabChange(tab.id)}
           >
             {tab.label}

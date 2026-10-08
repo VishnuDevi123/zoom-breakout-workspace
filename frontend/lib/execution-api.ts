@@ -1,7 +1,6 @@
 import type {
   AddIdeaRequest,
   ApiResponse,
-  CarryPlacementRequest,
   EditIdeaRequest,
   LiveActionResponse,
   LiveState,
@@ -160,17 +159,6 @@ export async function markRoundClosed(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID }),
-    }),
-  );
-}
-
-/** Adds a mid-round placement to the same-named room of each later round not yet run. */
-export async function carryPlacement(request: CarryPlacementRequest): Promise<{ updatedRoundIds: string[] }> {
-  return apiResult(
-    await fetch(`/api/rounds/${encodeURIComponent(request.roundId)}/carry`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
     }),
   );
 }

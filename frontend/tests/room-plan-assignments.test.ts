@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { rebalanceEvenly } from "../lib/room-plan-assignments.ts";
+import { rebalanceEvenly, shuffleEvenly } from "../lib/room-plan-assignments.ts";
+import { groupsForLaunch } from "../lib/room-plan-copy.ts";
 import type { RoundPlanDraft } from "../types/breakout.ts";
 
 function draftWith(rooms: string[][], stayInMain: string[] = []): RoundPlanDraft {
@@ -44,4 +45,23 @@ test("people kept in main and absent planned people stay where they are", () => 
   assert.deepEqual(result.stayInMainParticipantUUIDs, ["m"]);
   assert.deepEqual(result.rooms[0].participantUUIDs, ["gone", "a"]);
   assert.deepEqual(result.rooms[1].participantUUIDs, ["b"]);
+});
+
+test("shuffle deals everyone present evenly and leaves people kept in main", () => {
+  let seed = 0.3;
+  const random = () => (seed = (seed * 9301 + 0.49297) % 1);
+  const result = shuffleEvenly(draftWith([["a", "b", "c"], ["d"], []], ["m"]), ["a", "b", "c", "d", "e", "m"], random);
+  assert.deepEqual(sizes(result), [2, 2, 1]);
+  assert.deepEqual(result.stayInMainParticipantUUIDs, ["m"]);
+  assert.deepEqual(result.rooms.flatMap((room) => room.participantUUIDs).sort(), ["a", "b", "c", "d", "e"]);
+});
+
+test("groups for launch copy the last round and drop people who left", () => {
+  const source = draftWith([["a", "gone"], ["b"]], ["m"]);
+  const target = { parentUUID: "meeting", roundId: "round-2", title: "Round 2" };
+  const result = groupsForLaunch(source, target, new Set(["a", "b"]));
+  assert.equal(result.roundId, "round-2");
+  assert.deepEqual(result.rooms.map((room) => room.participantUUIDs), [["a"], ["b"]]);
+  assert.deepEqual(result.stayInMainParticipantUUIDs, []);
+  assert.deepEqual(groupsForLaunch(source, target, null).rooms[0].participantUUIDs, ["a", "gone"]);
 });

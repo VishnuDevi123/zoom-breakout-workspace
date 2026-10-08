@@ -42,6 +42,11 @@ interface ControllerInput {
   onLaunched?: (roundId: string, workspace: Workspace | null) => void;
   /** Called once Zoom closed the rooms and the backend recorded the close. */
   onClosed?: (workspace: Workspace | null) => void;
+  /**
+   * Runs just before a round's saved plan is read for launch, so the caller can
+   * write that plan first ("Same groups" copies the last round's groups here).
+   */
+  prepareLaunch?: (roundId: string) => Promise<void>;
 }
 
 /**
@@ -103,6 +108,10 @@ export function useLiveRoomController(input: ControllerInput) {
     void run("launch", async (step) => {
       if (!(await input.flushSave())) throw new Error("Draft must save before launching.");
       await new Promise((resolve) => setTimeout(resolve, LAUNCH_DELAY_MS));
+      if (input.prepareLaunch) {
+        step("Preparing groups…");
+        await input.prepareLaunch(roundId);
+      }
       const plan = await readSavedRoundPlan(input.parentUUID, roundId);
       const { sdk, hostUUID } = await hostSdk();
       await launchRoundInZoom(sdk, plan, hostUUID, step);

@@ -19,7 +19,7 @@ import UnsupportedScreen from "./screens/UnsupportedScreen";
  * component and no host control is ever rendered before the role is known.
  */
 export default function ZoomClient() {
-  const { state, role, screenName, meetingUUID, participantUUID, meetingTopic, sdkError } =
+  const { state, role, meetingUUID, participantUUID, meetingTopic, sdkError } =
     useHostGate();
 
   switch (state) {
@@ -28,7 +28,6 @@ export default function ZoomClient() {
         <HostWorkspace
           meetingUUID={meetingUUID}
           meetingTopic={meetingTopic}
-          screenName={screenName}
           role={role}
         />
       );

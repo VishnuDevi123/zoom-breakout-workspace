@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
-import { rebalanceEvenly } from "@/lib/room-plan-assignments";
+import { rebalanceEvenly, shuffleEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { MAX_ROOMS, newRoom } from "@/lib/use-room-plan";
@@ -74,6 +74,7 @@ export default function RoundsOverview({
   onUpdateRound,
   onUpdateWorkspace,
   onEditRound,
+  prepareLaunch,
 }: {
   workspace: Workspace;
   parentUUID: string;
@@ -93,6 +94,8 @@ export default function RoundsOverview({
     >,
   ) => Promise<void>;
   onEditRound: (roundId: string, tab: SetupTab) => void;
+  /** Writes a round's plan just before launch ("Same groups" copies the last round's groups). */
+  prepareLaunch: (roundId: string) => Promise<void>;
 }) {
   const totalSec = workspace.rounds.reduce((sum, round) => sum + round.durationSec, 0);
   const anyLaunched = workspace.rounds.some((round) => round.status === "launched");
@@ -164,6 +167,17 @@ export default function RoundsOverview({
 
   const grouping = groupingOf(workspace);
   const firstRoundId = workspace.rounds[0]?.roundId ?? null;
+  // "Same groups": a later round launches with the groups of the round before it,
+  // so readiness looks at the last round that ran, or Round 1.
+  function groupsSourceFor(roundId: string): string {
+    if (grouping !== "same" || roundId === firstRoundId) return roundId;
+    const index = workspace.rounds.findIndex((round) => round.roundId === roundId);
+    const ran = workspace.rounds
+      .slice(0, index)
+      .reverse()
+      .find((round) => round.status === "closed" || round.status === "launched");
+    return (ran ?? workspace.rounds[0]).roundId;
+  }
 
   return (
     <div className="bw-shell">
@@ -254,6 +268,23 @@ export default function RoundsOverview({
               >
                 Auto-assign evenly
               </Button>
+              {grouping === "new" ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  busy={applying}
+                  disabled={eligibleUUIDs.length === 0}
+                  title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
+                  onClick={() =>
+                    void applyToAllRounds(
+                      (draft) => shuffleEvenly(draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft, eligibleUUIDs),
+                      "Every round now has its own mix of people.",
+                    )
+                  }
+                >
+                  Shuffle people into every round
+                </Button>
+              ) : null}
             </>
           )}
 
@@ -271,8 +302,9 @@ export default function RoundsOverview({
             parentUUID={parentUUID}
             role={role}
             target={target}
-            plan={target ? (plans[target.roundId] ?? null) : null}
+            plan={target ? (plans[groupsSourceFor(target.roundId)] ?? null) : null}
             presentUUIDs={eligibleUUIDs}
+            prepareLaunch={prepareLaunch}
             onLaunched={onLaunched}
           />
         </aside>
@@ -302,14 +334,17 @@ function LaunchWorkflow({
   target,
   plan,
   presentUUIDs,
+  prepareLaunch,
   onLaunched,
 }: {
   workspace: Workspace;
   parentUUID: string;
   role: ZoomRole | null;
   target: RoundMeta | null;
+  /** The plan the round will launch with: its own, or in "Same groups" the one it copies. */
   plan: RoundPlan | null;
   presentUUIDs: string[];
+  prepareLaunch: (roundId: string) => Promise<void>;
   onLaunched: (roundId: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -320,6 +355,7 @@ function LaunchWorkflow({
     round: plan ?? { parentUUID, roundId: target?.roundId ?? "", title: label, rooms: [], stayInMainParticipantUUIDs: [] },
     // Drafts are saved by the editor; the overview has no pending edits to flush.
     flushSave: () => Promise.resolve(true),
+    prepareLaunch,
     onLaunched,
   });
   const { blocker, unplaced } = readiness(workspace, target, plan, presentUUIDs);
@@ -423,7 +459,7 @@ function RoundRow({
   round: RoundMeta;
   position: number;
   plan: RoundPlan | null;
-  /** "Same groups": this round takes Round 1's rooms and people. */
+  /** "Same groups": this round launches with the previous round's rooms and people, so it has no Rooms button. */
   groupsFromFirst: boolean;
   onRename: (title: string | null) => void;
   onDuration: (durationSec: number) => void;
@@ -459,9 +495,11 @@ function RoundRow({
       </div>
       <span className="bw-round-row__summary">{summary}</span>
       <div className="bw-round-row__actions">
-        <Button variant="secondary" size="sm" onClick={() => onOpen("rooms")}>
-          Rooms
-        </Button>
+        {groupsFromFirst ? null : (
+          <Button variant="secondary" size="sm" onClick={() => onOpen("rooms")}>
+            Rooms
+          </Button>
+        )}
         <Button variant="secondary" size="sm" onClick={() => onOpen("tasks")}>
           Tasks
         </Button>

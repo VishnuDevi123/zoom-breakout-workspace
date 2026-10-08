@@ -66,7 +66,8 @@
 
   /* Type scale */
   --bw-fs-header: 20px;
-  --bw-fs-title: 16px;
+  --bw-fs-title: 13px;
+  --bw-fs-workspace-title: 16px;
   --bw-fs-body: 14px;
   --bw-fs-secondary: 13px;
   --bw-fs-meta: 13px;
@@ -533,20 +534,34 @@ input[type="checkbox"] {
   gap: 12px;
 }
 
+/* Host landing: one centred column, one clear next step, templates below. */
+.bw-landing-page {
+  align-items: center;
+}
+
+/* Auto margins centre the column; on a short window it simply starts at the top and scrolls. */
 .bw-landing {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  text-align: center;
   gap: 14px;
+  width: 100%;
+  max-width: 640px;
+  margin-block: auto;
+  text-align: center;
+}
+
+.bw-landing > .bw-card,
+.bw-landing .bw-template-list {
+  width: 100%;
+  text-align: left;
 }
 
 .bw-landing-title {
   margin: 0;
-  font-size: var(--bw-fs-display);
+  font-size: var(--bw-fs-header);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
 .bw-landing-lede {
@@ -557,6 +572,13 @@ input[type="checkbox"] {
   color: var(--bw-muted);
 }
 
+.bw-landing-hint {
+  margin: -6px 0 6px;
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
+}
+
+/* Participant landing still lays two summary cards side by side. */
 .bw-landing-cards {
   display: flex;
   gap: 12px;
@@ -572,22 +594,86 @@ input[type="checkbox"] {
   text-align: left;
 }
 
-.bw-landing-stat {
-  font-size: var(--bw-fs-display);
+.bw-landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.bw-landing-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.bw-landing-card--live {
+  border-color: var(--bw-red);
+}
+
+.bw-landing-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bw-landing-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bw-danger-text);
+}
+
+.bw-landing-card__title {
+  font-size: var(--bw-fs-title);
   font-weight: 600;
 }
 
-.bw-landing-starts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+.bw-template-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
 }
 
-.bw-landing-actions {
+.bw-template {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  box-shadow: var(--bw-shadow-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bw-template:hover:not(:disabled),
+.bw-template:focus-visible {
+  border-color: var(--bw-accent);
+}
+
+.bw-template:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bw-template__name {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+
+.bw-template__meta {
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
 }
 
 .bw-round-list {
@@ -632,8 +718,9 @@ input[type="checkbox"] {
   min-width: 0;
 }
 
+/* EditableName puts the text in an inner .bw-room-name, which sets its own size. */
 .bw-workspace-title .bw-room-name {
-  font-size: var(--bw-fs-title);
+  font-size: var(--bw-fs-workspace-title);
 }
 
 .bw-back {
@@ -670,17 +757,6 @@ input[type="checkbox"] {
   gap: 8px;
   font-size: var(--bw-fs-secondary);
   cursor: pointer;
-}
-
-.bw-landing-steps {
-  margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: var(--bw-fs-secondary);
-  line-height: 1.5;
-  color: var(--bw-muted);
 }
 
 .bw-room-card {
@@ -1072,6 +1148,29 @@ input[type="checkbox"] {
 .bw-participant-card__label--accent {
   color: var(--bw-accent-deep);
 }
+.bw-participant-card__title {
+  font-size: var(--bw-fs-title);
+  font-weight: 600;
+}
+.bw-participant-card__meta {
+  font-size: var(--bw-fs-secondary);
+  line-height: 1.45;
+  color: var(--bw-muted);
+}
+.bw-participant-card__clock {
+  font-size: var(--bw-fs-display);
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+.bw-participant-roster__names {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bw-fs-secondary);
+}
+.bw-participant-roster__count {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
 .bw-participant-roster {
   display: flex;
   align-items: center;
@@ -1108,6 +1207,12 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+.bw-field__subheading{
+  display: flex;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--bw-muted-2);
 }
 .bw-goal-input {
   padding: 11px 12px;
@@ -2000,7 +2105,11 @@ a.bw-resource-row:hover {
   color: #9aa3b2;
   cursor: pointer;
 }
-.bw-frame__tab:hover {
+.bw-frame__tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.bw-frame__tab:hover:not(:disabled) {
   color: #fff;
 }
 .bw-frame__tab[aria-current="page"] {

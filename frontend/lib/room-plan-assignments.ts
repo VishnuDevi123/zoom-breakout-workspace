@@ -153,6 +153,39 @@ export function rebalanceEvenly(draft: RoundPlanDraft, participantUUIDs: string[
   };
 }
 
+/**
+ * "New groups each round": deal the given people into the rooms in a random
+ * order, sizes differing by at most one. Unlike `rebalanceEvenly` nobody keeps
+ * their room, so each round comes out mixed. People kept in main stay there,
+ * and planned people missing from the list stay put.
+ */
+export function shuffleEvenly(
+  draft: RoundPlanDraft,
+  participantUUIDs: string[],
+  random: () => number = Math.random,
+): RoundPlanDraft {
+  if (draft.rooms.length === 0) return draft;
+  const keptInMain = new Set(draft.stayInMainParticipantUUIDs);
+  const movable = [...new Set(participantUUIDs)].filter((uuid) => !keptInMain.has(uuid));
+  // Fisher-Yates, so every order is equally likely.
+  for (let index = movable.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [movable[index], movable[swap]] = [movable[swap], movable[index]];
+  }
+  const movableSet = new Set(movable);
+
+  return {
+    ...draft,
+    rooms: draft.rooms.map((room, roomIndex) => ({
+      ...room,
+      participantUUIDs: [
+        ...room.participantUUIDs.filter((uuid) => !movableSet.has(uuid)),
+        ...movable.filter((_, at) => at % draft.rooms.length === roomIndex),
+      ],
+    })),
+  };
+}
+
 /** People a later draft puts in a room who were in no room before, with the room they got. */
 export function newPlacements(
   before: RoundPlanDraft,

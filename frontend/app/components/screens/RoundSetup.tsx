@@ -38,6 +38,7 @@ export default function RoundSetup({
   roster,
   rosterKnown,
   nextLabel,
+  roomsLocked,
   onTabChange,
   onRename,
   onBack,
@@ -54,6 +55,8 @@ export default function RoundSetup({
   rosterKnown: boolean;
   /** "Next round ›", or "Done" on the last round. */
   nextLabel: string;
+  /** "Same groups", Round 2 and later: rooms come from the previous round at launch. */
+  roomsLocked: boolean;
   onTabChange: (tab: SetupTab) => void;
   onRename: (title: string | null) => void;
   onBack: () => void;
@@ -61,6 +64,11 @@ export default function RoundSetup({
 }) {
   const menuRootRef = useDismissibleMenus();
   const round = draft.draft;
+  const tabs = roomsLocked
+    ? SETUP_TABS.map((option) =>
+        option.id === "rooms" ? { ...option, disabled: true, hint: "Uses the previous round's groups" } : option,
+      )
+    : SETUP_TABS;
 
   /** Both tabs keep edits locally for a moment; nothing may be lost on the way out. */
   async function leave(go: () => void) {
@@ -89,7 +97,7 @@ export default function RoundSetup({
     <PageFrame
       tone="planning"
       bar={bar}
-      tabs={SETUP_TABS}
+      tabs={tabs}
       activeTab={tab}
       onTabChange={onTabChange}
       tabsLabel="Round setup"

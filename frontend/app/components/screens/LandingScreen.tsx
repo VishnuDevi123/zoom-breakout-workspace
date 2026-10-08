@@ -1,38 +1,43 @@
 "use client";
 
+import { formatClock } from "@/lib/round-clock";
 import { ROUND_TEMPLATES, type RoundTemplate } from "@/lib/round-templates";
 
-import { BrandMark, Button, Card, SectionLabel } from "../ui";
+import { BrandMark, Button, Card, SectionLabel, StatusDot } from "../ui";
 
-const HOW_THIS_WORKS = [
-  "1. Plan rounds, then give each one rooms and people.",
-  "2. Launch - Zoom opens the rooms and moves everyone in.",
-  "3. Watch who is where, then close and plan the next round.",
-];
-
-/** First host screen. Reads meeting facts; creates nothing until a button is pressed. */
+/**
+ * First host screen. Shows what to do next and creates nothing until a button
+ * is pressed: return to a running round, continue a workflow, or start one.
+ */
 export default function LandingScreen({
   meetingTopic,
-  hostName,
   participantCount,
-  roundCount,
+  workflow,
+  liveRoundLabel,
   busy,
-  onStartRoundOne,
+  onReturnToLive,
   onBuildRounds,
+  onStartRoundOne,
   onUseTemplate,
 }: {
   meetingTopic: string;
-  hostName: string;
   /** Null until the live stream delivers its first state. */
   participantCount: number | null;
-  /** Null when the meeting has no workspace yet. */
-  roundCount: number | null;
+  /** Null when the meeting has no workflow yet. */
+  workflow: { title: string; roundCount: number } | null;
+  /** The running round's name, or null when no round is running. */
+  liveRoundLabel: string | null;
   busy: boolean;
-  onStartRoundOne: () => void;
+  onReturnToLive: () => void;
+  /** Opens the workflow page, creating an empty workflow first when there is none. */
   onBuildRounds: () => void;
+  onStartRoundOne: () => void;
   onUseTemplate: (template: RoundTemplate) => void;
 }) {
-  const countText = participantCount === null ? "Connecting to the meeting…" : `Meeting occupancy: ${participantCount}.`;
+  const presence =
+    participantCount === null
+      ? "Connecting to the meeting…"
+      : `${participantCount} ${participantCount === 1 ? "person" : "people"} in the meeting`;
 
   return (
     <div className="bw-shell">
@@ -40,66 +45,77 @@ export default function LandingScreen({
         <BrandMark />
         <div className="bw-round-heading">
           <span className="bw-header-title">Breakout Workspace</span>
-          <span className="bw-header-subtitle">
-            {"Create workflows and add activities!"}
-          </span>
+          <span className="bw-header-subtitle">Plan and run breakout rounds</span>
         </div>
         <div className="bw-header-spacer" />
       </header>
 
       <div className="bw-body">
-        <main className="bw-main bw-landing">
-          <SectionLabel>You are hosting this meeting</SectionLabel>
-          <h1 className="bw-landing-title">{meetingTopic || "This meeting"}</h1>
-          <p className="bw-landing-lede">
-            {countText} Set up the rounds, and Zoom opens the rooms when you launch.
-          </p>
+        <main className="bw-main bw-landing-page">
+          <div className="bw-landing">
+            <SectionLabel>You are hosting</SectionLabel>
+            <h1 className="bw-landing-title">{meetingTopic || "This meeting"}</h1>
+            <p className="bw-landing-lede">{presence}</p>
 
-          <div className="bw-landing-cards">
-            <Card large>
-              <SectionLabel>In the room</SectionLabel>
-              <span className="bw-landing-stat">{participantCount ?? "–"}</span>
-              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>people waiting · no breakout rooms yet</span>
-            </Card>
-            {roundCount !== null ? (
-              <Card large tone="sunken">
-                <SectionLabel>Start from</SectionLabel>
-                <span style={{ fontSize: "var(--bw-fs-title)", fontWeight: 600 }}>{roundCount} {roundCount === 1 ? "round" : "rounds"} planned</span>
-                <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Edit anything before you launch.</span>
+            {liveRoundLabel ? (
+              <Card className="bw-landing-card bw-landing-card--live">
+                <div className="bw-landing-card__text">
+                  <span className="bw-landing-card__status">
+                    <StatusDot color="var(--bw-red)" round pulse /> Live now
+                  </span>
+                  <span className="bw-landing-card__title">{liveRoundLabel} is running</span>
+                </div>
+                <Button onClick={onReturnToLive}>Return to live round</Button>
               </Card>
             ) : null}
-          </div>
 
-          {roundCount === null ? (
-            <div className="bw-landing-starts">
-              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Other starts:</span>
-              {ROUND_TEMPLATES.map((template) => (
-                <Button key={template.name} variant="secondary" size="sm" disabled={busy} onClick={() => onUseTemplate(template)}>
-                  {template.name} · {template.rounds.length} rounds
+            {workflow ? (
+              <Card className="bw-landing-card">
+                <div className="bw-landing-card__text">
+                  <SectionLabel>Your workflow</SectionLabel>
+                  <span className="bw-landing-card__title">{workflow.title}</span>
+                  <span className="bw-landing-lede">
+                    {workflow.roundCount} {workflow.roundCount === 1 ? "round" : "rounds"}
+                  </span>
+                </div>
+                <Button variant={liveRoundLabel ? "secondary" : "primary"} disabled={busy} onClick={onBuildRounds}>
+                  Continue building
                 </Button>
-              ))}
-            </div>
-          ) : null}
+              </Card>
+            ) : (
+              <>
+                <div className="bw-landing-actions">
+                  <Button busy={busy} onClick={onBuildRounds}>
+                    Build a workflow
+                  </Button>
+                  <Button variant="secondary" disabled={busy} onClick={onStartRoundOne}>
+                    Start with one round
+                  </Button>
+                </div>
+                <p className="bw-landing-hint">With one round, you can add more while it runs.</p>
 
-          <div className="bw-landing-actions">
-            {roundCount === null ? (
-              <Button variant="secondary" disabled={busy} onClick={onStartRoundOne}>Start Round 1</Button>
-            ) : null}
-            <Button variant="primary" disabled={busy} onClick={onBuildRounds}>
-              {roundCount === null ? "Build the rounds" : "Open the ongoing rounds"}
-            </Button>
+                <SectionLabel>Start from a template</SectionLabel>
+                <div className="bw-template-list">
+                  {ROUND_TEMPLATES.map((template) => (
+                    <button
+                      type="button"
+                      key={template.name}
+                      className="bw-template"
+                      disabled={busy}
+                      onClick={() => onUseTemplate(template)}
+                    >
+                      <span className="bw-template__name">{template.name}</span>
+                      <span className="bw-template__meta">
+                        {template.rounds.length} rounds ·{" "}
+                        {formatClock(template.rounds.reduce((sum, round) => sum + round.durationSec, 0))}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </main>
-
-        <aside className="bw-rail">
-          <SectionLabel>How this works</SectionLabel>
-          <ol className="bw-landing-steps">
-            {HOW_THIS_WORKS.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-
-        </aside>
       </div>
     </div>
   );

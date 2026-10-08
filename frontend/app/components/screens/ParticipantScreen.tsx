@@ -11,8 +11,8 @@ import { Button, Card, SectionLabel, StatusDot } from "../ui";
 import ParticipantWorkspace from "./ParticipantWorkspace";
 
 const HOW_IT_WORKS = [
-  "Your task stays on screen for the whole round",
-  "If the host changes the task while you work, the sections updates on its own.",
+  "Your task stays on screen for the whole round.",
+  "If the host changes the task while you work, this page updates on its own.",
 ];
 
 /**
@@ -46,7 +46,12 @@ export default function ParticipantScreen({
   const { room, task, roundTitle } = round;
 
   if (!roundId) {
-    return <Waiting headline="No round running yet" lede="The host hasent started breakout rooms yet. Please standby! " />;
+    return (
+      <Waiting
+        headline="No round running yet"
+        lede="Your host hasn't started breakout rooms yet. This page updates when they do."
+      />
+    );
   }
 
   if (!room) {
@@ -55,7 +60,7 @@ export default function ParticipantScreen({
     return (
       <Waiting
         headline="You are staying in the main room"
-        lede="The host did not place you in a breakout room for this round."
+        lede="Your host didn't place you in a breakout room this round."
       />
     );
   }
@@ -98,8 +103,8 @@ export default function ParticipantScreen({
               <span className="bw-mono bw-participant-card__label bw-participant-card__label--accent">
                 THIS ROUND
               </span>
-              <span style={{ fontSize: "var(--bw-fs-title)", fontWeight: 600 }}>{roundTitle}</span>
-              <span style={{ fontSize: "var(--bw-fs-secondary)", lineHeight: 1.45, color: "var(--bw-muted-2)" }}>
+              <span className="bw-participant-card__title">{roundTitle}</span>
+              <span className="bw-participant-card__meta">
                 {task
                   ? `${task.instructions.length} instructions · ${task.resources.length} resources`
                   : "Nothing set yet"}
@@ -112,7 +117,7 @@ export default function ParticipantScreen({
           <Roster room={room} live={liveState} participantUUID={participantUUID} />
 
           <Button onClick={() => setShowWorkspace(true)}>
-            See the current round tasks
+            Open your room&apos;s tasks
           </Button>
         </main>
 
@@ -154,10 +159,10 @@ function TimeCard({ endsAt }: { endsAt: number }) {
   return (
     <Card className="bw-participant-card">
       <span className="bw-mono bw-participant-card__label">TIME</span>
-      <span className="bw-mono" style={{ fontSize: "var(--bw-fs-display)", fontWeight: 500, letterSpacing: "-0.5px" }}>
+      <span className="bw-mono bw-participant-card__clock">
         {remainingSec === null ? "--:--" : formatClock(remainingSec)}
       </span>
-      <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
+      <span className="bw-participant-card__meta">
         {remainingSec === null ? "Runs until the host ends it" : "left in this round"}
       </span>
     </Card>
@@ -187,12 +192,11 @@ function Roster({
   return (
     <div className="bw-participant-roster">
       <StatusDot color={room.dot} />
-      <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>With you:</span>
-      <span style={{ fontSize: "var(--bw-fs-secondary)" }}>
+      <span className="bw-participant-card__meta">With you:</span>
+      <span className="bw-participant-roster__names">
         {names.length > 0 ? names.join(", ") : "nobody else has arrived yet"}
       </span>
-      <div style={{ flex: 1 }} />
-      <span className="bw-mono" style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
+      <span className="bw-mono bw-participant-roster__count">
         {others.length + 1} of {room.participantUUIDs.length} here
       </span>
     </div>
