@@ -13,9 +13,9 @@
   --bw-surface: #ffffff;
   --bw-surface-sunken: #f8f9fb;
   --bw-surface-muted: #f3f4f6;
-  /* Live round bars, kept apart so each can be recoloured on its own. */
-  --bw-live-header-bg: #1f2430;
-  --bw-live-nav-bg: #1f2430;
+  /* Page frame bars (live round, round setup), kept apart so each can be recoloured on its own. */
+  --bw-frame-bar-bg: #1f2430;
+  --bw-frame-nav-bg: #1f2430;
 
   /* Borders: cards and dividers use --bw-border, form controls the strong one (3:1). */
   --bw-border: #d8dee8;
@@ -1537,58 +1537,58 @@ a.bw-resource-row:hover {
   color: var(--bw-muted-3);
 }
 
-/* ── Live round: dark header, one page at a time, dark bottom navbar ── */
-.bw-live {
+/* ── Page frame (live round, round setup): top bar, one page, bottom navbar ── */
+.bw-frame {
   height: 100dvh;
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr) 70px;
   background: var(--bw-bg);
 }
-.bw-live-bar {
+.bw-frame__bar {
   display: flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
   padding: 0 16px;
-  background: var(--bw-live-header-bg);
+  background: var(--bw-frame-bar-bg);
   color: #fff;
 }
-.bw-live-bar .bw-header-title {
+.bw-frame__bar .bw-header-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bw-live-bar .bw-live-badge__label {
+.bw-frame__bar .bw-live-badge__label {
   color: var(--bw-red);
 }
-.bw-live-bar .bw-live-badge__label--off {
+.bw-frame__bar .bw-live-badge__label--off {
   color: #9aa3b2;
 }
-.bw-live-bar .bw-stepper button {
+.bw-frame__bar .bw-stepper button {
   color: var(--bw-ink);
 }
-.bw-live-bar__clock {
+.bw-live-clock {
   font-size: var(--bw-fs-display);
   font-weight: 600;
   line-height: 1;
 }
 /* Holds the scrolling page and the sheet laid over its bottom edge. */
-.bw-live-main {
+.bw-frame__main {
   position: relative;
   min-height: 0;
   overflow: hidden;
 }
-.bw-live-page {
+.bw-frame__page {
   height: 100%;
   overflow: auto;
-  container: live-page / inline-size;
+  container: frame-page / inline-size;
 }
 /* The sheet covers the bottom of the page, so the last rooms can scroll above it. */
-.bw-live-page__content {
+.bw-frame__content {
   padding: 20px 20px calc(20px + var(--bw-sheet-h, 0px));
 }
-@container live-page (max-width: 639px) {
-  .bw-live-page__content {
+@container frame-page (max-width: 639px) {
+  .bw-frame__content {
     padding: 12px 12px calc(12px + var(--bw-sheet-h, 0px));
   }
 }
@@ -1625,7 +1625,7 @@ a.bw-resource-row:hover {
   gap: 24px;
   align-items: start;
 }
-@container live-page (max-width: 719px) {
+@container frame-page (max-width: 719px) {
   .bw-session {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1805,7 +1805,7 @@ a.bw-resource-row:hover {
   font-weight: 500;
 }
 /* Narrow: people become one wrapping row above the work. */
-@container live-page (max-width: 639px) {
+@container frame-page (max-width: 639px) {
   .bw-results__split {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1952,13 +1952,13 @@ a.bw-resource-row:hover {
 }
 
 /* Each tab is only as large as its pill, so the bar around it is not clickable. */
-.bw-live-nav {
+.bw-frame__nav {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: var(--bw-live-nav-bg);
+  background: var(--bw-frame-nav-bg);
 }
-.bw-live-nav__item {
+.bw-frame__tab {
   padding: 8px 20px;
   border: 0;
   border-radius: var(--bw-radius-pill);
@@ -1969,10 +1969,10 @@ a.bw-resource-row:hover {
   color: #9aa3b2;
   cursor: pointer;
 }
-.bw-live-nav__item:hover {
+.bw-frame__tab:hover {
   color: #fff;
 }
-.bw-live-nav__item[aria-current="page"] {
+.bw-frame__tab[aria-current="page"] {
   background: var(--bw-accent);
   color: #fff;
 }

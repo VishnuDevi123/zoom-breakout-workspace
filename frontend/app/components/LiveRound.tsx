@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import ActivityResultsPage from "./ActivityResultsPage";
 import EditTaskModal from "./EditTaskModal";
 import NotPlacedSheet from "./NotPlacedSheet";
+import PageFrame, { type FrameTab } from "./PageFrame";
 import RoomResultsPage from "./RoomResultsPage";
 import SessionPage from "./SessionPage";
 import { BrandMark, Button, Card, ConfirmModal, Pill, StatusDot } from "./ui";
@@ -40,9 +41,9 @@ type RoomsLevel =
 
 const GRID: RoomsLevel = { kind: "grid" };
 
-const LIVE_PAGES: { page: LivePage; label: string }[] = [
-  { page: "rooms", label: "Rooms" },
-  { page: "session", label: "Session" },
+const LIVE_PAGES: FrameTab<LivePage>[] = [
+  { id: "rooms", label: "Rooms" },
+  { id: "session", label: "Session" },
 ];
 
 export default function LiveRound({
@@ -159,132 +160,120 @@ export default function LiveRound({
     </Button>
   ) : null;
 
-  return (
-    <div className="bw-live">
-      <header className="bw-live-bar">
-        <BrandMark onHome={onHome} />
-        <div className="bw-round-heading">
-          <span className="bw-header-title">{round.title}</span>
-          <div className="bw-live-badge">
-            <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
-            <span
-              className={
-                open ? "bw-live-badge__label" : "bw-live-badge__label bw-live-badge__label--off"
-              }
-            >
-              {open ? "Live" : "Closed"}
-            </span>
-          </div>
+  const header = (
+    <>
+      <BrandMark onHome={onHome} />
+      <div className="bw-round-heading">
+        <span className="bw-header-title">{round.title}</span>
+        <div className="bw-live-badge">
+          <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
+          <span className={open ? "bw-live-badge__label" : "bw-live-badge__label bw-live-badge__label--off"}>
+            {open ? "Live" : "Closed"}
+          </span>
         </div>
-        <div className="bw-header-spacer" />
-
-        {remainingSec !== null ? (
-          <>
-            <span className="bw-live-bar__clock bw-mono" title="Time left in this round">
-              {formatClock(remainingSec)}
-            </span>
-            <div className="bw-stepper">
-              <button
-                disabled={!open || remainingSec <= ADJUST_STEP_SEC}
-                title="Take a minute off this round"
-                onClick={() => void adjustTime(-ADJUST_STEP_SEC)}
-              >
-                -
-              </button>
-              <button
-                disabled={!open}
-                title="Give this round another minute"
-                onClick={() => void adjustTime(ADJUST_STEP_SEC)}
-              >
-                +
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {actionButton}
-      </header>
-
-      <div className="bw-live-main">
-        <main className="bw-live-page">
-          <div className="bw-live-page__content">
-            {page === "rooms" && openRoom && openActivity ? (
-              <ActivityResultsPage
-                activity={openActivity}
-                roomName={openRoom.name}
-                people={peopleIn(openRoom.id)}
-                results={results}
-                onBack={() => goTo({ kind: "room", roomId: openRoom.id })}
-              />
-            ) : page === "rooms" && openRoom ? (
-              <RoomResultsPage
-                room={openRoom}
-                people={peopleIn(openRoom.id)}
-                presentCount={membersOf(openRoom.id).length}
-                checklist={tasks.task.checklist}
-                activities={tasks.activities}
-                results={results}
-                onBack={() => goTo(GRID)}
-                onOpenActivity={(activityId) => goTo({ kind: "activity", roomId: openRoom.id, activityId })}
-              />
-            ) : page === "rooms" ? (
-              <div className="bw-room-grid">
-                {round.rooms.map((room) => (
-                  <LiveRoomCard
-                    key={room.id}
-                    name={room.name}
-                    dot={room.dot}
-                    members={membersOf(room.id)}
-                    plannedCount={room.participantUUIDs.length}
-                    open={open}
-                    onOpen={() => goTo({ kind: "room", roomId: room.id })}
-                  />
-                ))}
-              </div>
-            ) : (
-              <SessionPage
-                workspace={workspace}
-                plans={plans}
-                tasks={tasks}
-                open={open}
-                onEditTask={() => setEditingTask(true)}
-                onAddRound={onAddRound}
-                onUpdateRound={onUpdateRound}
-                onDeleteRound={onDeleteRound}
-                onSkipRound={onSkipRound}
-              />
-            )}
-          </div>
-        </main>
-
-        {page === "rooms" && !openRoom && open ? (
-          <NotPlacedSheet
-            people={waiting}
-            rooms={round.rooms}
-            placing={placing}
-            onPlace={(participantUUID, roomId) =>
-              void place(participantUUID, assignParticipantToRoom(round, { participantUUID, roomId }))
-            }
-            onPlaceEvenly={() =>
-              void place("all", autoAssignParticipantsEvenly(round, waiting.map((p) => p.participantUUID)))
-            }
-          />
-        ) : null}
       </div>
+      <div className="bw-header-spacer" />
 
-      <nav className="bw-live-nav" aria-label="Live round views">
-        {LIVE_PAGES.map((option) => (
-          <button
-            key={option.page}
-            type="button"
-            className="bw-live-nav__item"
-            aria-current={page === option.page ? "page" : undefined}
-            onClick={() => setPage(option.page)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </nav>
+      {remainingSec !== null ? (
+        <>
+          <span className="bw-live-clock bw-mono" title="Time left in this round">
+            {formatClock(remainingSec)}
+          </span>
+          <div className="bw-stepper">
+            <button
+              disabled={!open || remainingSec <= ADJUST_STEP_SEC}
+              title="Take a minute off this round"
+              onClick={() => void adjustTime(-ADJUST_STEP_SEC)}
+            >
+              -
+            </button>
+            <button
+              disabled={!open}
+              title="Give this round another minute"
+              onClick={() => void adjustTime(ADJUST_STEP_SEC)}
+            >
+              +
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {actionButton}
+    </>
+  );
+
+  const sheet =
+    page === "rooms" && !openRoom && open ? (
+      <NotPlacedSheet
+        people={waiting}
+        rooms={round.rooms}
+        placing={placing}
+        onPlace={(participantUUID, roomId) =>
+          void place(participantUUID, assignParticipantToRoom(round, { participantUUID, roomId }))
+        }
+        onPlaceEvenly={() =>
+          void place("all", autoAssignParticipantsEvenly(round, waiting.map((p) => p.participantUUID)))
+        }
+      />
+    ) : null;
+
+  return (
+    <>
+      <PageFrame
+        bar={header}
+        tabs={LIVE_PAGES}
+        activeTab={page}
+        onTabChange={setPage}
+        tabsLabel="Live round views"
+        sheet={sheet}
+      >
+        {page === "rooms" && openRoom && openActivity ? (
+          <ActivityResultsPage
+            activity={openActivity}
+            roomName={openRoom.name}
+            people={peopleIn(openRoom.id)}
+            results={results}
+            onBack={() => goTo({ kind: "room", roomId: openRoom.id })}
+          />
+        ) : page === "rooms" && openRoom ? (
+          <RoomResultsPage
+            room={openRoom}
+            people={peopleIn(openRoom.id)}
+            presentCount={membersOf(openRoom.id).length}
+            checklist={tasks.task.checklist}
+            activities={tasks.activities}
+            results={results}
+            onBack={() => goTo(GRID)}
+            onOpenActivity={(activityId) => goTo({ kind: "activity", roomId: openRoom.id, activityId })}
+          />
+        ) : page === "rooms" ? (
+          <div className="bw-room-grid">
+            {round.rooms.map((room) => (
+              <LiveRoomCard
+                key={room.id}
+                name={room.name}
+                dot={room.dot}
+                members={membersOf(room.id)}
+                plannedCount={room.participantUUIDs.length}
+                open={open}
+                onOpen={() => goTo({ kind: "room", roomId: room.id })}
+              />
+            ))}
+          </div>
+        ) : (
+          <SessionPage
+            workspace={workspace}
+            plans={plans}
+            tasks={tasks}
+            open={open}
+            onEditTask={() => setEditingTask(true)}
+            onAddRound={onAddRound}
+            onUpdateRound={onUpdateRound}
+            onDeleteRound={onDeleteRound}
+            onSkipRound={onSkipRound}
+          />
+        )}
+      </PageFrame>
 
       {confirmingEnd ? (
         <ConfirmModal
@@ -299,13 +288,9 @@ export default function LiveRound({
       <ZoomActionOverlay operation={operation} />
 
       {editingTask ? (
-        <EditTaskModal
-          roundTitle={round.title}
-          tasks={tasks}
-          onClose={() => setEditingTask(false)}
-        />
+        <EditTaskModal roundTitle={round.title} tasks={tasks} onClose={() => setEditingTask(false)} />
       ) : null}
-    </div>
+    </>
   );
 }
 

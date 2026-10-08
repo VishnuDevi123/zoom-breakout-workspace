@@ -125,7 +125,7 @@ close emits none of them, so `markClosedRound` resets locations instead.
 - Note and tick author names come from the live store; after a restart they read "Participant".
 - The host results view (`GET /api/responses/:roundId/rooms/:roomId/all`, `getRoomResponsesForHost`) returns every answer, note and tick in a room; a "working" answer comes back with its status and no text. Like the participant filter, it hides drafts but locks nothing: the backend has no login.
 - Room count and auto-assign from the overview rail apply to every round at once; per-round differences need the editor. Rounds already launched are skipped.
-- Active scope: week 6, the activity system (individual responses, shared idea board, task checklist). Still open in week 6: toasts for an edited activity and for a removed one that is not open, and UI refinement. Help requests, room status and host messages (the room page's message panel is a placeholder) are later weeks.
+- Active scope: the round building flow UI pass, `week7-verticle-slices/building_flow_slices.md` (week 7 decisions in `week7_plan.md` beside it). Still open from week 6: toasts for an edited activity and for a removed one that is not open. Help requests, room status and host messages (the room page's message panel is a placeholder) are later weeks.
 - Seeding copies from the first round only, once, on first open of a round with no draft. Later edits to round 1 do not flow forward.
 - Opening a round refetches its draft every time (clean drafts are not cached), so the editor shows a short loading state.
 
