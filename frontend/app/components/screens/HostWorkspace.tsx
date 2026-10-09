@@ -12,12 +12,13 @@ import { useLiveState } from "@/lib/use-live-state";
 import { useRoomPlan } from "@/lib/use-room-plan";
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { useRoundSummaries } from "@/lib/use-round-summaries";
-import type { RoundTemplate } from "@/lib/round-templates";
+import { useWorkflowLibrary } from "@/lib/use-workflow-library";
 import { roundLabel, useWorkspace } from "@/lib/use-workspace";
-import type { LiveState, RoundMeta, RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
+import type { LiveState, RoundMeta, RoundPlanDraft, WorkflowSnapshot, Workspace, ZoomRole } from "@/types/breakout";
 
 import LiveRound from "../LiveRound";
 import MeetingBadge from "../MeetingBadge";
+import WorkflowLibrary from "../WorkflowLibrary";
 import { BrandMark, Button, Card, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
 import RoundsOverview from "./RoundsOverview";
@@ -90,12 +91,16 @@ export default function HostWorkspace({
   meetingUUID,
   meetingTopic,
   role,
+  hostUUID,
 }: {
   meetingUUID: string;
   meetingTopic: string;
   role: ZoomRole | null;
+  /** The host's participantUUID; keys saved templates until an account-wide id is used. */
+  hostUUID: string;
 }) {
   const workspace = useWorkspace(meetingUUID);
+  const library = useWorkflowLibrary(meetingUUID, hostUUID);
   const live = useLiveState(meetingUUID);
   const [view, setView] = useState<HostView>("opening");
   const [starting, setStarting] = useState(false);
@@ -108,10 +113,14 @@ export default function HostWorkspace({
   // SSE is the authority on which round is running: a reopened app must find its
   // way back to the live view, not to the landing screen with a round still open.
   const runningRoundId = live.liveState?.round?.roundId ?? null;
-  const liveRoundId = runningRoundId ?? launchedRoundId;
+  const rounds = workspace.state.kind === "ready" ? workspace.state.workspace.rounds : [];
+  // The workflow is ongoing from its first launch until End Workflow. Between
+  // rounds, and after the app reopens, the live view shows the round that ran last.
+  const lastRunRoundId =
+    rounds.findLast((round) => round.status === "launched" || round.status === "closed")?.roundId ?? null;
+  const liveRoundId = runningRoundId ?? launchedRoundId ?? lastRunRoundId;
   const currentView: HostView = view === "opening" ? (runningRoundId ? "live" : "landing") : view;
 
-  const rounds = workspace.state.kind === "ready" ? workspace.state.workspace.rounds : [];
   const { plans, reload: reloadPlans } = useRoundSummaries(
     meetingUUID,
     rounds.map((round) => round.roundId),
@@ -245,6 +254,17 @@ export default function HostWorkspace({
     reloadPlans();
   }
 
+  /** Closes an open round first; a failed close is already reported and stops here. */
+  async function endWorkflow() {
+    if (runningRoundId && !(await controller.close())) return;
+    await reportFailure("Could not end the workflow.", async () => {
+      library.showPast(await workspace.endWorkflow());
+      setLaunchedRoundId(null);
+      setView("landing");
+      toast.success("Workflow ended.");
+    });
+  }
+
   const workspaceTitle = "Sample Workflow";
 
   async function start(create: () => Promise<void>, next: HostView) {
@@ -269,8 +289,9 @@ export default function HostWorkspace({
     setView("rounds");
   }
 
-  function useTemplate(template: RoundTemplate) {
-    void start(() => workspace.createFromTemplate(workspaceTitle, template), "rounds");
+  /** A saved template or a sample, over the workflow being built when there is one. */
+  function startFrom(snapshot: WorkflowSnapshot) {
+    return start(() => workspace.replaceWith(snapshot), "rounds");
   }
 
   if (workspace.state.kind === "loading") {
@@ -301,14 +322,38 @@ export default function HostWorkspace({
             ? { title: workspace.state.workspace.title, roundCount: workspace.state.workspace.rounds.length }
             : null
         }
-        liveRoundLabel={
-          runningRoundId && workspace.state.kind === "ready" ? roundLabel(workspace.state.workspace, runningRoundId) : null
+        ongoing={
+          liveRoundId && workspace.state.kind === "ready"
+            ? { roundLabel: roundLabel(workspace.state.workspace, liveRoundId), running: runningRoundId !== null }
+            : null
+        }
+        library={
+          <WorkflowLibrary
+            past={library.past}
+            savedPastIds={library.savedPastIds}
+            templates={library.templates}
+            hasWorkflow={workspace.state.kind === "ready"}
+            busy={starting}
+            onSavePast={(pastWorkflowId) =>
+              reportFailure("Could not save the template.", async () => {
+                await library.savePast(pastWorkflowId);
+                toast.success("Template saved.");
+              })
+            }
+            onDeleteTemplate={(templateId) =>
+              reportFailure("Could not delete the template.", async () => {
+                await library.removeTemplate(templateId);
+                toast.success("Template deleted.");
+              })
+            }
+            onUse={startFrom}
+          />
         }
         busy={starting}
         onReturnToLive={() => setView("live")}
+        onEndWorkflow={endWorkflow}
         onStartRoundOne={startRoundOne}
         onBuildRounds={buildRounds}
-        onUseTemplate={useTemplate}
       />
     );
   }
@@ -337,6 +382,7 @@ export default function HostWorkspace({
         }
         onEndRound={controller.close}
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
+        onEndWorkflow={endWorkflow}
         onPlace={placeInLiveRound}
         plans={plans}
         onAddRound={addLiveRound}
@@ -368,6 +414,12 @@ export default function HostWorkspace({
         onUpdateRound={workspace.updateRound}
         onUpdateWorkspace={workspace.updateWorkspace}
         prepareLaunch={copyGroupsForLaunch}
+        onSaveTemplate={() =>
+          reportFailure("Could not save the template.", async () => {
+            await library.saveCurrent();
+            toast.success("Template saved.");
+          })
+        }
         onEditRound={(roundId, tab) => {
           workspace.selectRound(roundId);
           setView(tab === "tasks" ? "task" : "draft");

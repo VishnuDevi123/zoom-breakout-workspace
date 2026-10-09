@@ -57,6 +57,7 @@ export default function LiveRound({
   onSkipRound,
   onEndRound,
   onLaunchNext,
+  onEndWorkflow,
   onPlace,
   plans,
   onAddRound,
@@ -74,6 +75,8 @@ export default function LiveRound({
   onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
   onEndRound: () => void;
   onLaunchNext: () => void;
+  /** Offered once every round has run. Reports its own errors. */
+  onEndWorkflow: () => Promise<void>;
   /** Saves the round with people added to rooms and moves them in Zoom. Reports its own errors. */
   onPlace: (next: RoundPlanDraft) => Promise<void>;
   /** Every round's saved plan, for the Session page's room summaries. */
@@ -86,6 +89,7 @@ export default function LiveRound({
   const [page, setPage] = useState<LivePage>("rooms");
   const [placing, setPlacing] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [confirmingEndWorkflow, setConfirmingEndWorkflow] = useState(false);
   // Remembered per round: switching to Session and back keeps the level, a new round starts at the grid.
   const [rooms, setRooms] = useState<{ roundId: string; level: RoomsLevel }>({ roundId: round.roundId, level: GRID });
   // The shown round, not the live one: after a close its task and results stay readable until the next launch.
@@ -150,15 +154,20 @@ export default function LiveRound({
     return uuid ? participants.filter((p) => p.location === uuid) : [];
   }
 
+  // Keyed so a swap (adding or deleting the last upcoming round) fades in.
   const actionButton = open ? (
-    <Button variant="danger" size="sm" busy={busy} onClick={() => setConfirmingEnd(true)}>
+    <Button key="end-round" variant="danger" size="sm" busy={busy} onClick={() => setConfirmingEnd(true)}>
       End round
     </Button>
   ) : nextRound ? (
-    <Button size="sm" busy={busy} onClick={onLaunchNext}>
+    <Button key="launch-next" className="bw-swap-in" size="sm" busy={busy} onClick={onLaunchNext}>
       Launch {roundLabel(workspace, nextRound.roundId)}
     </Button>
-  ) : null;
+  ) : (
+    <Button key="end-workflow" className="bw-swap-in" variant="danger" size="sm" onClick={() => setConfirmingEndWorkflow(true)}>
+      End Workflow
+    </Button>
+  );
 
   const header = (
     <>
@@ -283,6 +292,16 @@ export default function LiveRound({
           confirmLabel="End round"
           onConfirm={async () => onEndRound()}
           onClose={() => setConfirmingEnd(false)}
+        />
+      ) : null}
+
+      {confirmingEndWorkflow ? (
+        <ConfirmModal
+          title="End this workflow?"
+          message="Every round has run. Participant answers are deleted. The rounds, rooms, tasks and activities move to Past workflows."
+          confirmLabel="Yes, end it"
+          onConfirm={onEndWorkflow}
+          onClose={() => setConfirmingEndWorkflow(false)}
         />
       ) : null}
 

@@ -29,6 +29,7 @@ export default function ZoomClient() {
           meetingUUID={meetingUUID}
           meetingTopic={meetingTopic}
           role={role}
+          hostUUID={participantUUID}
         />
       );
 

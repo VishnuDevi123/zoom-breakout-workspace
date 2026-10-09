@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
+import { readRoundTasks, readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
 import { rebalanceEvenly, shuffleEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
@@ -18,6 +18,7 @@ import type {
   ZoomRole,
 } from "@/types/breakout";
 
+import SaveTemplateModal from "../SaveTemplateModal";
 import ZoomActionOverlay from "../ZoomActionOverlay";
 import type { SetupTab } from "./RoundSetup";
 import { Button, Card, ConfirmModal, EditableName, SectionLabel } from "../ui";
@@ -75,6 +76,7 @@ export default function RoundsOverview({
   onUpdateWorkspace,
   onEditRound,
   prepareLaunch,
+  onSaveTemplate,
 }: {
   workspace: Workspace;
   parentUUID: string;
@@ -94,6 +96,8 @@ export default function RoundsOverview({
     >,
   ) => Promise<void>;
   onEditRound: (roundId: string, tab: SetupTab) => void;
+  /** Saves this workflow, without people, to the host's templates. Reports its own errors. */
+  onSaveTemplate: () => Promise<void>;
   /** Writes a round's plan just before launch ("Same groups" copies the last round's groups). */
   prepareLaunch: (roundId: string) => Promise<void>;
 }) {
@@ -182,7 +186,12 @@ export default function RoundsOverview({
   return (
     <div className="bw-shell">
       <header className="bw-header">
-        <button type="button" className="bw-back" aria-label="Back to start" onClick={onHome}>
+        <button
+          type="button"
+          className="bw-back"
+          aria-label="Back to start"
+          onClick={onHome}
+        >
           ←
         </button>
         <div className="bw-round-heading">
@@ -190,10 +199,16 @@ export default function RoundsOverview({
             value={workspace.title}
             placeholder="Sample Workflow"
             className="bw-workspace-title"
-            onSave={(title) => void run(() => onUpdateWorkspace({ title: title ?? "Sample Workflow" }))}
+            onSave={(title) =>
+              void run(() =>
+                onUpdateWorkspace({ title: title ?? "Sample Workflow" }),
+              )
+            }
           />
           <span className="bw-header-subtitle">
-            {anyLaunched ? "A round is live" : `Draft · ${workspace.rounds.length} ${workspace.rounds.length === 1 ? "round" : "rounds"} · ${formatDuration(totalSec)}`}
+            {anyLaunched
+              ? "A round is live"
+              : `Draft · ${workspace.rounds.length} ${workspace.rounds.length === 1 ? "round" : "rounds"} · ${formatDuration(totalSec)}`}
           </span>
         </div>
         <div className="bw-header-spacer" />
@@ -209,14 +224,24 @@ export default function RoundsOverview({
                 round={round}
                 position={index + 1}
                 plan={plans[round.roundId] ?? null}
-                groupsFromFirst={grouping === "same" && round.roundId !== firstRoundId}
-                onRename={(title) => run(() => onUpdateRound(round.roundId, { title }))}
-                onDuration={(durationSec) => run(() => onUpdateRound(round.roundId, { durationSec }))}
+                groupsFromFirst={
+                  grouping === "same" && round.roundId !== firstRoundId
+                }
+                onRename={(title) =>
+                  run(() => onUpdateRound(round.roundId, { title }))
+                }
+                onDuration={(durationSec) =>
+                  run(() => onUpdateRound(round.roundId, { durationSec }))
+                }
                 onDelete={() => run(() => onDeleteRound(round.roundId))}
                 onOpen={(tab) => onEditRound(round.roundId, tab)}
               />
             ))}
-            <button type="button" className="bw-add-round" onClick={() => void run(onAddRound)}>
+            <button
+              type="button"
+              className="bw-add-round"
+              onClick={() => void run(onAddRound)}
+            >
               + Add round
             </button>
           </div>
@@ -224,14 +249,20 @@ export default function RoundsOverview({
 
         <aside className="bw-rail bw-workflow__settings">
           <SectionLabel>How should groups work?</SectionLabel>
-          <div className="bw-choice-list" role="radiogroup" aria-label="How should groups work?">
+          <div
+            className="bw-choice-list"
+            role="radiogroup"
+            aria-label="How should groups work?"
+          >
             {GROUPING_OPTIONS.map((option) => (
               <label className="bw-choice" key={option.id}>
                 <input
                   type="radio"
                   name="grouping"
                   checked={grouping === option.id}
-                  onChange={() => void run(() => onUpdateWorkspace(GROUPING_FLAGS[option.id]))}
+                  onChange={() =>
+                    void run(() => onUpdateWorkspace(GROUPING_FLAGS[option.id]))
+                  }
                 />
                 <span className="bw-choice__text">
                   <span className="bw-choice__label">{option.label}</span>
@@ -258,10 +289,20 @@ export default function RoundsOverview({
                 size="sm"
                 busy={applying}
                 disabled={eligibleUUIDs.length === 0}
-                title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
+                title={
+                  eligibleUUIDs.length > 0
+                    ? undefined
+                    : "Waiting for people to join."
+                }
                 onClick={() =>
                   void applyToAllRounds(
-                    (draft) => rebalanceEvenly(draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft, eligibleUUIDs),
+                    (draft) =>
+                      rebalanceEvenly(
+                        draft.rooms.length === 0
+                          ? withRoomCount(draft, 1)
+                          : draft,
+                        eligibleUUIDs,
+                      ),
                     "People spread evenly across every round.",
                   )
                 }
@@ -274,10 +315,20 @@ export default function RoundsOverview({
                   size="sm"
                   busy={applying}
                   disabled={eligibleUUIDs.length === 0}
-                  title={eligibleUUIDs.length > 0 ? undefined : "Waiting for people to join."}
+                  title={
+                    eligibleUUIDs.length > 0
+                      ? undefined
+                      : "Waiting for people to join."
+                  }
                   onClick={() =>
                     void applyToAllRounds(
-                      (draft) => shuffleEvenly(draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft, eligibleUUIDs),
+                      (draft) =>
+                        shuffleEvenly(
+                          draft.rooms.length === 0
+                            ? withRoomCount(draft, 1)
+                            : draft,
+                          eligibleUUIDs,
+                        ),
                       "Every round now has its own mix of people.",
                     )
                   }
@@ -292,24 +343,110 @@ export default function RoundsOverview({
             <input
               type="checkbox"
               checked={workspace.autoStartNextRound}
-              onChange={(event) => void run(() => onUpdateWorkspace({ autoStartNextRound: event.target.checked }))}
+              onChange={(event) =>
+                void run(() =>
+                  onUpdateWorkspace({
+                    autoStartNextRound: event.target.checked,
+                  }),
+                )
+              }
             />
             <span>Start the next round when the timer ends</span>
           </label>
-
-          <LaunchWorkflow
-            workspace={workspace}
-            parentUUID={parentUUID}
-            role={role}
-            target={target}
-            plan={target ? (plans[groupsSourceFor(target.roundId)] ?? null) : null}
-            presentUUIDs={eligibleUUIDs}
-            prepareLaunch={prepareLaunch}
-            onLaunched={onLaunched}
-          />
+          <div className="bw-workflow__actions">
+            <LaunchWorkflow
+              workspace={workspace}
+              parentUUID={parentUUID}
+              role={role}
+              target={target}
+              plan={
+                target ? (plans[groupsSourceFor(target.roundId)] ?? null) : null
+              }
+              presentUUIDs={eligibleUUIDs}
+              prepareLaunch={prepareLaunch}
+              onLaunched={onLaunched}
+            >
+              <SaveAsTemplate
+                workspace={workspace}
+                parentUUID={parentUUID}
+                plans={plans}
+                grouping={grouping}
+                onSave={onSaveTemplate}
+              />
+            </LaunchWorkflow>
+          </div>
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * What a template needs before it can be saved: rooms in every round that
+ * launches with its own. In "Same groups" later rounds copy Round 1 at launch.
+ */
+function templateBlocker(workspace: Workspace, plans: Record<string, RoundPlan | null>, grouping: Grouping) {
+  if (workspace.rounds.length === 0) return "Add a round to save a template.";
+  const needRooms = grouping === "same" ? workspace.rounds.slice(0, 1) : workspace.rounds;
+  const missing = needRooms.find((round) => (plans[round.roundId]?.rooms.length ?? 0) === 0);
+  return missing ? `${roundLabel(workspace, missing.roundId)} has no rooms yet.` : null;
+}
+
+/** Saves the workflow being built as a template, after the same confirmation a past workflow gets. */
+function SaveAsTemplate({
+  workspace,
+  parentUUID,
+  plans,
+  grouping,
+  onSave,
+}: {
+  workspace: Workspace;
+  parentUUID: string;
+  plans: Record<string, RoundPlan | null>;
+  grouping: Grouping;
+  onSave: () => Promise<void>;
+}) {
+  // Activities live in each round's task, which this page does not load; count them on open.
+  const [activities, setActivities] = useState<number | null>(null);
+  const [counting, setCounting] = useState(false);
+  const blocker = templateBlocker(workspace, plans, grouping);
+  const rooms = workspace.rounds.reduce((sum, round) => sum + (plans[round.roundId]?.rooms.length ?? 0), 0);
+
+  async function open() {
+    setCounting(true);
+    try {
+      const tasks = await Promise.all(workspace.rounds.map((round) => readRoundTasks(parentUUID, round.roundId)));
+      setActivities(tasks.reduce((sum, task) => sum + (task?.activities.length ?? 0), 0));
+    } catch (error) {
+      toast.error("Could not read the rounds' tasks.", { description: error instanceof Error ? error.message : undefined });
+    } finally {
+      setCounting(false);
+    }
+  }
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        disabled={Boolean(blocker)}
+        busy={counting}
+        title={blocker ?? undefined}
+        onClick={() => void open()}
+      >
+        Save as template
+      </Button>
+
+      {activities !== null ? (
+        <SaveTemplateModal
+          title={workspace.title}
+          rounds={workspace.rounds.length}
+          rooms={rooms}
+          activities={activities}
+          onConfirm={onSave}
+          onClose={() => setActivities(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -336,6 +473,7 @@ function LaunchWorkflow({
   presentUUIDs,
   prepareLaunch,
   onLaunched,
+  children,
 }: {
   workspace: Workspace;
   parentUUID: string;
@@ -346,6 +484,8 @@ function LaunchWorkflow({
   presentUUIDs: string[];
   prepareLaunch: (roundId: string) => Promise<void>;
   onLaunched: (roundId: string) => void;
+  /** Shown between the readiness list and the Launch button (Save as template). */
+  children: React.ReactNode;
 }) {
   const [confirming, setConfirming] = useState(false);
   const label = target ? roundLabel(workspace, target.roundId) : "";
@@ -367,24 +507,26 @@ function LaunchWorkflow({
 
   return (
     <div className="bw-launch">
-      <ul className="bw-readiness">
-        {blocker ? (
-          <li className="bw-readiness__item bw-readiness__item--block">{blocker}</li>
-        ) : (
+      {!blocker ? (
+        <ul className="bw-readiness">
           <li className="bw-readiness__item bw-readiness__item--ok">
             {label} has {roomCount} {roomCount === 1 ? "room" : "rooms"}
           </li>
-        )}
-        {!blocker && unplaced > 0 ? (
-          <li className="bw-readiness__item bw-readiness__item--warn">
-            {unplaced} {unplaced === 1 ? "person is" : "people are"} not placed and will stay in the main room
-          </li>
-        ) : null}
-      </ul>
+
+          {unplaced > 0 ? (
+            <li className="bw-readiness__item bw-readiness__item--warn">
+              {unplaced} {unplaced === 1 ? "person is" : "people are"} not
+              placed and will stay in the main room
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {children}
       <Button
         variant="primary"
         disabled={Boolean(blocker)}
         busy={controller.operation.kind === "running"}
+        title={blocker ?? undefined}
         onClick={() => setConfirming(true)}
       >
         Launch workflow

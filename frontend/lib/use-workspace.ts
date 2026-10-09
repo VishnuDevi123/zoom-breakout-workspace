@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import type { RoundTemplate } from "@/lib/round-templates";
-import type { ApiResponse, RoundMeta, SaveWorkspaceRequest, Workspace } from "@/types/breakout";
+import type {
+  ApiResponse,
+  PastWorkflow,
+  RoundMeta,
+  SaveWorkspaceRequest,
+  WorkflowSnapshot,
+  Workspace,
+} from "@/types/breakout";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -33,6 +39,9 @@ export function useWorkspace(parentUUID: string) {
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
 
   const [loadAttempt, setLoadAttempt] = useState(0);
+  // Latest revision the server returned. End Workflow runs right after a close
+  // whose workspace has not rendered yet, so it cannot read `state`.
+  const revision = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,10 +54,12 @@ export function useWorkspace(parentUUID: string) {
         );
         if (controller.signal.aborted) return;
         if (response.status === 404) {
+          revision.current = 0;
           setState({ kind: "missing" });
           return;
         }
         const workspace = await apiResult<Workspace>(response);
+        revision.current = workspace.revision;
         setState({ kind: "ready", workspace });
         setSelectedRoundId((current) =>
           workspace.rounds.some((round) => round.roundId === current)
@@ -69,6 +80,7 @@ export function useWorkspace(parentUUID: string) {
   }, [parentUUID, loadAttempt]);
 
   function apply(workspace: Workspace, selectRoundId?: string | null): void {
+    revision.current = workspace.revision;
     setState({ kind: "ready", workspace });
     if (selectRoundId !== undefined) setSelectedRoundId(selectRoundId);
   }
@@ -86,32 +98,54 @@ export function useWorkspace(parentUUID: string) {
     return workspace;
   }
 
-  /** Create with expectedRevision 0. Ids are assigned here because the server only assigns them on POST /rounds. */
-  async function createWorkspace(title: string, rounds: RoundTemplate["rounds"]): Promise<Workspace> {
+  /** Create an empty workspace (expectedRevision 0); rounds come from POST /rounds or a template. */
+  async function createWorkspace(title: string): Promise<Workspace> {
     return saveWorkspace({
       title,
       sameRoomsEveryRound: false,
       samePeopleEveryRound: false,
       autoStartNextRound: true,
-      rounds: rounds.map((round, index) => ({ roundId: `round-${index + 1}`, ...round })),
+      rounds: [],
       expectedRevision: 0,
     });
   }
 
   /** Quick start: workspace with one untitled round, selected. */
   async function createWithFirstRound(title: string): Promise<void> {
-    await createWorkspace(title, []);
+    await createWorkspace(title);
     await addRound();
   }
 
   /** Landing "Build the rounds" with no template: empty workspace. */
   async function createEmpty(title: string): Promise<void> {
-    await createWorkspace(title, []);
+    await createWorkspace(title);
   }
 
-  async function createFromTemplate(title: string, template: RoundTemplate): Promise<void> {
-    const workspace = await createWorkspace(title, template.rounds);
+  /** Swap a workflow that has not started (or none) for a template's rounds, rooms and tasks. */
+  async function replaceWith(snapshot: WorkflowSnapshot): Promise<void> {
+    const workspace = await apiResult<Workspace>(
+      await fetch("/api/workspace/replace", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ parentUUID, expectedRevision: revision.current, snapshot }),
+      }),
+    );
     apply(workspace, workspace.rounds[0]?.roundId ?? null);
+  }
+
+  /** The backend keeps the workflow without people as a past workflow; the meeting then has none. */
+  async function endWorkflow(): Promise<PastWorkflow[]> {
+    const past = await apiResult<PastWorkflow[]>(
+      await fetch("/api/workspace/end", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ parentUUID, expectedRevision: revision.current }),
+      }),
+    );
+    revision.current = 0;
+    setState({ kind: "missing" });
+    setSelectedRoundId(null);
+    return past;
   }
 
   /** Appends a round; the new one is last. Returns the workspace so a caller can find it. */
@@ -190,7 +224,8 @@ export function useWorkspace(parentUUID: string) {
     selectRound: setSelectedRoundId,
     createWithFirstRound,
     createEmpty,
-    createFromTemplate,
+    replaceWith,
+    endWorkflow,
     addRound,
     deleteRound,
     updateRound,

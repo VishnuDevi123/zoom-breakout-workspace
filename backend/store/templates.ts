@@ -57,10 +57,27 @@ export function saveTemplate(input: unknown): SavedTemplate {
 
   const past = pastWorkflows.get(parentUUID)?.find((workflow) => workflow.id === pastWorkflowId);
   if (!past) throw new TemplateError("No past workflow with this ID in this meeting.", 404);
+  return addTemplate(hostUUID, snapshotOf(past));
+}
 
-  const saved: SavedTemplate = { ...snapshotOf(past), id: crypto.randomUUID(), hostUUID, savedAt: new Date().toISOString() };
-  templates.set(hostUUID, [saved, ...(templates.get(hostUUID) ?? [])]);
+/** Add a workflow without people to the host's templates, newest first. */
+export function addTemplate(hostUUID: unknown, snapshot: WorkflowSnapshot): SavedTemplate {
+  const host = requiredString(hostUUID, "hostUUID");
+  const saved: SavedTemplate = { ...structuredClone(snapshot), id: crypto.randomUUID(), hostUUID: host, savedAt: new Date().toISOString() };
+  templates.set(host, [saved, ...(templates.get(host) ?? [])]);
   return structuredClone(saved);
+}
+
+/** Remove one of the host's templates. Returns what is left, newest first. */
+export function deleteTemplate(hostUUID: unknown, templateId: unknown): SavedTemplate[] {
+  const host = requiredString(hostUUID, "hostUUID");
+  const id = requiredString(templateId, "templateId");
+  const current = templates.get(host) ?? [];
+  if (!current.some((template) => template.id === id)) {
+    throw new TemplateError("No saved template with this ID.", 404);
+  }
+  templates.set(host, current.filter((template) => template.id !== id));
+  return getTemplates(host);
 }
 
 export function getTemplates(hostUUID: unknown): SavedTemplate[] {

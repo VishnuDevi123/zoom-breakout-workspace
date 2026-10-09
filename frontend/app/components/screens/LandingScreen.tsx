@@ -1,39 +1,44 @@
 "use client";
 
-import { formatClock } from "@/lib/round-clock";
-import { ROUND_TEMPLATES, type RoundTemplate } from "@/lib/round-templates";
+import { useState, type ReactNode } from "react";
 
-import { BrandMark, Button, Card, SectionLabel, StatusDot } from "../ui";
+import { BrandMark, Button, Card, ConfirmModal, SectionLabel, StatusDot } from "../ui";
 
 /**
  * First host screen. Shows what to do next and creates nothing until a button
- * is pressed: return to a running round, continue a workflow, or start one.
+ * is pressed. While a workflow runs it shows only that workflow: return to it
+ * or end it. Otherwise: continue or start a workflow, then the library.
  */
 export default function LandingScreen({
   meetingTopic,
   participantCount,
   workflow,
-  liveRoundLabel,
+  ongoing,
+  library,
   busy,
   onReturnToLive,
+  onEndWorkflow,
   onBuildRounds,
   onStartRoundOne,
-  onUseTemplate,
 }: {
   meetingTopic: string;
   /** Null until the live stream delivers its first state. */
   participantCount: number | null;
   /** Null when the meeting has no workflow yet. */
   workflow: { title: string; roundCount: number } | null;
-  /** The running round's name, or null when no round is running. */
-  liveRoundLabel: string | null;
+  /** Set from the first launch until End Workflow: the round on screen and whether it is open. */
+  ongoing: { roundLabel: string; running: boolean } | null;
+  /** Past workflows, saved templates and samples; hidden while a workflow runs. */
+  library: ReactNode;
   busy: boolean;
   onReturnToLive: () => void;
+  /** Closes an open round first. Reports its own errors. */
+  onEndWorkflow: () => Promise<void>;
   /** Opens the workflow page, creating an empty workflow first when there is none. */
   onBuildRounds: () => void;
   onStartRoundOne: () => void;
-  onUseTemplate: (template: RoundTemplate) => void;
 }) {
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
   const presence =
     participantCount === null
       ? "Connecting to the meeting…"
@@ -52,24 +57,31 @@ export default function LandingScreen({
 
       <div className="bw-body">
         <main className="bw-main bw-landing-page">
-          <div className="bw-landing">
+          {/* Keyed by state so ending a workflow fades the page back in. */}
+          <div key={ongoing ? "ongoing" : "home"} className="bw-landing">
             <SectionLabel>You are hosting</SectionLabel>
             <h1 className="bw-landing-title">{meetingTopic || "This meeting"}</h1>
             <p className="bw-landing-lede">{presence}</p>
 
-            {liveRoundLabel ? (
+            {ongoing ? (
               <Card className="bw-landing-card bw-landing-card--live">
                 <div className="bw-landing-card__text">
                   <span className="bw-landing-card__status">
-                    <StatusDot color="var(--bw-red)" round pulse /> Live now
+                    <StatusDot color="var(--bw-red)" round pulse /> Live
                   </span>
-                  <span className="bw-landing-card__title">{liveRoundLabel} is running</span>
+                  <span className="bw-landing-card__title">Ongoing Workflow</span>
+                  <span className="bw-landing-lede">
+                    {ongoing.running ? `${ongoing.roundLabel} is running` : `${ongoing.roundLabel} has ended`}
+                  </span>
                 </div>
-                <Button onClick={onReturnToLive}>Return to live round</Button>
+                <div className="bw-landing-card__actions">
+                  <Button variant="secondary" className="bw-button--danger-text" onClick={() => setConfirmingEnd(true)}>
+                    End Workflow
+                  </Button>
+                  <Button onClick={onReturnToLive}>Return to live round</Button>
+                </div>
               </Card>
-            ) : null}
-
-            {workflow ? (
+            ) : workflow ? (
               <Card className="bw-landing-card">
                 <div className="bw-landing-card__text">
                   <SectionLabel>Your workflow</SectionLabel>
@@ -78,12 +90,9 @@ export default function LandingScreen({
                     {workflow.roundCount} {workflow.roundCount === 1 ? "round" : "rounds"}
                   </span>
                 </div>
-                {/* Building is closed while a round runs: past and running rounds must not change. */}
-                {liveRoundLabel ? null : (
-                  <Button disabled={busy} onClick={onBuildRounds}>
-                    Continue building
-                  </Button>
-                )}
+                <Button disabled={busy} onClick={onBuildRounds}>
+                  Continue building
+                </Button>
               </Card>
             ) : (
               <>
@@ -96,30 +105,23 @@ export default function LandingScreen({
                   </Button>
                 </div>
                 <p className="bw-landing-hint">With one round, you can add more while it runs.</p>
-
-                <SectionLabel>Start from a template</SectionLabel>
-                <div className="bw-template-list">
-                  {ROUND_TEMPLATES.map((template) => (
-                    <button
-                      type="button"
-                      key={template.name}
-                      className="bw-template"
-                      disabled={busy}
-                      onClick={() => onUseTemplate(template)}
-                    >
-                      <span className="bw-template__name">{template.name}</span>
-                      <span className="bw-template__meta">
-                        {template.rounds.length} rounds ·{" "}
-                        {formatClock(template.rounds.reduce((sum, round) => sum + round.durationSec, 0))}
-                      </span>
-                    </button>
-                  ))}
-                </div>
               </>
             )}
+
+            {ongoing ? null : library}
           </div>
         </main>
       </div>
+
+      {confirmingEnd ? (
+        <ConfirmModal
+          title="End this workflow?"
+          message={`${ongoing?.running ? "Everyone returns to the main room. " : ""}Participant answers are deleted. The rounds, rooms, tasks and activities move to Past workflows.`}
+          confirmLabel="End Workflow"
+          onConfirm={onEndWorkflow}
+          onClose={() => setConfirmingEnd(false)}
+        />
+      ) : null}
     </div>
   );
 }

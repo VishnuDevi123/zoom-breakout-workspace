@@ -1,6 +1,7 @@
 import {
   ROOM_DOTS,
   type PastWorkflow,
+  type WorkflowSnapshot,
   type RoundMeta,
   type RoundStatus,
   type SaveWorkspaceRequest,
@@ -14,7 +15,6 @@ import { addPastWorkflow } from "./templates.ts";
 
 // One record per meeting. Room lists live in round-plans, keyed by the same roundId.
 const workspaces = new Map<string, Workspace>();
-
 const MAX_ROUNDS = 20;
 const DEFAULT_DURATION_SEC = 300;
 
@@ -230,6 +230,18 @@ function roundSnapshot(parentUUID: string, round: RoundMeta): WorkflowRoundSnaps
   };
 }
 
+/** The meeting's workflow without people: what End Workflow keeps and Save as template stores. */
+export function snapshotWorkflow(parentUUID: unknown): WorkflowSnapshot {
+  const stored = workspaceFor(parentUUID);
+  return {
+    title: stored.title,
+    sameRoomsEveryRound: stored.sameRoomsEveryRound,
+    samePeopleEveryRound: stored.samePeopleEveryRound,
+    autoStartNextRound: stored.autoStartNextRound,
+    rounds: stored.rounds.map((round) => roundSnapshot(stored.parentUUID, round)),
+  };
+}
+
 /**
  * End Workflow: keep the workflow without people as a past workflow, then delete
  * the workspace and every round's draft, task and submissions. The live store's
@@ -243,13 +255,7 @@ export function endWorkflow(input: unknown): PastWorkflow[] {
     throw new WorkspaceError("Close the running round before ending the workflow.", 409);
   }
 
-  const snapshot = {
-    title: stored.title,
-    sameRoomsEveryRound: stored.sameRoomsEveryRound,
-    samePeopleEveryRound: stored.samePeopleEveryRound,
-    autoStartNextRound: stored.autoStartNextRound,
-    rounds: stored.rounds.map((round) => roundSnapshot(stored.parentUUID, round)),
-  };
+  const snapshot = snapshotWorkflow(stored.parentUUID);
   for (const round of stored.rounds) deleteRoundData(stored.parentUUID, round.roundId);
   workspaces.delete(stored.parentUUID);
   return addPastWorkflow(stored.parentUUID, snapshot);

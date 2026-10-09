@@ -263,6 +263,12 @@ export interface SaveTemplateRequest {
   hostUUID: string;
 }
 
+/** POST /api/templates/current: the workflow being built, without people. */
+export interface SaveCurrentTemplateRequest {
+  parentUUID: string;
+  hostUUID: string;
+}
+
 // ---- Responses: participant-written, one record per (parentUUID, roundId, roomId) ----
 
 export const NOTE_COLORS = [

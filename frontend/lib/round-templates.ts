@@ -1,3 +1,5 @@
+import type { WorkflowSnapshot } from "@/types/breakout";
+
 /** Static presets that seed a workspace. Titles and durations only; rooms are planned per round. */
 export interface RoundTemplate {
   name: string;
@@ -23,3 +25,14 @@ export const ROUND_TEMPLATES: RoundTemplate[] = [
     ],
   },
 ];
+
+/** A sample as a workflow to load: its rounds only, with no rooms or tasks yet. */
+export function sampleSnapshot(template: RoundTemplate, title: string): WorkflowSnapshot {
+  return {
+    title,
+    sameRoomsEveryRound: false,
+    samePeopleEveryRound: false,
+    autoStartNextRound: true,
+    rounds: template.rounds.map((round) => ({ ...round, roomNames: [], task: null, activities: [] })),
+  };
+}

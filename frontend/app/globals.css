@@ -551,8 +551,70 @@ input[type="checkbox"] {
   text-align: center;
 }
 
-.bw-landing > .bw-card,
-.bw-landing .bw-template-list {
+/* Every landing state fades in, including the return after End Workflow. */
+.bw-landing {
+  animation: bwPageIn 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-landing {
+    animation-name: bwFadeIn;
+  }
+}
+
+.bw-landing-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Past workflows, saved templates and samples: each list sits in its own titled box. */
+.bw-library-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bw-library-panel__empty {
+  margin: 0;
+  font-size: var(--bw-fs-secondary);
+  color: var(--bw-muted);
+}
+
+.bw-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bw-library-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-sm);
+}
+
+.bw-library-row__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bw-library-row__title {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Header action that changes (Launch next <-> End Workflow) fades in. */
+.bw-swap-in {
+  animation: bwFadeIn 200ms ease-out both;
+}
+
+.bw-landing > .bw-card {
   width: 100%;
   text-align: left;
 }
@@ -638,19 +700,18 @@ input[type="checkbox"] {
 
 .bw-template-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
 }
 
 .bw-template {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
+  gap: 2px;
+  padding: 10px 12px;
   border: 1px solid var(--bw-border);
-  border-radius: var(--bw-radius-md);
+  border-radius: var(--bw-radius-sm);
   background: var(--bw-surface);
-  box-shadow: var(--bw-shadow-1);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1812,12 +1873,9 @@ a.bw-resource-row:hover {
   color: var(--bw-muted);
 }
 .bw-launch {
-  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--bw-border);
 }
 .bw-readiness {
   margin: 0;
@@ -2896,4 +2954,14 @@ a.bw-resource-row:hover {
     min-height: 200px;
     font-size: var(--bw-fs-body);
   }
+}
+
+/* Save as template above Launch workflow, pinned to the bottom of the settings column. */
+.bw-workflow__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--bw-border);
 }

@@ -4,6 +4,7 @@ import type {
   EditIdeaRequest,
   LiveActionResponse,
   LiveState,
+  PastWorkflow,
   RoundPlan,
   RemoveIdeaRequest,
   RoomResponsesHostView,
@@ -14,6 +15,9 @@ import type {
   SaveRoundPlanRequest,
   SaveAnswerRequest,
   SaveRoundTasksRequest,
+  SavedTemplate,
+  SaveCurrentTemplateRequest,
+  SaveTemplateRequest,
   TickRequest,
   Workspace,
 } from "@/types/breakout";
@@ -159,6 +163,46 @@ export async function markRoundClosed(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID }),
+    }),
+  );
+}
+
+/** Workflows this meeting has ended, newest first. */
+export async function readPastWorkflows(parentUUID: string): Promise<PastWorkflow[]> {
+  return apiResult(await fetch(`/api/workspace/past?parentUUID=${encodeURIComponent(parentUUID)}`, { cache: "no-store" }));
+}
+
+/** The host's saved templates, newest first. */
+export async function readTemplates(hostUUID: string): Promise<SavedTemplate[]> {
+  return apiResult(await fetch(`/api/templates?hostUUID=${encodeURIComponent(hostUUID)}`, { cache: "no-store" }));
+}
+
+export async function saveTemplate(request: SaveTemplateRequest): Promise<SavedTemplate> {
+  return apiResult(
+    await fetch("/api/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }),
+  );
+}
+
+/** Returns the host's templates left after the delete. */
+export async function deleteTemplate(hostUUID: string, templateId: string): Promise<SavedTemplate[]> {
+  return apiResult(
+    await fetch(`/api/templates/${encodeURIComponent(templateId)}?hostUUID=${encodeURIComponent(hostUUID)}`, {
+      method: "DELETE",
+    }),
+  );
+}
+
+/** Save the workflow being built as one of the host's templates. */
+export async function saveCurrentAsTemplate(request: SaveCurrentTemplateRequest): Promise<SavedTemplate> {
+  return apiResult(
+    await fetch("/api/templates/current", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
     }),
   );
 }
