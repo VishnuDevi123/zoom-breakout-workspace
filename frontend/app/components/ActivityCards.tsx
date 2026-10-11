@@ -3,7 +3,7 @@
 import { ACTIVITY_KINDS, activityProgress, PROGRESS_LABELS } from "@/lib/activity-kinds";
 import type { Activity, RoomResponsesView } from "@/types/breakout";
 
-import { Button, Card } from "./ui";
+import { Button, Card, SectionLabel } from "./ui";
 
 /**
  * The participant's activities for this round, in the host's order. Each card
@@ -28,7 +28,7 @@ export default function ActivityCards({
   return (
     <>
       <div className="bw-activities-heading">
-        <h2 className="bw-room-title">Activities</h2>
+        <SectionLabel>Activities</SectionLabel>
         {activities.length > 0 ? (
           <span className="bw-activity-count">
             {completed} of {activities.length} done
@@ -52,14 +52,9 @@ export default function ActivityCards({
               <span className="bw-activity-badge" style={{ background: kind.tint, color: kind.ink }}>
                 A{index + 1}
               </span>
-              <span className="bw-room-activity__kind" style={{ color: kind.ink }}>
-                {kind.label}
-              </span>
+              <span className="bw-room-activity__kind">{kind.label}</span>
               {/* Zero-width when wide; a forced line break when the card is narrow. */}
               <span className="bw-room-activity__break" aria-hidden />
-              <span className="bw-room-activity__scope">
-                {activity.kind === "individual" ? "Private" : "Shared"}
-              </span>
               <span className="bw-room-activity__spacer" aria-hidden />
               <span className={`bw-progress-pill bw-progress-pill--${progress}`}>
                 {PROGRESS_LABELS[progress]}

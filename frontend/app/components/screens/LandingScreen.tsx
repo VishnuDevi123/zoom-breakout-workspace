@@ -104,7 +104,7 @@ export default function LandingScreen({
                     Start with one round
                   </Button>
                 </div>
-                <p className="bw-landing-hint">With one round, you can add more while it runs.</p>
+                <p className="bw-landing-hint">Build workflows, add activities and launch them.</p>
               </>
             )}
 

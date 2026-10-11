@@ -12,8 +12,9 @@ export interface RoomPerson {
 }
 
 /**
- * One room's work for the host: who is in it, the checklist, and one card per
- * activity with a count. Submissions themselves open from an activity card, so
+ * One room's work for the host. Left column, top to bottom: "← All rooms", the
+ * room's name and head count, its people, the checklist. Right column: one card
+ * per activity with a count, starting level with the back link. Submissions themselves open from an activity card, so
  * this page stays readable however much a room has written.
  */
 export default function RoomResultsPage({
@@ -37,19 +38,18 @@ export default function RoomResultsPage({
   onOpenActivity: (activityId: string) => void;
 }) {
   return (
-    <div className="bw-results">
-      <button type="button" className="bw-results__back" onClick={onBack}>
-        ← All rooms
-      </button>
-      <div className="bw-results__bar">
-        <StatusDot color={room.dot} />
-        <span className="bw-results__title">{room.name}</span>
-        <span className="bw-results__meta">
-          {presentCount} of {people.length} here
-        </span>
-      </div>
-
-      <div className="bw-results__split">
+    <div className="bw-results__split">
+      <div className="bw-results__side">
+        <button type="button" className="bw-results__back" onClick={onBack}>
+          ← All rooms
+        </button>
+        <div className="bw-results__bar">
+          <StatusDot color={room.dot} />
+          <span className="bw-results__title">{room.name}</span>
+          <span className="bw-results__count">
+            {presentCount} of {people.length} here
+          </span>
+        </div>
         <section className="bw-results__people" aria-label="People in this room">
           <SectionLabel>People</SectionLabel>
           {people.length === 0 ? <span className="bw-results__meta">Nobody planned here</span> : null}
@@ -62,34 +62,33 @@ export default function RoomResultsPage({
             </div>
           ))}
         </section>
-
-        <section className="bw-results__work">
-          {checklist.length > 0 ? <ChecklistSummary items={checklist} results={results} /> : null}
-
-          <SectionLabel>Activities</SectionLabel>
-          {activities.length === 0 ? (
-            <Card tone="dashed" className="bw-activity-empty">No activities in this round.</Card>
-          ) : null}
-          {activities.map((activity) => {
-            const kind = ACTIVITY_KINDS[activity.kind];
-            return (
-              <button
-                type="button"
-                key={activity.id}
-                className="bw-results__activity"
-                onClick={() => onOpenActivity(activity.id)}
-              >
-                <span className="bw-activity-badge" style={{ background: kind.tint, color: kind.ink }}>
-                  {kind.label}
-                </span>
-                <span className="bw-results__activity-title">{}</span>
-                <span className="bw-results__meta">{progressText(activity, people.length, results)}</span>
-                <span className="bw-results__chevron" aria-hidden>›</span>
-              </button>
-            );
-          })}
-        </section>
+        {checklist.length > 0 ? <ChecklistSummary items={checklist} results={results} /> : null}
       </div>
+
+      <section className="bw-results__work">
+        <SectionLabel>Activities</SectionLabel>
+        {activities.length === 0 ? (
+          <Card tone="dashed" className="bw-activity-empty">No activities in this round.</Card>
+        ) : null}
+        {activities.map((activity) => {
+          const kind = ACTIVITY_KINDS[activity.kind];
+          return (
+            <button
+              type="button"
+              key={activity.id}
+              className="bw-results__activity"
+              onClick={() => onOpenActivity(activity.id)}
+            >
+              <span className="bw-activity-badge" style={{ background: kind.tint, color: kind.ink }}>
+                {kind.label}
+              </span>
+              <span className="bw-results__activity-title">{}</span>
+              <span className="bw-results__meta">{progressText(activity, people.length, results)}</span>
+              <span className="bw-results__chevron" aria-hidden>›</span>
+            </button>
+          );
+        })}
+      </section>
     </div>
   );
 }

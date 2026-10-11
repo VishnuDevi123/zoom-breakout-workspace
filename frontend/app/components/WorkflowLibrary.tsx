@@ -99,7 +99,7 @@ export default function WorkflowLibrary({
         </div>
       </LibraryPanel>
 
-      <LibraryPanel heading="Saved templates" empty={templates.length > 0 ? null : "Past workflows you save appear here."}>
+      <LibraryPanel heading="Saved templates" empty={templates.length > 0 ? null : "Saved workflows appear here."}>
         <div className="bw-library-list">
           {templates.map((template) => (
             <LibraryRow

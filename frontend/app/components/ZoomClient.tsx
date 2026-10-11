@@ -2,8 +2,8 @@
 
 import { useHostGate } from "@/lib/host-gate";
 
-import CheckingScreen from "./screens/CheckingScreen";
 import HostWorkspace from "./screens/HostWorkspace";
+import LoadingScreen from "./screens/LoadingScreen";
 import ParticipantScreen from "./screens/ParticipantScreen";
 import UnsupportedScreen from "./screens/UnsupportedScreen";
 
@@ -43,6 +43,6 @@ export default function ZoomClient() {
 
     case "checking":
     default:
-      return <CheckingScreen />;
+      return <LoadingScreen message="Connecting to Zoom…" />;
   }
 }

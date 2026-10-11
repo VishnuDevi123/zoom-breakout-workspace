@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execution-api";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
-import { newPlacements } from "@/lib/room-plan-assignments";
+import { assignParticipantToRoom, newPlacements } from "@/lib/room-plan-assignments";
 import { copyRooms, groupsForLaunch } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
@@ -21,6 +21,7 @@ import MeetingBadge from "../MeetingBadge";
 import WorkflowLibrary from "../WorkflowLibrary";
 import { BrandMark, Button, Card, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
+import LoadingScreen from "./LoadingScreen";
 import RoundsOverview from "./RoundsOverview";
 import RoundSetup, { RoundSetupPending, type SetupTab } from "./RoundSetup";
 
@@ -149,6 +150,8 @@ export default function HostWorkspace({
     prepareLaunch: copyGroupsForLaunch,
     onLaunched: (roundId, saved) => {
       if (saved) workspace.applyWorkspace(saved);
+      // "Same groups" wrote this round's plan just before launch; show what launched.
+      reloadPlans();
       setLaunchedRoundId(roundId);
       setView("live");
     },
@@ -189,11 +192,19 @@ export default function HostWorkspace({
 
   // Zoom first, then the plan: a participant's own app finds their room through the saved plan.
   // With "Same groups" the next round copies this plan at launch, so the placement carries over.
+  // The plan is read again before saving: a launch or an earlier placement may have saved it
+  // since `plans` loaded, and a stale revision would leave Zoom and the plan disagreeing.
   async function placeInLiveRound(next: RoundPlanDraft) {
     if (!livePlan) return;
+    const placements = newPlacements(livePlan, next);
     try {
-      await controller.placeInOpenRooms(newPlacements(livePlan, next));
-      await saveRoundPlan(meetingUUID, next, livePlan.revision);
+      await controller.placeInOpenRooms(placements);
+      const saved = await readSavedRoundPlan(meetingUUID, livePlan.roundId);
+      const placed = placements.reduce<RoundPlanDraft>((draft, { participantUUID, roomName }) => {
+        const room = draft.rooms.find((candidate) => candidate.name === roomName);
+        return room ? assignParticipantToRoom(draft, { participantUUID, roomId: room.id }) : draft;
+      }, saved);
+      await saveRoundPlan(meetingUUID, placed, saved.revision);
     } catch (error) {
       toast.error("Could not place everyone.", {
         description: error instanceof Error ? error.message : undefined,
@@ -294,12 +305,10 @@ export default function HostWorkspace({
     return start(() => workspace.replaceWith(snapshot), "rounds");
   }
 
-  if (workspace.state.kind === "loading") {
-    return (
-      <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
-        <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading rounds…</Card>
-      </HostShell>
-    );
+  // On first open, wait for the live stream too: it decides between landing and
+  // the live round, and landing first would flash before the jump.
+  if (workspace.state.kind === "loading" || (view === "opening" && !live.liveState)) {
+    return <LoadingScreen message="Getting your workflow ready…" />;
   }
   if (workspace.state.kind === "error") {
     return (
@@ -358,13 +367,7 @@ export default function HostWorkspace({
     );
   }
   if (currentView === "live" && liveRoundId) {
-    if (!livePlan || !live.liveState) {
-      return (
-        <HostShell meetingUUID={meetingUUID} role={role} heading="Live round">
-          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading live round…</Card>
-        </HostShell>
-      );
-    }
+    if (!livePlan || !live.liveState) return <LoadingScreen message="Opening the live round…" />;
     return (
       <LiveRound
         workspace={workspace.state.workspace}

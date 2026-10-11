@@ -537,7 +537,7 @@ function LaunchWorkflow({
           title="Launch this workflow?"
           message={
             `${which} · ${formatDuration(target.durationSec)} · ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. ` +
-            `${placed} placed${unplaced > 0 ? ` · ${unplaced} not placed (stays in the main room)` : ""}. ` +
+            `${placed} placed${unplaced > 0 ? ` · ${unplaced} not placed will stay in the main room` : ""}. ` +
             "Zoom opens the rooms and moves everyone in."
           }
           confirmLabel="Launch"

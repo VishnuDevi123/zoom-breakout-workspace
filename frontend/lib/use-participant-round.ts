@@ -27,16 +27,21 @@ export interface ParticipantRound {
   /** 1-based place in the workspace, and how many rounds there are. 0 when unknown. */
   roundPosition: number;
   roundCount: number;
+  /** False until the placement and the task for this round have both arrived. */
+  ready: boolean;
 }
 
 interface Placement {
+  /** The round this was read for; a different round means it is still loading. */
+  roundId: string;
   room: PlannedRoom | null;
   roundTitle: string;
   roundPosition: number;
   roundCount: number;
 }
 
-const NOWHERE: Placement = { room: null, roundTitle: "", roundPosition: 0, roundCount: 0 };
+/** Before the first read finishes. No round id matches null, so nothing counts as loaded. */
+const NOT_READ = { roundId: null } as const;
 
 export function useParticipantRound({
   parentUUID,
@@ -58,15 +63,18 @@ export function useParticipantRound({
    */
   location: string;
 }): ParticipantRound {
-  const [placement, setPlacement] = useState<Placement>(NOWHERE);
+  const [placement, setPlacement] = useState<Placement | typeof NOT_READ>(NOT_READ);
   const [task, setTask] = useState<RoomTask | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [taskRoundId, setTaskRoundId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
 
+    const nowhere: Placement = { roundId, room: null, roundTitle: "", roundPosition: 0, roundCount: 0 };
+
     async function readPlacement(): Promise<Placement> {
-      if (!parentUUID || !roundId || !participantUUID) return NOWHERE;
+      if (!parentUUID || !roundId || !participantUUID) return nowhere;
       try {
         // Position comes from the workspace's round order, never from the id.
         const [plan, workspace] = await Promise.all([
@@ -75,6 +83,7 @@ export function useParticipantRound({
         ]);
         const rounds = workspace?.rounds ?? [];
         return {
+          roundId,
           roundTitle: plan.title,
           roundPosition: rounds.findIndex((r) => r.roundId === roundId) + 1,
           roundCount: rounds.length,
@@ -82,7 +91,7 @@ export function useParticipantRound({
         };
       } catch {
         // The host launched before saving a draft for this round.
-        return NOWHERE;
+        return nowhere;
       }
     }
 
@@ -95,7 +104,8 @@ export function useParticipantRound({
     };
   }, [parentUUID, roundId, participantUUID, location]);
 
-  const roomId = placement.room?.id ?? "";
+  const shownPlacement = placement.roundId === roundId ? placement : null;
+  const roomId = shownPlacement?.room?.id ?? "";
 
   /** What is on screen, and for which round and room, so a refetch can say what changed. */
   const shown = useRef<{ key: string; task: RoomTask | null; activities: Activity[] } | null>(null);
@@ -124,6 +134,7 @@ export function useParticipantRound({
       if (previous) announceChanges(previous, next);
       setTask(next.task);
       setActivities(next.activities);
+      setTaskRoundId(roundId);
     });
 
     return () => {
@@ -132,12 +143,13 @@ export function useParticipantRound({
   }, [parentUUID, roundId, roomId, taskRevision]);
 
   return {
-    room: placement.room,
+    room: shownPlacement?.room ?? null,
     task,
     activities,
-    roundTitle: placement.roundTitle,
-    roundPosition: placement.roundPosition,
-    roundCount: placement.roundCount,
+    roundTitle: shownPlacement?.roundTitle ?? "",
+    roundPosition: shownPlacement?.roundPosition ?? 0,
+    roundCount: shownPlacement?.roundCount ?? 0,
+    ready: shownPlacement !== null && taskRoundId === roundId,
   };
 }
 

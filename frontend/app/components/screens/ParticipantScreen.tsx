@@ -8,6 +8,7 @@ import { useParticipantRound } from "@/lib/use-participant-round";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
 import { Button, Card, SectionLabel, StatusDot } from "../ui";
+import LoadingScreen from "./LoadingScreen";
 import ParticipantWorkspace from "./ParticipantWorkspace";
 
 const HOW_IT_WORKS = [
@@ -44,6 +45,10 @@ export default function ParticipantScreen({
     location,
   });
   const { room, task, roundTitle } = round;
+
+  // One spinner until the stream's first state and this round's plan and task are
+  // in, so "no round" or "staying in main" never flashes before the real page.
+  if (!liveState || !round.ready) return <LoadingScreen message="Finding your room…" />;
 
   if (!roundId) {
     return (

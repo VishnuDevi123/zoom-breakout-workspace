@@ -9,14 +9,15 @@ Field lists live in `backend/types/breakout.ts`.
 | Domain | Source of truth | Files |
 | --- | --- | --- |
 | Workspace (`Workspace`, `RoundMeta`) | `backend/store/workspace.ts`, one record per meeting | `backend/routes/workspace.ts`, `frontend/lib/use-workspace.ts`, `screens/RoundsOverview.tsx` (workflow page) |
-| Host navigation (landing → workflow page → round setup [Rooms \| Tasks], plus live while a round runs) | `HostView` state in `screens/HostWorkspace.tsx`; no URL routes | `LandingScreen.tsx`, `RoundsOverview.tsx`, `RoundSetup.tsx`, `LiveRound.tsx`; setup and live share `PageFrame.tsx` and `NotPlacedSheet.tsx` |
+| Host navigation (landing → workflow page → round setup [Rooms \| Tasks], plus live from the first launch until End Workflow) | `HostView` state in `screens/HostWorkspace.tsx`; no URL routes | `LandingScreen.tsx`, `RoundsOverview.tsx`, `RoundSetup.tsx`, `LiveRound.tsx`; setup and live share `PageFrame.tsx` and `NotPlacedSheet.tsx` |
+| Past workflows and saved templates (`WorkflowSnapshot`, `PastWorkflow`, `SavedTemplate`) | `backend/store/templates.ts`: past workflows per meeting, templates per host | `backend/routes/templates.ts`, `/api/workspace/end\|past\|replace`, `frontend/lib/use-workflow-library.ts`, `WorkflowLibrary.tsx`, `SaveTemplateModal.tsx` |
 | Round plan (`RoundPlan`: rooms and who is in them) | `backend/store/round-plans.ts`, keyed `(parentUUID, roundId)` | `backend/routes/round-plans.ts`, `frontend/lib/use-room-plan.ts`, `room-plan-assignments.ts`, `room-plan-copy.ts`, `use-round-summaries.ts` |
 | Round task (`RoundTasks`, `RoomTask` incl. `checklist`, plus `activities`) | `backend/store/tasks.ts`, keyed `(parentUUID, roundId)` | `backend/routes/tasks.ts`, `frontend/lib/use-round-tasks.ts` (host), `use-participant-round.ts` (participant), `TaskFields.tsx`, `ActivityList.tsx` |
 | Activity responses (`RoomResponses`: answers, idea notes, checklist ticks) | `backend/store/activity_responses.ts`, keyed `(parentUUID, roundId, roomId)` | `backend/routes/activity_responses.ts` at `/api/responses`, `frontend/lib/use-room-responses.ts` (participant), `use-room-results.ts` (host) |
 | Live state (`LiveState`: who is where, which round is live, room mapping, timer) | `backend/store/live.ts`, one record per meeting, fed by webhooks | `backend/routes/webhooks.ts`, `backend/routes/live.ts`, `frontend/lib/use-live-state.ts`, `LiveRound.tsx` |
 | Launch / close / mid-round placement | Frontend SDK calls, then reported to the backend | `frontend/lib/launch-round.ts`, `use-live-room-controller.ts`, `execution-api.ts` |
-| Participant view | `LiveState` + the round's plan + its task + the room's responses; no SDK reads | `screens/ParticipantScreen.tsx`, `ParticipantWorkspace.tsx`, `ActivityPage.tsx` |
-| Host gate | `getUserContext().role` | `frontend/lib/host-gate.ts`, `ZoomClient.tsx` |
+| Participant view (landing, room page, answer modal, board page) | `LiveState` + the round's plan + its task + the room's responses; no SDK reads | `screens/ParticipantScreen.tsx`, `ParticipantWorkspace.tsx` (room page), `AnswerModal.tsx` (individual answer), `ActivityPage.tsx` (shared board); bar `RoomBar.tsx`, people `RoomPeople.tsx`, both in `PageFrame` tone "participant" |
+| Host gate and start-up | `getUserContext().role`; one `LoadingScreen` until the first page's data is in | `frontend/lib/host-gate.ts`, `ZoomClient.tsx`, `screens/LoadingScreen.tsx` |
 | Zoom SDK calls from| `frontend/lib/zoom-sdk.ts`, `frontend/types/zoom.d.ts` | |
 | Shared contracts | `backend/types/breakout.ts` is canonical; `frontend/types/breakout.ts` is an identical copy | |
 
@@ -45,6 +46,12 @@ close round N     frontend -> SDK getBreakoutRoomList, closeBreakoutRooms when s
 skip round        frontend -> POST /api/live/skip                        status skipped <-> planned
 roster on open    host     -> SDK getBreakoutRoomList / getMeetingParticipants; POST /api/live/roster   presence rebuilt
 push              backend  -> SSE  /api/live/events                      every client re-renders from LiveState
+end workflow      host     -> (close the open round first) POST /api/workspace/end   snapshot without people kept as a past
+                                                                         workflow; workspace, plans, tasks, responses deleted
+read library      host     -> GET /api/workspace/past, GET /api/templates?hostUUID
+save template     host     -> POST /api/templates (from a past workflow) or POST /api/templates/current (workflow being built)
+use template      host     -> POST /api/workspace/replace {snapshot}     samples and saved templates; refused once a round has run
+delete template   host     -> DELETE /api/templates/:templateId?hostUUID
 ```
 
 Launch, close and skip reply with the workspace as well, because all three change its revision.
@@ -55,7 +62,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - Participant key: `participantUUID` (`participant_uuid` in webhooks). Never `participantId` or `user_id`; Zoom reissues those on every room hop.
 - Plan rooms have app-owned ids; Zoom room ids never enter a plan. The SDK's `breakoutRoomId` and the webhook's `breakout_room_uuid` differ and cannot be mapped; `store/live.ts` learns the webhook uuid from the first planned person who enters.
 - Round ids are stable (`round-N`, next = highest + 1). Display order comes from the array, never the id. A null title shows as "Round N".
-- The only account-wide id is `uid` in the encrypted `getAppContext()` token, readable by the backend alone. Not used yet; kept for templates.
+- The only account-wide id is `uid` in the encrypted `getAppContext()` token, readable by the backend alone. Not used yet. Saved templates are keyed by the host's `participantUUID` until persistence, so they show only in the meeting that saved them.
 
 ## Principles
 
@@ -70,6 +77,9 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - Writes replace whole records under a revision check, so a stale write gets 409 instead of overwriting someone else's edit.
 - A participant reads no Zoom state. Their room comes from the host's saved plan; their own webhook location only chooses which screen to show.
 - Grouping is one choice stored as two workspace flags. In "Same groups" a round copies the last round that ran at launch time, so plans never go stale.
+- A workflow has three stages: building (no round run yet), ongoing (from the first launch) and ended. Once ongoing, the builder is closed: landing shows only the Ongoing Workflow card, and the live Session page is the only place to change upcoming rounds. Ending moves the workflow, without people or submissions, into Past workflows; it never reopens in the builder.
+- A closed round's plan decides who may read its submissions, so nothing rewrites it: bulk room edits touch only planned and skipped rounds, and closed rounds cannot be removed. This is enforced by the frontend only.
+- A template is a `WorkflowSnapshot`: rounds, times, room names, task and activities, never people. Using one replaces a workflow that has not started, with new ids and every round planned.
 - Extend existing stores, routes and hooks before adding new ones. Mirror type changes to both `types/breakout.ts` files. After removing a path, remove its types, CSS and comments in the same change.
 
 ## Known limits
@@ -78,9 +88,12 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - No sign-in. The backend trusts the `participantUUID` a client sends; hiding drafts and other people's answers is a server filter, not a lock.
 - Zoom cannot add, rename or delete rooms while rooms are open, and only the meeting owner can read who is in each room.
 - Every capability in `ZOOM_CAPABILITIES` must stay ticked on the Marketplace API list, or `config()` fails with `reason:app_not_support`.
+- Past workflows and templates are in memory like everything else. `replaceWorkflow` is not atomic: a snapshot that fails validation part way leaves the new workflow incomplete.
+- Submissions exist only until End Workflow, so a participant can review past rounds only while the workflow runs.
 
 ## Active scope
-SQLite persistence, then workspace templates needs to be worked on. 
+
+Week 8: participant UI and user flow rework, then participant past-round review (existing plan and responses reads), then SQLite persistence with templates keyed by `uid`.
 
 ## Infra
 
