@@ -15,6 +15,7 @@ import PageFrame from "../PageFrame";
 import RoomBar from "../RoomBar";
 import RoomPeople from "../RoomPeople";
 import SharedChecklist from "../SharedChecklist";
+import TaskDetails from "../TaskDetails";
 import { Card, SectionLabel } from "../ui";
 import ActivityPage from "./ActivityPage";
 
@@ -87,39 +88,11 @@ export default function ParticipantWorkspace({
       >
         <div className="bw-room-layout">
           <section className="bw-session__column">
-            <SectionLabel>Your task this round</SectionLabel>
-            <Card className="bw-room-task">
-              {task ? (
-                <h2 className="bw-task-goal">{task.goal}</h2>
-              ) : (
-                <p className="bw-task-empty">
-                  Your host has not written a task for this round. It appears here as soon as they do.
-                </p>
-              )}
-            </Card>
-
-            {task && task.instructions.length > 0 ? (
-              <>
-                <SectionLabel>Instructions</SectionLabel>
-                <Card className="bw-instruction-list">
-                  {task.instructions.map((line, index) => (
-                    <div className="bw-instruction-row" key={line}>
-                      <span className="bw-mono bw-instruction-row__number">{index + 1}</span>
-                      <span>{line}</span>
-                    </div>
-                  ))}
-                </Card>
-              </>
-            ) : null}
-
-            {task && task.resources.length > 0 ? (
-              <>
-                <SectionLabel>Resources from the host</SectionLabel>
-                {task.resources.map((resource) => (
-                  <ResourceRow key={resource} resource={resource} />
-                ))}
-              </>
-            ) : null}
+            <TaskDetails
+              heading="Your task this round"
+              task={task}
+              emptyText="Your host has not written a task for this round. It appears here as soon as they do."
+            />
 
             <ActivityCards
               activities={activities}
@@ -141,30 +114,5 @@ export default function ParticipantWorkspace({
         <AnswerModal activity={openActivity} responses={responses} onClose={() => setOpenActivityId(null)} />
       ) : null}
     </>
-  );
-}
-
-/**
- * One host-supplied link. A resource is stored as a plain string, so anything
- * that is not a URL is shown as text rather than as a dead link.
- */
-function ResourceRow({ resource }: { resource: string }) {
-  const isLink = /^https?:\/\//i.test(resource);
-
-  if (!isLink) {
-    return (
-      <div className="bw-resource-row">
-        <span className="bw-resource-row__mark" />
-        <span className="bw-resource-row__label">{resource}</span>
-      </div>
-    );
-  }
-
-  return (
-    <a className="bw-resource-row" href={resource} target="_blank" rel="noreferrer">
-      <span className="bw-resource-row__mark" />
-      <span className="bw-resource-row__label">{resource}</span>
-      <span className="bw-resource-row__open">Open</span>
-    </a>
   );
 }

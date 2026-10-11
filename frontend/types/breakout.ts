@@ -13,6 +13,12 @@ export const ROOM_DOTS = [
   "#0fbcb0",
   "#e58cc9",
   "#555a6a",
+  "#f5a623",
+  "#7ed321",
+  "#a4c484",
+  "#9f2929",
+  "#60d024",
+  "#4e3103",
 ] as const;
 
 export type RoomDot = (typeof ROOM_DOTS)[number];

@@ -219,7 +219,7 @@ function RoomControls({
         title={!rosterKnown ? "Waiting for the live roster." : people.length === 0 ? "Nobody to place yet." : undefined}
         onClick={() => plan.autoAssignParticipants(people.map((person) => person.participantUUID))}
       >
-        Auto-assign evenly
+        Assign evenly
       </Button>
     </>
   );

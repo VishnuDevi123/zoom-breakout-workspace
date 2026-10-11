@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import { useLiveState } from "@/lib/use-live-state";
 import { useParticipantRound } from "@/lib/use-participant-round";
+import { useEarlierRounds, type EarlierRound } from "@/lib/use-past-rounds";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
 import { Button, Card, SectionLabel, StatusDot } from "../ui";
 import LoadingScreen from "./LoadingScreen";
 import ParticipantWorkspace from "./ParticipantWorkspace";
+import PastRoundPage from "./PastRoundPage";
 
 const HOW_IT_WORKS = [
   "Your task stays on screen for the whole round.",
@@ -45,17 +48,44 @@ export default function ParticipantScreen({
     location,
   });
   const { room, task, roundTitle } = round;
+  const earlierRounds = useEarlierRounds(parentUUID, roundId);
+  const [pastRound, setPastRound] = useState<EarlierRound | null>(null);
+
+  // Someone reading a past round stays there when a round starts; a toast says so.
+  const lastRoundId = useRef(roundId);
+  useEffect(() => {
+    if (pastRound && roundId && roundId !== lastRoundId.current) {
+      toast("A new round has started.", { description: "Go back to see your room." });
+    }
+    lastRoundId.current = roundId;
+  }, [roundId, pastRound]);
+
+  const earlier = <EarlierRoundList rounds={earlierRounds} onOpen={setPastRound} />;
 
   // One spinner until the stream's first state and this round's plan and task are
   // in, so "no round" or "staying in main" never flashes before the real page.
   if (!liveState || !round.ready) return <LoadingScreen message="Finding your room…" />;
 
+  if (pastRound) {
+    return (
+      <PastRoundPage
+        parentUUID={parentUUID}
+        participantUUID={participantUUID}
+        round={pastRound}
+        live={liveState}
+        onBack={() => setPastRound(null)}
+      />
+    );
+  }
+
   if (!roundId) {
     return (
       <Waiting
         headline="No round running yet"
-        lede="Your host hasn't started breakout rooms yet. This page updates when they do."
-      />
+        lede="Your host hasn't started breakout rooms yet. When they do, this page will show your room and task."
+      >
+        {earlier}
+      </Waiting>
     );
   }
 
@@ -66,7 +96,9 @@ export default function ParticipantScreen({
       <Waiting
         headline="You are staying in the main room"
         lede="Your host didn't place you in a breakout room this round."
-      />
+      >
+        {earlier}
+      </Waiting>
     );
   }
 
@@ -77,7 +109,9 @@ export default function ParticipantScreen({
       <Waiting
         headline="You are in the main room"
         lede={`Your room for this round is ${room.name}. Open Zoom's Breakout Rooms button to join it.`}
-      />
+      >
+        {earlier}
+      </Waiting>
     );
   }
 
@@ -124,6 +158,8 @@ export default function ParticipantScreen({
           <Button onClick={() => setShowWorkspace(true)}>
             Open your room&apos;s tasks
           </Button>
+
+          {earlier}
         </main>
 
         <aside className="bw-rail">
@@ -143,8 +179,8 @@ export default function ParticipantScreen({
   );
 }
 
-/** The two states that come before a room: no round, or not placed in one. */
-function Waiting({ headline, lede }: { headline: string; lede: string }) {
+/** The states before a room: no round, not placed, or placed but still in the main room. */
+function Waiting({ headline, lede, children }: { headline: string; lede: string; children: React.ReactNode }) {
   return (
     <div className="bw-shell">
       <div className="bw-body">
@@ -152,6 +188,7 @@ function Waiting({ headline, lede }: { headline: string; lede: string }) {
           <SectionLabel>Breakout Workspace</SectionLabel>
           <h2 className="bw-landing-title">{headline}</h2>
           <p className="bw-landing-lede">{lede}</p>
+          {children}
         </main>
       </div>
     </div>
@@ -205,5 +242,24 @@ function Roster({
         {others.length + 1} of {room.participantUUIDs.length} here
       </span>
     </div>
+  );
+}
+
+/** Rounds that have run, oldest first; each opens read-only. Nothing shows before the first one ends. */
+function EarlierRoundList({ rounds, onOpen }: { rounds: EarlierRound[]; onOpen: (round: EarlierRound) => void }) {
+  if (rounds.length === 0) return null;
+
+  return (
+    <section className="bw-earlier" aria-label="Earlier rounds">
+      <SectionLabel>Earlier rounds</SectionLabel>
+      {rounds.map((round) => (
+        <button type="button" key={round.roundId} className="bw-earlier__row" onClick={() => onOpen(round)}>
+          <span className="bw-earlier__label">{round.label}</span>
+          <span className="bw-results__chevron" aria-hidden>
+            ›
+          </span>
+        </button>
+      ))}
+    </section>
   );
 }

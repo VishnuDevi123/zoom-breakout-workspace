@@ -105,8 +105,14 @@ export function progressText(activity: Activity, peopleCount: number, results: R
   return `${notes.length} ${notes.length === 1 ? "idea" : "ideas"} from ${authors} ${authors === 1 ? "person" : "people"}`;
 }
 
-/** Read-only: which items are done and who ticked them. */
-function ChecklistSummary({ items, results }: { items: CheckListItem[]; results: RoomResponsesHostView | null }) {
+/** Read-only: which items are done. Who ticked an item is not shown. */
+function ChecklistSummary({
+  items,
+  results,
+}: {
+  items: CheckListItem[];
+  results: Pick<RoomResponsesHostView, "ticks"> | null;
+}) {
   const doneCount = items.filter((item) => results?.ticks[item.id]).length;
 
   return (
@@ -122,9 +128,8 @@ function ChecklistSummary({ items, results }: { items: CheckListItem[]; results:
         const tick = results?.ticks[item.id];
         return (
           <div className={`bw-checklist__row${tick ? " bw-checklist__row--done" : ""}`} key={item.id}>
-            <span className="bw-checklist__box">{tick ? "✓" : ""}</span>
+            <span className="bw-checklist__box" aria-hidden />
             <span className="bw-checklist__label">{item.label}</span>
-            {tick ? <span className="bw-results__meta">{tick.authorName}</span> : null}
           </div>
         );
       })}

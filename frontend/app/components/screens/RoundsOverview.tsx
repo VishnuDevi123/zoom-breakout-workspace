@@ -307,7 +307,7 @@ export default function RoundsOverview({
                   )
                 }
               >
-                Auto-assign evenly
+                Assign evenly
               </Button>
               {grouping === "new" ? (
                 <Button
@@ -537,8 +537,7 @@ function LaunchWorkflow({
           title="Launch this workflow?"
           message={
             `${which} · ${formatDuration(target.durationSec)} · ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. ` +
-            `${placed} placed${unplaced > 0 ? ` · ${unplaced} not placed will stay in the main room` : ""}. ` +
-            "Zoom opens the rooms and moves everyone in."
+            `${placed} placed${unplaced > 0 ? ` · ${unplaced} not placed will stay in the main room` : ""}.`
           }
           confirmLabel="Launch"
           confirmVariant="primary"
@@ -559,7 +558,7 @@ function RoomsForEveryRound({
   busy: boolean;
   onApply: (count: number) => void;
 }) {
-  const [value, setValue] = useState("3");
+  const [value, setValue] = useState("0");
   const count = Number(value);
   const valid = Number.isInteger(count) && count >= 1 && count <= MAX_ROOMS;
 
