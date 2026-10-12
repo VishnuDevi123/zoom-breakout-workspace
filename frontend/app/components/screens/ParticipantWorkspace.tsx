@@ -16,7 +16,6 @@ import RoomBar from "../RoomBar";
 import RoomPeople from "../RoomPeople";
 import SharedChecklist from "../SharedChecklist";
 import TaskDetails from "../TaskDetails";
-import { Card, SectionLabel } from "../ui";
 import ActivityPage from "./ActivityPage";
 
 /**

@@ -1,7 +1,7 @@
 import type { WorkflowSnapshot } from "@/types/breakout";
 
 /** Static presets that seed a workspace. Titles and durations only; rooms are planned per round. */
-export interface RoundTemplate {
+interface RoundTemplate {
   name: string;
   rounds: { title: string; durationSec: number }[];
 }

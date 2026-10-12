@@ -12,7 +12,7 @@ export class AppContextError extends Error {
 }
 
 /** The decrypted X-Zoom-App-Context payload; only the fields we use are typed. */
-export interface AppContext {
+interface AppContext {
   /** Zoom user id; absent for guests, who get `iid` instead. */
   uid?: string;
   iid?: string;
@@ -26,7 +26,7 @@ export interface AppContext {
  * Layout and algorithm from Zoom's docs (developers.zoom.us/docs/zoom-apps/zoom-app-context):
  * AES-256-GCM with key = sha256(client secret).
  */
-export function decryptAppContext(token: string): AppContext {
+function decryptAppContext(token: string): AppContext {
   // Read here, not at import: server.ts loads .env after its imports have run.
   const secret = process.env.ZOOM_CLIENT_SECRET;
   if (!secret) throw new Error("ZOOM_CLIENT_SECRET is not set.");

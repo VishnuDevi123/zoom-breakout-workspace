@@ -1,6 +1,6 @@
 import type { RoundPlanDraft } from "@/types/breakout";
 
-export interface ParticipantRoomAssignment {
+interface ParticipantRoomAssignment {
   participantUUID: string;
   roomId: string;
 }

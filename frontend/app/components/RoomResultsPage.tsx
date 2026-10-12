@@ -94,7 +94,7 @@ export default function RoomResultsPage({
 }
 
 /** The count on an activity card and atop its submissions page. */
-export function progressText(activity: Activity, peopleCount: number, results: RoomResponsesHostView | null): string {
+function progressText(activity: Activity, peopleCount: number, results: RoomResponsesHostView | null): string {
   if (activity.kind === "individual") {
     const answers = Object.values(results?.answers[activity.id] ?? {});
     const submitted = answers.filter((answer) => answer.status === "submitted").length;

@@ -7,7 +7,7 @@ import { ACTIVITY_KINDS } from "@/lib/activity-kinds";
 import type { Activity } from "@/types/breakout";
 
 import ActivityModal from "./ActivityModal";
-import { Button, Card, Pill, SectionLabel } from "./ui";
+import { Button, Card, SectionLabel } from "./ui";
 
 /**
  * The round's activities as rail cards: open one to edit it, drag to reorder,
