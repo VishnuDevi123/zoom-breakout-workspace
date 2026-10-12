@@ -19,34 +19,53 @@ router.use((req, res, next) => {
   next();
 });
 
+// The store talks to DynamoDB, so the handlers are async. Express 4 does not catch a
+// rejected promise, so each handler passes its error to next() for handleTemplateError.
+
 // GET /api/templates, newest first.
-router.get("/", (_req, res) => {
-  const ownerUid: string = res.locals.ownerUid;
-  const body: ApiResponse<SavedTemplate[]> = { success: true, data: getTemplates(ownerUid) };
-  res.json(body);
+router.get("/", async (_req, res, next) => {
+  try {
+    const ownerUid: string = res.locals.ownerUid;
+    const body: ApiResponse<SavedTemplate[]> = { success: true, data: await getTemplates(ownerUid) };
+    res.json(body);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // POST /api/templates   body: SaveTemplateRequest. Copies one past workflow of this meeting.
-router.post("/", (req, res) => {
-  const ownerUid: string = res.locals.ownerUid;
-  const body: ApiResponse<SavedTemplate> = { success: true, data: saveTemplate(ownerUid, req.body) };
-  res.status(201).json(body);
+router.post("/", async (req, res, next) => {
+  try {
+    const ownerUid: string = res.locals.ownerUid;
+    const body: ApiResponse<SavedTemplate> = { success: true, data: await saveTemplate(ownerUid, req.body) };
+    res.status(201).json(body);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // POST /api/templates/current   body: SaveCurrentTemplateRequest. Saves the workflow being built.
 // The frontend checks the rooms are set; the server only stores what is there.
-router.post("/current", (req, res) => {
-  const ownerUid: string = res.locals.ownerUid;
-  const snapshot = snapshotWorkflow(req.body?.parentUUID);
-  const body: ApiResponse<SavedTemplate> = { success: true, data: addTemplate(ownerUid, snapshot) };
-  res.status(201).json(body);
+router.post("/current", async (req, res, next) => {
+  try {
+    const ownerUid: string = res.locals.ownerUid;
+    const snapshot = snapshotWorkflow(req.body?.parentUUID);
+    const body: ApiResponse<SavedTemplate> = { success: true, data: await addTemplate(ownerUid, snapshot) };
+    res.status(201).json(body);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // DELETE /api/templates/:templateId. Returns the templates left.
-router.delete("/:templateId", (req, res) => {
-  const ownerUid: string = res.locals.ownerUid;
-  const body: ApiResponse<SavedTemplate[]> = { success: true, data: deleteTemplate(ownerUid, req.params.templateId) };
-  res.json(body);
+router.delete("/:templateId", async (req, res, next) => {
+  try {
+    const ownerUid: string = res.locals.ownerUid;
+    const body: ApiResponse<SavedTemplate[]> = { success: true, data: await deleteTemplate(ownerUid, req.params.templateId) };
+    res.json(body);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Same envelope as routes/workspace.ts: store throws, router turns it into JSON.

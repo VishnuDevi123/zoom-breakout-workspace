@@ -1,10 +1,13 @@
+import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
+import { DeleteCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+
+import { documentClient, templatesTable } from "../services/dynamo.ts";
 import type { PastWorkflow, SavedTemplate, WorkflowSnapshot } from "../types/breakout.ts";
 
-// Ended workflows per meeting, saved templates per Zoom user, newest first.
-// The owner is the `uid` from the request's app context token (services/app-context.ts),
-// the same in every meeting. In memory: a restart loses both, until templates move to the DB.
+// Ended workflows per meeting stay in memory (a restart loses them, by choice).
+// Saved templates live in DynamoDB, one item per template: partition key `ownerUid`
+// (the Zoom user id from services/app-context.ts), sort key `id`. No participant data.
 const pastWorkflows = new Map<string, PastWorkflow[]>();
-const templates = new Map<string, SavedTemplate[]>();
 
 export class TemplateError extends Error {
   constructor(
@@ -49,7 +52,7 @@ export function getPastWorkflows(parentUUID: unknown): PastWorkflow[] {
 }
 
 /** Copy one past workflow of this meeting into the owner's templates. */
-export function saveTemplate(ownerUid: string, input: unknown): SavedTemplate {
+export async function saveTemplate(ownerUid: string, input: unknown): Promise<SavedTemplate> {
   if (!isRecord(input)) throw new TemplateError("The request body must be an object.", 400);
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const pastWorkflowId = requiredString(input.pastWorkflowId, "pastWorkflowId");
@@ -59,24 +62,43 @@ export function saveTemplate(ownerUid: string, input: unknown): SavedTemplate {
   return addTemplate(ownerUid, snapshotOf(past));
 }
 
-/** Add a workflow without people to the owner's templates, newest first. */
-export function addTemplate(ownerUid: string, snapshot: WorkflowSnapshot): SavedTemplate {
+/** Add a workflow without people to the owner's templates. */
+export async function addTemplate(ownerUid: string, snapshot: WorkflowSnapshot): Promise<SavedTemplate> {
   const saved: SavedTemplate = { ...structuredClone(snapshot), id: crypto.randomUUID(), ownerUid, savedAt: new Date().toISOString() };
-  templates.set(ownerUid, [saved, ...(templates.get(ownerUid) ?? [])]);
-  return structuredClone(saved);
+  await documentClient().send(new PutCommand({ TableName: templatesTable(), Item: saved }));
+  return saved;
 }
 
 /** Remove one of the owner's templates. Returns what is left, newest first. */
-export function deleteTemplate(ownerUid: string, templateId: unknown): SavedTemplate[] {
+export async function deleteTemplate(ownerUid: string, templateId: unknown): Promise<SavedTemplate[]> {
   const id = requiredString(templateId, "templateId");
-  const current = templates.get(ownerUid) ?? [];
-  if (!current.some((template) => template.id === id)) {
-    throw new TemplateError("No saved template with this ID.", 404);
+  try {
+    await documentClient().send(
+      new DeleteCommand({
+        TableName: templatesTable(),
+        Key: { ownerUid, id },
+        // The key holds the owner, so nobody can delete someone else's template.
+        ConditionExpression: "attribute_exists(id)",
+      }),
+    );
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) {
+      throw new TemplateError("No saved template with this ID.", 404);
+    }
+    throw error;
   }
-  templates.set(ownerUid, current.filter((template) => template.id !== id));
   return getTemplates(ownerUid);
 }
 
-export function getTemplates(ownerUid: string): SavedTemplate[] {
-  return structuredClone(templates.get(ownerUid) ?? []);
+/** The owner's templates, newest first. One query: a host has a handful, far below a page (1 MB). */
+export async function getTemplates(ownerUid: string): Promise<SavedTemplate[]> {
+  const result = await documentClient().send(
+    new QueryCommand({
+      TableName: templatesTable(),
+      KeyConditionExpression: "ownerUid = :owner",
+      ExpressionAttributeValues: { ":owner": ownerUid },
+    }),
+  );
+  const templates = (result.Items ?? []) as SavedTemplate[];
+  return templates.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }

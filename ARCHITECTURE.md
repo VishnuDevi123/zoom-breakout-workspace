@@ -10,7 +10,7 @@ Field lists live in `backend/types/breakout.ts`.
 | --- | --- | --- |
 | Workspace (`Workspace`, `RoundMeta`) | `backend/store/workspace.ts`, one record per meeting | `backend/routes/workspace.ts`, `frontend/lib/use-workspace.ts`, `screens/RoundsOverview.tsx` (workflow page) |
 | Host navigation (landing → workflow page → round setup [Rooms \| Tasks], plus live from the first launch until End Workflow) | `HostView` state in `screens/HostWorkspace.tsx`; no URL routes | `LandingScreen.tsx`, `RoundsOverview.tsx`, `RoundSetup.tsx`, `LiveRound.tsx`; setup and live share `PageFrame.tsx` and `NotPlacedSheet.tsx` |
-| Past workflows and saved templates (`WorkflowSnapshot`, `PastWorkflow`, `SavedTemplate`) | `backend/store/templates.ts`: past workflows per meeting, templates per host | `backend/routes/templates.ts`, `/api/workspace/end\|past\|replace`, `frontend/lib/use-workflow-library.ts`, `WorkflowLibrary.tsx`, `SaveTemplateModal.tsx` |
+| Past workflows and saved templates (`WorkflowSnapshot`, `PastWorkflow`, `SavedTemplate`) | `backend/store/templates.ts`: past workflows in memory per meeting; templates in DynamoDB (`TEMPLATES_TABLE`, key `ownerUid` + `id`) via `backend/services/dynamo.ts` | `backend/routes/templates.ts`, `/api/workspace/end\|past\|replace`, `frontend/lib/use-workflow-library.ts`, `WorkflowLibrary.tsx`, `SaveTemplateModal.tsx` |
 | Round plan (`RoundPlan`: rooms and who is in them) | `backend/store/round-plans.ts`, keyed `(parentUUID, roundId)` | `backend/routes/round-plans.ts`, `frontend/lib/use-room-plan.ts`, `room-plan-assignments.ts`, `room-plan-copy.ts`, `use-round-summaries.ts` |
 | Round task (`RoundTasks`, `RoomTask` incl. `checklist`, plus `activities`) | `backend/store/tasks.ts`, keyed `(parentUUID, roundId)` | `backend/routes/tasks.ts`, `frontend/lib/use-round-tasks.ts` (host), `use-participant-round.ts` (participant), `TaskFields.tsx`, `ActivityList.tsx` |
 | Activity responses (`RoomResponses`: answers, idea notes, checklist ticks) | `backend/store/activity_responses.ts`, keyed `(parentUUID, roundId, roomId)` | `backend/routes/activity_responses.ts` at `/api/responses`, `frontend/lib/use-room-responses.ts` (participant), `use-room-results.ts` (host) |
@@ -84,11 +84,11 @@ Launch, close and skip reply with the workspace as well, because all three chang
 
 ## Known limits
 
-- All stores are in-memory `Map`s: a backend restart loses everything, including the round timer. Zoom never replays webhooks; the host's roster read on app open fills presence back in.
+- Every store except saved templates is an in-memory `Map`: a backend restart loses the meeting's workflow, plans, tasks, submissions, past workflows and the round timer. Saved templates are in DynamoDB and survive it. Zoom never replays webhooks; the host's roster read on app open fills presence back in.
 - No sign-in. The backend trusts the `participantUUID` a client sends; hiding drafts and other people's answers is a server filter, not a lock.
 - Zoom cannot add, rename or delete rooms while rooms are open, and only the meeting owner can read who is in each room.
 - Every capability in `ZOOM_CAPABILITIES` must stay ticked on the Marketplace API list, or `config()` fails with `reason:app_not_support`.
-- Past workflows and templates are in memory like everything else. `replaceWorkflow` is not atomic: a snapshot that fails validation part way leaves the new workflow incomplete.
+- `replaceWorkflow` is not atomic: a snapshot that fails validation part way leaves the new workflow incomplete.
 - Submissions exist only until End Workflow, so a participant can review past rounds only while the workflow runs.
 
 ## Active scope
