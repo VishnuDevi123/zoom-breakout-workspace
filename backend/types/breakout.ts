@@ -242,10 +242,10 @@ export interface PastWorkflow extends WorkflowSnapshot {
   endedAt: string;
 }
 
-/** A past workflow the host chose to keep. Keyed by the host's participantUUID until persistence. */
+/** A past workflow the host chose to keep. Owned by the Zoom user (`uid` from the app context), the same in every meeting. */
 export interface SavedTemplate extends WorkflowSnapshot {
   id: string;
-  hostUUID: string;
+  ownerUid: string;
   savedAt: string;
 }
 
@@ -266,23 +266,26 @@ export interface ReplaceWorkflowRequest {
 export interface SaveTemplateRequest {
   parentUUID: string;
   pastWorkflowId: string;
-  hostUUID: string;
 }
 
 /** POST /api/templates/current: the workflow being built, without people. */
 export interface SaveCurrentTemplateRequest {
   parentUUID: string;
-  hostUUID: string;
 }
 
 // ---- Responses: participant-written, one record per (parentUUID, roundId, roomId) ----
 
 export const NOTE_COLORS = [
-  "#fff4c4",
-  "#c3faf5",
-  "#fde0f0",
+  "#fccf0687",
+  "#06ead7",
+  "#cf127a",
   "#eef1ff",
   "#e3f7d4",
+  "#ff9999",
+  "#0fbcb0",
+  "#e58cc9",
+  "#7ed321",
+  "#a4c484",
 ] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
@@ -367,4 +370,3 @@ export type RemoveIdeaRequest = ResponseCaller;
 export interface TickRequest extends ResponseCaller {
   done: boolean;
 }
-

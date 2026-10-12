@@ -48,10 +48,10 @@ roster on open    host     -> SDK getBreakoutRoomList / getMeetingParticipants; 
 push              backend  -> SSE  /api/live/events                      every client re-renders from LiveState
 end workflow      host     -> (close the open round first) POST /api/workspace/end   snapshot without people kept as a past
                                                                          workflow; workspace, plans, tasks, responses deleted
-read library      host     -> GET /api/workspace/past, GET /api/templates?hostUUID
+read library      host     -> GET /api/workspace/past, GET /api/templates (header X-Zoom-App-Context on every /api/templates call)
 save template     host     -> POST /api/templates (from a past workflow) or POST /api/templates/current (workflow being built)
 use template      host     -> POST /api/workspace/replace {snapshot}     samples and saved templates; refused once a round has run
-delete template   host     -> DELETE /api/templates/:templateId?hostUUID
+delete template   host     -> DELETE /api/templates/:templateId
 ```
 
 Launch, close and skip reply with the workspace as well, because all three change its revision.
@@ -62,7 +62,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - Participant key: `participantUUID` (`participant_uuid` in webhooks). Never `participantId` or `user_id`; Zoom reissues those on every room hop.
 - Plan rooms have app-owned ids; Zoom room ids never enter a plan. The SDK's `breakoutRoomId` and the webhook's `breakout_room_uuid` differ and cannot be mapped; `store/live.ts` learns the webhook uuid from the first planned person who enters.
 - Round ids are stable (`round-N`, next = highest + 1). Display order comes from the array, never the id. A null title shows as "Round N".
-- The only account-wide id is `uid` in the encrypted `getAppContext()` token, readable by the backend alone. Not used yet. Saved templates are keyed by the host's `participantUUID` until persistence, so they show only in the meeting that saved them.
+- Template owner: `uid` (the Zoom user id) inside the encrypted `getAppContext()` token. The host's app sends the token as `X-Zoom-App-Context`; `services/app-context.ts` decrypts it (AES-256-GCM, key = SHA-256 of `ZOOM_CLIENT_SECRET`), checks `exp` and refuses guests, who carry `iid` and no `uid`. The browser never sends a user id, and the same `uid` follows the account across meetings and devices.
 
 ## Principles
 

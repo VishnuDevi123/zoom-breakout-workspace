@@ -172,36 +172,45 @@ export async function readPastWorkflows(parentUUID: string): Promise<PastWorkflo
   return apiResult(await fetch(`/api/workspace/past?parentUUID=${encodeURIComponent(parentUUID)}`, { cache: "no-store" }));
 }
 
-/** The host's saved templates, newest first. */
-export async function readTemplates(hostUUID: string): Promise<SavedTemplate[]> {
-  return apiResult(await fetch(`/api/templates?hostUUID=${encodeURIComponent(hostUUID)}`, { cache: "no-store" }));
+// Template calls carry the app context token; the backend reads the owner from it.
+function templateHeaders(appContext: string): Record<string, string> {
+  return { "Content-Type": "application/json", "X-Zoom-App-Context": appContext };
 }
 
-export async function saveTemplate(request: SaveTemplateRequest): Promise<SavedTemplate> {
+/** The signed-in Zoom user's saved templates, newest first. */
+export async function readTemplates(appContext: string): Promise<SavedTemplate[]> {
+  return apiResult(await fetch("/api/templates", { cache: "no-store", headers: templateHeaders(appContext) }));
+}
+
+export async function saveTemplate(appContext: string, request: SaveTemplateRequest): Promise<SavedTemplate> {
   return apiResult(
     await fetch("/api/templates", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: templateHeaders(appContext),
       body: JSON.stringify(request),
     }),
   );
 }
 
-/** Returns the host's templates left after the delete. */
-export async function deleteTemplate(hostUUID: string, templateId: string): Promise<SavedTemplate[]> {
+/** Returns the templates left after the delete. */
+export async function deleteTemplate(appContext: string, templateId: string): Promise<SavedTemplate[]> {
   return apiResult(
-    await fetch(`/api/templates/${encodeURIComponent(templateId)}?hostUUID=${encodeURIComponent(hostUUID)}`, {
+    await fetch(`/api/templates/${encodeURIComponent(templateId)}`, {
       method: "DELETE",
+      headers: templateHeaders(appContext),
     }),
   );
 }
 
-/** Save the workflow being built as one of the host's templates. */
-export async function saveCurrentAsTemplate(request: SaveCurrentTemplateRequest): Promise<SavedTemplate> {
+/** Save the workflow being built as one of the user's templates. */
+export async function saveCurrentAsTemplate(
+  appContext: string,
+  request: SaveCurrentTemplateRequest,
+): Promise<SavedTemplate> {
   return apiResult(
     await fetch("/api/templates/current", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: templateHeaders(appContext),
       body: JSON.stringify(request),
     }),
   );

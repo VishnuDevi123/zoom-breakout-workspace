@@ -39,6 +39,7 @@ const HOST_CAPABILITIES = [
   "closeBreakoutRooms",
   "getBreakoutRoomList",
   "getMeetingParticipants",
+  "getAppContext",
 ];
 
 /**
@@ -142,6 +143,18 @@ async function bootstrap(): Promise<ZoomBootstrap> {
 export function configureZoomSdk(): Promise<ZoomBootstrap> {
   bootstrapPromise ??= bootstrap();
   return bootstrapPromise;
+}
+
+/**
+ * The encrypted app context for the backend's X-Zoom-App-Context header. Only
+ * the backend can decrypt it (to the Zoom user's `uid`). Read fresh for each
+ * request so an expired token is never reused. Needs the host capabilities.
+ */
+export async function readAppContextToken(): Promise<string> {
+  const bootstrap = await configureZoomSdk();
+  if (bootstrap.kind === "unavailable") throw new Error(bootstrap.error.message);
+  const { context } = await bootstrap.sdk.getAppContext();
+  return context;
 }
 
 let hostPromise: Promise<SdkErrorInfo | null> | null = null;

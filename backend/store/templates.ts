@@ -1,8 +1,8 @@
 import type { PastWorkflow, SavedTemplate, WorkflowSnapshot } from "../types/breakout.ts";
 
-// Ended workflows per meeting, saved templates per host, newest first.
-// In memory: a restart loses both. hostUUID is the host's participantUUID for
-// now, which is new in every meeting; getAppContext's uid replaces it later.
+// Ended workflows per meeting, saved templates per Zoom user, newest first.
+// The owner is the `uid` from the request's app context token (services/app-context.ts),
+// the same in every meeting. In memory: a restart loses both, until templates move to the DB.
 const pastWorkflows = new Map<string, PastWorkflow[]>();
 const templates = new Map<string, SavedTemplate[]>();
 
@@ -48,38 +48,35 @@ export function getPastWorkflows(parentUUID: unknown): PastWorkflow[] {
   return structuredClone(pastWorkflows.get(requiredString(parentUUID, "parentUUID")) ?? []);
 }
 
-/** Copy one past workflow of this meeting into the host's templates. */
-export function saveTemplate(input: unknown): SavedTemplate {
+/** Copy one past workflow of this meeting into the owner's templates. */
+export function saveTemplate(ownerUid: string, input: unknown): SavedTemplate {
   if (!isRecord(input)) throw new TemplateError("The request body must be an object.", 400);
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const pastWorkflowId = requiredString(input.pastWorkflowId, "pastWorkflowId");
-  const hostUUID = requiredString(input.hostUUID, "hostUUID");
 
   const past = pastWorkflows.get(parentUUID)?.find((workflow) => workflow.id === pastWorkflowId);
   if (!past) throw new TemplateError("No past workflow with this ID in this meeting.", 404);
-  return addTemplate(hostUUID, snapshotOf(past));
+  return addTemplate(ownerUid, snapshotOf(past));
 }
 
-/** Add a workflow without people to the host's templates, newest first. */
-export function addTemplate(hostUUID: unknown, snapshot: WorkflowSnapshot): SavedTemplate {
-  const host = requiredString(hostUUID, "hostUUID");
-  const saved: SavedTemplate = { ...structuredClone(snapshot), id: crypto.randomUUID(), hostUUID: host, savedAt: new Date().toISOString() };
-  templates.set(host, [saved, ...(templates.get(host) ?? [])]);
+/** Add a workflow without people to the owner's templates, newest first. */
+export function addTemplate(ownerUid: string, snapshot: WorkflowSnapshot): SavedTemplate {
+  const saved: SavedTemplate = { ...structuredClone(snapshot), id: crypto.randomUUID(), ownerUid, savedAt: new Date().toISOString() };
+  templates.set(ownerUid, [saved, ...(templates.get(ownerUid) ?? [])]);
   return structuredClone(saved);
 }
 
-/** Remove one of the host's templates. Returns what is left, newest first. */
-export function deleteTemplate(hostUUID: unknown, templateId: unknown): SavedTemplate[] {
-  const host = requiredString(hostUUID, "hostUUID");
+/** Remove one of the owner's templates. Returns what is left, newest first. */
+export function deleteTemplate(ownerUid: string, templateId: unknown): SavedTemplate[] {
   const id = requiredString(templateId, "templateId");
-  const current = templates.get(host) ?? [];
+  const current = templates.get(ownerUid) ?? [];
   if (!current.some((template) => template.id === id)) {
     throw new TemplateError("No saved template with this ID.", 404);
   }
-  templates.set(host, current.filter((template) => template.id !== id));
-  return getTemplates(host);
+  templates.set(ownerUid, current.filter((template) => template.id !== id));
+  return getTemplates(ownerUid);
 }
 
-export function getTemplates(hostUUID: unknown): SavedTemplate[] {
-  return structuredClone(templates.get(requiredString(hostUUID, "hostUUID")) ?? []);
+export function getTemplates(ownerUid: string): SavedTemplate[] {
+  return structuredClone(templates.get(ownerUid) ?? []);
 }

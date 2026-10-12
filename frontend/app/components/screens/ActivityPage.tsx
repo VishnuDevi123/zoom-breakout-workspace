@@ -12,7 +12,7 @@ import RoomBar from "../RoomBar";
 import { Spinner } from "../ui";
 
 /** Shortest time the opening spinner shows, as on round setup, so the switch reads as a page load. */
-const OPEN_MIN_LOADING_MS = 300;
+const OPEN_MIN_LOADING_MS = 500;
 
 /**
  * The shared board, opened from the room page's cards, in the same frame and bar

@@ -13,7 +13,7 @@ import TaskDetails from "../TaskDetails";
 import { BrandMark, Card, SectionLabel, Spinner } from "../ui";
 
 /** Shortest time the opening spinner shows, as on the other participant pages. */
-const OPEN_MIN_LOADING_MS = 300;
+const OPEN_MIN_LOADING_MS = 500;
 
 type PageState = { kind: "loading" } | { kind: "failed"; message: string } | { kind: "ready"; round: PastRound };
 

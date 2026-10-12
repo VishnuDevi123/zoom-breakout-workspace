@@ -26,7 +26,7 @@ import RoundsOverview from "./RoundsOverview";
 import RoundSetup, { RoundSetupPending, type SetupTab } from "./RoundSetup";
 
 /** Shortest time the round setup spinner shows, so quick loads read as a transition, not a flash. */
-const SETUP_MIN_LOADING_MS = 300;
+const SETUP_MIN_LOADING_MS = 500;
 
 /**
  * Host screens in flow order. A round is configured in two steps: draft, then task.
@@ -92,16 +92,13 @@ export default function HostWorkspace({
   meetingUUID,
   meetingTopic,
   role,
-  hostUUID,
 }: {
   meetingUUID: string;
   meetingTopic: string;
   role: ZoomRole | null;
-  /** The host's participantUUID; keys saved templates until an account-wide id is used. */
-  hostUUID: string;
 }) {
   const workspace = useWorkspace(meetingUUID);
-  const library = useWorkflowLibrary(meetingUUID, hostUUID);
+  const library = useWorkflowLibrary(meetingUUID);
   const live = useLiveState(meetingUUID);
   const [view, setView] = useState<HostView>("opening");
   const [starting, setStarting] = useState(false);
