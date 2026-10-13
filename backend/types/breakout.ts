@@ -252,6 +252,23 @@ export interface ReplaceWorkflowRequest {
   snapshot: WorkflowSnapshot;
 }
 
+/** One turn of the AI builder chat. An assistant turn is the AI's question or a short note about its proposal. */
+export interface AiChatMessage {
+  role: "host" | "assistant";
+  text: string;
+}
+
+/** POST /api/ai/workflow. `messages` is the chat so far, oldest first, ending with the host's turn. `draft` is the AI's last proposal when the host refines it, null for a new one. */
+export interface DraftWorkflowRequest {
+  messages: AiChatMessage[];
+  draft: WorkflowSnapshot | null;
+}
+
+/** The AI asks for missing details, or proposes a workflow. Nothing is saved: the host applies a proposal with POST /api/workspace/replace. */
+export type DraftWorkflowResponse =
+  | { kind: "question"; question: string }
+  | { kind: "workflow"; workflow: WorkflowSnapshot };
+
 /** POST /api/templates */
 export interface SaveTemplateRequest {
   parentUUID: string;

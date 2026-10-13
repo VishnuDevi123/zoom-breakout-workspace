@@ -34,7 +34,7 @@ export default function UnsupportedScreen({ error }: { error: SdkErrorInfo | nul
           This Zoom client cannot manage breakout rooms
         </span>
 
-        <span style={{ fontSize: "var(--bw-fs-secondary)", lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
+        <span style={{ fontSize: "var(--bw-fs-meta)", lineHeight: 1.5, color: "var(--bw-muted-2)" }}>
           Common causes are a Zoom client that is too old, or an account where
           the administrator turned breakout rooms off.
         </span>

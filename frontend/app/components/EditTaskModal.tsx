@@ -48,7 +48,7 @@ export default function EditTaskModal({
 
           <div className="bw-overlay__body">
             {state === "loading" ? (
-              <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading the task…</span>
+              <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-2)" }}>Loading the task…</span>
             ) : (
               <TaskFields task={task} setTask={setTask} save={(next) => void save(next)} />
             )}
