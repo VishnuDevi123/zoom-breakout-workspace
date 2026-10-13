@@ -1150,9 +1150,10 @@ input[type="checkbox"] {
   }
 }
 
-/* Narrow: the rail stacks under the main column. */
+/* Narrow: the rail stacks under the main column. Only the wrapping .bw-header
+   drops its spacer; frame bars, cards and modal headers keep theirs at every width. */
 @media (max-width: 639px) {
-  .bw-header-spacer {
+  .bw-header .bw-header-spacer {
     display: none;
   }
 
@@ -1533,10 +1534,6 @@ a.bw-resource-row:hover {
   padding: 13px 16px;
   border-bottom: 1px solid var(--bw-border);
 }
-/* Narrow screens hide .bw-header-spacer, so the closing button pushes itself right. */
-.bw-overlay__header > :last-child {
-  margin-left: auto;
-}
 .bw-overlay__body {
   min-height: 0;
   display: flex;
@@ -1690,7 +1687,7 @@ a.bw-resource-row:hover {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--bw-accent);
+  color: #000000;
 }
 .bw-setup-title .bw-room-name {
   font-size: var(--bw-fs-header);
@@ -2410,14 +2407,9 @@ a.bw-resource-row:hover {
   grid-template-rows: 56px minmax(0, 1fr);
 }
 .bw-frame--participant .bw-frame__bar {
-  background: var(--bw-frame-participant-bar-bg);
-  color: var(--bw-ink);
+  background: #e8f9ff;
+  color: #000000;  
   border-bottom: 1px solid var(--bw-border);
-}
-/* Pushes itself right at every width; the shared header spacer is hidden under 640px. */
-.bw-room-bar__clock {
-  flex: none;
-  margin-left: auto;
 }
 /* 70/30 like the host's Session page, with no dividers; one column under 720px. */
 .bw-room-layout {
