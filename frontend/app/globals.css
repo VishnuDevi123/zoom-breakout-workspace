@@ -93,9 +93,18 @@
 }
 
 /* Header text grows only when the panel is both wide and tall. */
+
+
 @media (min-width: 750px) and (min-height: 700px) {
   :root {
     --bw-fs-header: 22px;
+  }
+}
+
+/* 3. Drop down to 20px when width is 600px or below */
+@media (max-width: 600px) {
+  :root {
+    --bw-fs-main-heading: 20px; 
   }
 }
 
@@ -545,23 +554,44 @@ input[type="checkbox"] {
   gap: 10px;
 }
 
-/* Past workflows, saved templates and samples: each list sits in its own titled box. */
-.bw-library-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Library tabs under the landing column: Templates | Saved | Past, one list of rows. */
+.bw-library {
+  width: 100%;
+  margin-top: 8px;
+  text-align: left;
 }
 
-.bw-library-panel__empty {
-  margin: 0;
-  font-size: var(--bw-fs-meta);
+.bw-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--bw-border);
+}
+
+.bw-tabs__tab {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
   color: var(--bw-muted);
+  cursor: pointer;
+}
+
+.bw-tabs__tab:hover {
+  color: var(--bw-ink);
+}
+
+.bw-tabs__tab[aria-selected="true"] {
+  border-bottom-color: var(--bw-accent);
+  color: var(--bw-ink);
+  font-weight: 600;
 }
 
 .bw-library-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .bw-library-row {
@@ -570,9 +600,15 @@ input[type="checkbox"] {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--bw-border);
-  border-radius: var(--bw-radius-sm);
+  padding: 14px 6px;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+
+.bw-library-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .bw-library-row__actions {
@@ -584,6 +620,17 @@ input[type="checkbox"] {
   font-size: var(--bw-fs-section);
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.bw-library-row__meta,
+.bw-library-empty {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-library-empty {
+  margin: 0;
+  padding: 14px 6px;
 }
 
 /* Header action that changes (Launch next <-> End Workflow) fades in. */
@@ -611,12 +658,6 @@ input[type="checkbox"] {
   color: var(--bw-muted);
 }
 
-.bw-landing-hint {
-  margin: -6px 0 6px;
-  font-size: var(--bw-fs-meta);
-  color: var(--bw-muted);
-}
-
 /* Participant landing still lays two summary cards side by side. */
 .bw-landing-cards {
   display: flex;
@@ -633,11 +674,392 @@ input[type="checkbox"] {
   text-align: left;
 }
 
-.bw-landing-actions {
+.bw-landing-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bw-landing-subheading {
+  margin: 0;
+  font-size: var(--bw-fs-subheading);
+  color: var(--bw-muted);
+}
+
+/* AI prompt: a gradient ring (padding-box white over a border-box gradient) around one field. */
+.bw-ai-prompt {
+  width: 100%;
+  padding: 18px;
+  border: 2px solid transparent;
+  border-radius: var(--bw-radius-lg);
+  background:
+    linear-gradient(var(--bw-surface-sunken), var(--bw-surface-sunken)) padding-box,
+    linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
+  box-shadow: var(--bw-shadow-2);
+}
+
+.bw-ai-prompt__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+}
+
+.bw-ai-prompt__spark {
+  color: var(--bw-accent);
+}
+
+.bw-ai-prompt__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+  outline: none;
+}
+
+.bw-ai-prompt__field .bw-button[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
+}
+
+.bw-ai-prompt__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bw-ai-prompt__chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bw-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-accent-deep);
+  cursor: pointer;
+}
+
+.bw-chip:hover,
+.bw-chip:focus-visible {
+  border-color: var(--bw-accent);
+}
+
+.bw-ai-progress {
+  margin-top: 12px;
+  text-align: left;
+}
+
+.bw-ai-progress__track {
+  height: 4px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-accent-tint);
+  overflow: hidden;
+}
+
+/* Timed, not real progress: eases towards 90% and waits there for the answer. */
+.bw-ai-progress__bar {
+  height: 100%;
+  background: var(--bw-accent);
+  animation: bwAiProgress 12s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes bwAiProgress {
+  from { width: 4%; }
+  to { width: 90%; }
+}
+
+.bw-ai-progress__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+/* Everything under the prompt; dims while the AI works. */
+.bw-landing-rest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  transition: opacity 300ms ease;
+}
+
+.bw-landing-rest--dimmed {
+  opacity: 0.4;
+}
+
+/* AI chat panel: slides in from the right over the dimmed landing; full screen on a narrow panel. */
+.bw-ai-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30; /* below .bw-overlay (40), so the replace confirm sits on top */
+  background: rgb(23 32 51 / 35%);
+  animation: bwFadeIn 200ms ease-out both;
+}
+
+.bw-ai-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  background: var(--bw-surface-sunken);
+  box-shadow: var(--bw-shadow-2);
+  animation: bwAiSlideIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes bwAiSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-ai-panel {
+    animation-name: bwFadeIn;
+  }
+}
+
+.bw-ai-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--bw-border);
+  background: var(--bw-surface);
+}
+
+.bw-ai-panel__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+
+.bw-ai-panel__back,
+.bw-ai-panel__close {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-header);
+  line-height: 1;
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+/* Back arrow only when the panel covers the whole screen; × otherwise. */
+.bw-ai-panel__back {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .bw-ai-panel__back {
+    display: block;
+  }
+
+  .bw-ai-panel__close {
+    display: none;
+  }
+}
+
+.bw-ai-panel__chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.bw-ai-bubble {
+  max-width: 85%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--bw-radius-lg);
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bw-ai-bubble--host {
+  align-self: flex-end;
+  background: var(--bw-accent);
+  color: #fff;
+}
+
+.bw-ai-bubble--question {
+  align-self: flex-start;
+  border: 1px solid var(--bw-border);
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+}
+
+.bw-ai-bubble--thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bw-muted);
+}
+
+/* Same gradient ring as the landing prompt. */
+.bw-ai-proposal {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(100%, 380px);
+  padding: 14px 16px;
+  border: 2px solid transparent;
+  border-radius: var(--bw-radius-lg);
+  background:
+    linear-gradient(var(--bw-surface), var(--bw-surface)) padding-box,
+    linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
+}
+
+.bw-ai-proposal__lead,
+.bw-ai-proposal__meta {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-ai-proposal__title {
+  margin-top: 6px;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bw-ai-proposal__rounds {
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.bw-ai-proposal__round {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bw-border-faint);
+  font-size: var(--bw-fs-body);
+}
+
+.bw-ai-panel__composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px 16px;
+  padding: 6px 6px 6px 14px;
+  border: 2px solid transparent;
+  border-radius: var(--bw-radius-md);
+  background:
+    linear-gradient(var(--bw-surface), var(--bw-surface)) padding-box,
+    linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
+}
+
+.bw-landing-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-landing-divider::before,
+.bw-landing-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--bw-border);
+}
+
+.bw-landing-builds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+/* Continue draft: the whole row is one button. */
+.bw-draft-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  text-align: left;
+  color: var(--bw-ink);
+  cursor: pointer;
+}
+
+.bw-draft-card:hover:not(:disabled),
+.bw-draft-card:focus-visible {
+  border-color: var(--bw-accent);
+}
+
+.bw-draft-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bw-draft-card__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent);
+}
+
+.bw-draft-card__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bw-draft-card__label,
+.bw-landing-card__meta {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-draft-card__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw-draft-card__chevron {
+  font-size: var(--bw-fs-header);
+  color: var(--bw-muted);
 }
 
 .bw-landing-card {
@@ -673,45 +1095,6 @@ input[type="checkbox"] {
 .bw-landing-card__title {
   font-size: var(--bw-fs-section);
   font-weight: 600;
-}
-
-.bw-template-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 8px;
-}
-
-.bw-template {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid var(--bw-border);
-  border-radius: var(--bw-radius-sm);
-  background: var(--bw-surface);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.bw-template:hover:not(:disabled),
-.bw-template:focus-visible {
-  border-color: var(--bw-accent);
-}
-
-.bw-template:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.bw-template__name {
-  font-size: var(--bw-fs-section);
-  font-weight: 600;
-}
-
-.bw-template__meta {
-  font-size: var(--bw-fs-meta);
-  color: var(--bw-muted);
 }
 
 .bw-round-list {

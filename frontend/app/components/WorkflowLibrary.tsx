@@ -7,7 +7,7 @@ import { ROUND_TEMPLATES, sampleSnapshot } from "@/lib/round-templates";
 import type { PastWorkflow, SavedTemplate, WorkflowSnapshot } from "@/types/breakout";
 
 import SaveTemplateModal, { plural } from "./SaveTemplateModal";
-import { Button, Card, ConfirmModal, SectionLabel } from "./ui";
+import { Button, ConfirmModal } from "./ui";
 
 /** Default title for a workflow started from a sample. */
 const SAMPLE_TITLE = "Sample Workflow";
@@ -20,32 +20,28 @@ function activityCount(workflow: WorkflowSnapshot): number {
   return workflow.rounds.reduce((sum, round) => sum + round.activities.length, 0);
 }
 
-/** One workflow in a list: name, a summary line, one action. */
+/** One workflow in a list: name, a summary line, its actions. */
 function LibraryRow({ title, meta, action }: { title: string; meta: string; action: React.ReactNode }) {
   return (
     <div className="bw-library-row">
-      <div className="bw-landing-card__text">
+      <div className="bw-library-row__text">
         <span className="bw-library-row__title">{title}</span>
-        <span className="bw-template__meta">{meta}</span>
+        <span className="bw-library-row__meta">{meta}</span>
       </div>
       {action}
     </div>
   );
 }
 
-/** A titled box on the landing page; shows `empty` when it has nothing to list. */
-function LibraryPanel({ heading, empty, children }: { heading: string; empty: string | null; children: React.ReactNode }) {
-  return (
-    <Card className="bw-library-panel">
-      <SectionLabel>{heading}</SectionLabel>
-      {empty ? <p className="bw-library-panel__empty">{empty}</p> : children}
-    </Card>
-  );
+type LibraryTab = "templates" | "saved" | "past";
+
+function tabLabel(label: string, count: number): string {
+  return count > 0 ? `${label} · ${count}` : label;
 }
 
 /**
- * Landing lists below the current workflow: past workflows (save as template),
- * saved templates and samples (use). Using one over an existing workflow asks first.
+ * Landing lists as tabs: samples and saved templates (use), past workflows
+ * (save as template). Using one over an existing workflow asks first.
  */
 export default function WorkflowLibrary({
   past,
@@ -71,6 +67,12 @@ export default function WorkflowLibrary({
   const [saving, setSaving] = useState<PastWorkflow | null>(null);
   const [replacing, setReplacing] = useState<WorkflowSnapshot | null>(null);
   const [deleting, setDeleting] = useState<SavedTemplate | null>(null);
+  const [tab, setTab] = useState<LibraryTab>("templates");
+  const tabs: { id: LibraryTab; label: string }[] = [
+    { id: "templates", label: "Templates" },
+    { id: "saved", label: tabLabel("Saved", templates.length) },
+    { id: "past", label: tabLabel("Past", past.length) },
+  ];
 
   function use(snapshot: WorkflowSnapshot) {
     if (hasWorkflow) setReplacing(snapshot);
@@ -79,73 +81,85 @@ export default function WorkflowLibrary({
 
   return (
     <>
-      <LibraryPanel heading="Past workflows" empty={past.length > 0 ? null : "Workflows you end appear here."}>
-        <div className="bw-library-list">
-          {past.map((workflow) => {
-            const saved = savedPastIds.includes(workflow.id);
-            return (
-              <LibraryRow
-                key={workflow.id}
-                title={workflow.title}
-                meta={`${plural(workflow.rounds.length, "round")} · ended ${new Date(workflow.endedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
-                action={
-                  <Button variant="secondary" size="sm" disabled={saved} onClick={() => setSaving(workflow)}>
-                    {saved ? "Saved" : "Save Workflow"}
-                  </Button>
-                }
-              />
-            );
-          })}
-        </div>
-      </LibraryPanel>
-
-      <LibraryPanel heading="Saved templates" empty={templates.length > 0 ? null : "Saved workflows appear here."}>
-        <div className="bw-library-list">
-          {templates.map((template) => (
-            <LibraryRow
-              key={template.id}
-              title={template.title}
-              meta={`${plural(template.rounds.length, "round")} · ${plural(roomCount(template), "room")} · ${plural(activityCount(template), "activity", "activities")}`}
-              action={
-                <div className="bw-library-row__actions">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="bw-button--danger-text"
-                    disabled={busy}
-                    onClick={() => setDeleting(template)}
-                  >
-                    Delete
-                  </Button>
-                  <Button size="sm" disabled={busy} onClick={() => use(template)}>
-                    Use this workflow
-                  </Button>
-                </div>
-              }
-            />
-          ))}
-        </div>
-      </LibraryPanel>
-
-      <LibraryPanel heading="Start from a template" empty={null}>
-        <div className="bw-template-list">
-          {ROUND_TEMPLATES.map((template) => (
+      <div className="bw-library">
+        <div className="bw-tabs" role="tablist" aria-label="Workflow library">
+          {tabs.map(({ id, label }) => (
             <button
+              key={id}
               type="button"
-              key={template.name}
-              className="bw-template"
-              disabled={busy}
-              onClick={() => use(sampleSnapshot(template, SAMPLE_TITLE))}
+              role="tab"
+              aria-selected={tab === id}
+              className="bw-tabs__tab"
+              onClick={() => setTab(id)}
             >
-              <span className="bw-template__name">{template.name}</span>
-              <span className="bw-template__meta">
-                {template.rounds.length} rounds ·{" "}
-                {formatClock(template.rounds.reduce((sum, round) => sum + round.durationSec, 0))}
-              </span>
+              {label}
             </button>
           ))}
         </div>
-      </LibraryPanel>
+
+        <div className="bw-library-list" role="tabpanel">
+          {tab === "templates"
+            ? ROUND_TEMPLATES.map((template) => (
+                <LibraryRow
+                  key={template.name}
+                  title={template.name}
+                  meta={`${plural(template.rounds.length, "round")} · ${formatClock(template.rounds.reduce((sum, round) => sum + round.durationSec, 0))}`}
+                  action={
+                    <Button variant="secondary" size="sm" disabled={busy} onClick={() => use(sampleSnapshot(template, SAMPLE_TITLE))}>
+                      Use
+                    </Button>
+                  }
+                />
+              ))
+            : null}
+
+          {tab === "saved" && templates.length === 0 ? <p className="bw-library-empty">Saved workflows appear here.</p> : null}
+          {tab === "saved"
+            ? templates.map((template) => (
+                <LibraryRow
+                  key={template.id}
+                  title={template.title}
+                  meta={`${plural(template.rounds.length, "round")} · ${plural(roomCount(template), "room")} · ${plural(activityCount(template), "activity", "activities")}`}
+                  action={
+                    <div className="bw-library-row__actions">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="bw-button--danger-text"
+                        disabled={busy}
+                        onClick={() => setDeleting(template)}
+                      >
+                        Delete
+                      </Button>
+                      <Button variant="secondary" size="sm" disabled={busy} onClick={() => use(template)}>
+                        Use
+                      </Button>
+                    </div>
+                  }
+                />
+              ))
+            : null}
+
+          {tab === "past" && past.length === 0 ? <p className="bw-library-empty">Workflows you end appear here.</p> : null}
+          {tab === "past"
+            ? past.map((workflow) => {
+                const saved = savedPastIds.includes(workflow.id);
+                return (
+                  <LibraryRow
+                    key={workflow.id}
+                    title={workflow.title}
+                    meta={`${plural(workflow.rounds.length, "round")} · ended ${new Date(workflow.endedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                    action={
+                      <Button variant="secondary" size="sm" disabled={saved} onClick={() => setSaving(workflow)}>
+                        {saved ? "Saved" : "Save Workflow"}
+                      </Button>
+                    }
+                  />
+                );
+              })
+            : null}
+        </div>
+      </div>
 
       {saving ? (
         <SaveTemplateModal

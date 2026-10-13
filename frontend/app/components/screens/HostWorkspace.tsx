@@ -344,6 +344,7 @@ export default function HostWorkspace({
         onEndWorkflow={endWorkflow}
         onStartRoundOne={startRoundOne}
         onBuildRounds={buildRounds}
+        onUse={startFrom}
       />
     );
   }
