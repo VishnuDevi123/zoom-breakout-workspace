@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /** Matches the closing animation in globals.css. */
 const CLOSE_MS = 140;
@@ -11,6 +12,9 @@ const CLOSE_MS = 140;
  *
  * `children` receives `close`, so a Done button plays the same exit animation.
  * `beforeClose` may refuse, for example when a save fails and the edit must stay.
+ *
+ * Rendered into <body>: a container-query or animated ancestor would otherwise
+ * become the box `position: fixed` measures from, leaving the header and navbar bright.
  */
 export default function Modal({
   label,
@@ -46,7 +50,7 @@ export default function Modal({
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  return (
+  return createPortal(
     <div
       className={closing ? "bw-overlay bw-overlay--closing" : "bw-overlay"}
       role="dialog"
@@ -62,6 +66,7 @@ export default function Modal({
       }}
     >
       <div className={`bw-overlay__panel bw-overlay__panel--${size}`}>{children(() => void close())}</div>
-    </div>
+    </div>,
+    document.body,
   );
 }

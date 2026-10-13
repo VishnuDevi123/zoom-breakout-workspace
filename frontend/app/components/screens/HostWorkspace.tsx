@@ -3,28 +3,36 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { carryPlacement, readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execution-api";
+import { readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execution-api";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
-import { newPlacements } from "@/lib/room-plan-assignments";
-import { copyRooms } from "@/lib/room-plan-copy";
+import { assignParticipantToRoom, newPlacements } from "@/lib/room-plan-assignments";
+import { copyRooms, groupsForLaunch } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
 import { useRoomPlan } from "@/lib/use-room-plan";
+import { useRoundTasks } from "@/lib/use-round-tasks";
 import { useRoundSummaries } from "@/lib/use-round-summaries";
-import type { RoundTemplate } from "@/lib/round-templates";
+import { useWorkflowLibrary } from "@/lib/use-workflow-library";
 import { roundLabel, useWorkspace } from "@/lib/use-workspace";
-import type { LiveState, RoundMeta, RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
+import type { LiveState, RoundMeta, RoundPlanDraft, WorkflowSnapshot, Workspace, ZoomRole } from "@/types/breakout";
 
 import LiveRound from "../LiveRound";
-import MeetingBadge from "../MeetingBadge";
-import Rooms from "../Rooms";
+import WorkflowLibrary from "../WorkflowLibrary";
 import { BrandMark, Button, Card, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
+import LoadingScreen from "./LoadingScreen";
 import RoundsOverview from "./RoundsOverview";
-import TaskEditor from "./TaskEditor";
+import RoundSetup, { RoundSetupPending, type SetupTab } from "./RoundSetup";
 
-/** Host screens in flow order. A round is configured in two steps: draft, then task. */
-type HostView = "landing" | "rounds" | "draft" | "task" | "live";
+/** Shortest time the round setup spinner shows, so quick loads read as a transition, not a flash. */
+const SETUP_MIN_LOADING_MS = 500;
+
+/**
+ * Host screens in flow order. A round is configured in two steps: draft, then task.
+ * "opening" is the landing page on first open, which jumps to a running round;
+ * "landing" is the same page chosen on purpose, so it stays put.
+ */
+type HostView = "opening" | "landing" | "rounds" | "draft" | "task" | "live";
 
 /** People who can be placed: everyone Zoom still reports in the meeting. */
 function presentCount(live: LiveState | null): number | null {
@@ -46,18 +54,8 @@ function rosterFrom(live: LiveState | null): Participant[] {
   }));
 }
 
-/** Shell shown while nothing is editable yet: loading, errors, empty workspace. */
-function HostShell({
-  meetingUUID,
-  role,
-  heading,
-  children,
-}: {
-  meetingUUID: string;
-  role: ZoomRole | null;
-  heading: string;
-  children: React.ReactNode;
-}) {
+/** Shell for the one screen with nothing to edit yet: the workspace failed to load. */
+function HostShell({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
     <div className="bw-shell">
       <header className="bw-header">
@@ -69,11 +67,6 @@ function HostShell({
       </header>
       <div className="bw-body">
         <main className="bw-main">{children}</main>
-        <aside className="bw-rail">
-          <div style={{ marginTop: "auto" }}>
-            <MeetingBadge meetingUUID={meetingUUID} role={role ?? undefined} />
-          </div>
-        </aside>
       </div>
     </div>
   );
@@ -82,17 +75,16 @@ function HostShell({
 export default function HostWorkspace({
   meetingUUID,
   meetingTopic,
-  screenName,
   role,
 }: {
   meetingUUID: string;
   meetingTopic: string;
-  screenName: string;
   role: ZoomRole | null;
 }) {
   const workspace = useWorkspace(meetingUUID);
+  const library = useWorkflowLibrary(meetingUUID);
   const live = useLiveState(meetingUUID);
-  const [view, setView] = useState<HostView>("landing");
+  const [view, setView] = useState<HostView>("opening");
   const [starting, setStarting] = useState(false);
   // The round the host just launched. It keeps the live view on screen after the
   // round closes, when live.round is already null.
@@ -103,10 +95,14 @@ export default function HostWorkspace({
   // SSE is the authority on which round is running: a reopened app must find its
   // way back to the live view, not to the landing screen with a round still open.
   const runningRoundId = live.liveState?.round?.roundId ?? null;
-  const liveRoundId = runningRoundId ?? launchedRoundId;
-  const currentView: HostView = view === "landing" && runningRoundId ? "live" : view;
-
   const rounds = workspace.state.kind === "ready" ? workspace.state.workspace.rounds : [];
+  // The workflow is ongoing from its first launch until End Workflow. Between
+  // rounds, and after the app reopens, the live view shows the round that ran last.
+  const lastRunRoundId =
+    rounds.findLast((round) => round.status === "launched" || round.status === "closed")?.roundId ?? null;
+  const liveRoundId = runningRoundId ?? launchedRoundId ?? lastRunRoundId;
+  const currentView: HostView = view === "opening" ? (runningRoundId ? "live" : "landing") : view;
+
   const { plans, reload: reloadPlans } = useRoundSummaries(
     meetingUUID,
     rounds.map((round) => round.roundId),
@@ -132,8 +128,11 @@ export default function HostWorkspace({
     },
     // Launching happens from saved drafts; the live view has no pending edits.
     flushSave: () => Promise.resolve(true),
+    prepareLaunch: copyGroupsForLaunch,
     onLaunched: (roundId, saved) => {
       if (saved) workspace.applyWorkspace(saved);
+      // "Same groups" wrote this round's plan just before launch; show what launched.
+      reloadPlans();
       setLaunchedRoundId(roundId);
       setView("live");
     },
@@ -173,24 +172,50 @@ export default function HostWorkspace({
   }, [timerEnded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zoom first, then the plan: a participant's own app finds their room through the saved plan.
-  // With the same people every round, later rounds get them too, in the same-named room.
+  // With "Same groups" the next round copies this plan at launch, so the placement carries over.
+  // The plan is read again before saving: a launch or an earlier placement may have saved it
+  // since `plans` loaded, and a stale revision would leave Zoom and the plan disagreeing.
   async function placeInLiveRound(next: RoundPlanDraft) {
     if (!livePlan) return;
     const placements = newPlacements(livePlan, next);
     try {
       await controller.placeInOpenRooms(placements);
-      await saveRoundPlan(meetingUUID, next, livePlan.revision);
-      if (workspace.state.kind === "ready" && workspace.state.workspace.samePeopleEveryRound) {
-        for (const { participantUUID, roomName } of placements) {
-          await carryPlacement({ parentUUID: meetingUUID, roundId: livePlan.roundId, participantUUID, roomName });
-        }
-      }
+      const saved = await readSavedRoundPlan(meetingUUID, livePlan.roundId);
+      const placed = placements.reduce<RoundPlanDraft>((draft, { participantUUID, roomName }) => {
+        const room = draft.rooms.find((candidate) => candidate.name === roomName);
+        return room ? assignParticipantToRoom(draft, { participantUUID, roomId: room.id }) : draft;
+      }, saved);
+      await saveRoundPlan(meetingUUID, placed, saved.revision);
     } catch (error) {
       toast.error("Could not place everyone.", {
         description: error instanceof Error ? error.message : undefined,
       });
     }
     reloadPlans();
+  }
+
+  /**
+   * "Same groups": a round takes its rooms and people from the round that ran
+   * last, at launch time, so room changes and mid-round placements carry
+   * forward and a copy never goes stale. Other modes launch their own plans.
+   */
+  async function copyGroupsForLaunch(roundId: string) {
+    if (workspace.state.kind !== "ready") return;
+    const current = workspace.state.workspace;
+    if (!current.sameRoomsEveryRound || !current.samePeopleEveryRound) return;
+    const index = current.rounds.findIndex((round) => round.roundId === roundId);
+    if (index <= 0) return;
+    const ran = current.rounds
+      .slice(0, index)
+      .reverse()
+      .find((round) => round.status === "closed" || round.status === "launched");
+    const source = await readSavedRoundPlan(meetingUUID, (ran ?? current.rounds[0]).roundId);
+    const present = live.liveState
+      ? new Set(live.liveState.participants.filter((p) => p.location !== "left").map((p) => p.participantUUID))
+      : null;
+    const target = { parentUUID: meetingUUID, roundId, title: roundLabel(current, roundId) };
+    const existing = await readSavedRoundPlan(meetingUUID, roundId).catch(() => null);
+    await saveRoundPlan(meetingUUID, groupsForLaunch(source, target, present), existing?.revision ?? 0);
   }
 
   /** Runs a live-page action and turns a failure into a toast; the caller's spinner then stops. */
@@ -221,6 +246,17 @@ export default function HostWorkspace({
     reloadPlans();
   }
 
+  /** Closes an open round first; a failed close is already reported and stops here. */
+  async function endWorkflow() {
+    if (runningRoundId && !(await controller.close())) return;
+    await reportFailure("Could not end the workflow.", async () => {
+      library.showPast(await workspace.endWorkflow());
+      setLaunchedRoundId(null);
+      setView("landing");
+      toast.success("Workflow ended.");
+    });
+  }
+
   const workspaceTitle = "Sample Workflow";
 
   async function start(create: () => Promise<void>, next: HostView) {
@@ -245,20 +281,19 @@ export default function HostWorkspace({
     setView("rounds");
   }
 
-  function useTemplate(template: RoundTemplate) {
-    void start(() => workspace.createFromTemplate(workspaceTitle, template), "rounds");
+  /** A saved template or a sample, over the workflow being built when there is one. */
+  function startFrom(snapshot: WorkflowSnapshot) {
+    return start(() => workspace.replaceWith(snapshot), "rounds");
   }
 
-  if (workspace.state.kind === "loading") {
-    return (
-      <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
-        <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading rounds…</Card>
-      </HostShell>
-    );
+  // On first open, wait for the live stream too: it decides between landing and
+  // the live round, and landing first would flash before the jump.
+  if (workspace.state.kind === "loading" || (view === "opening" && !live.liveState)) {
+    return <LoadingScreen message="Getting your workflow ready…" />;
   }
   if (workspace.state.kind === "error") {
     return (
-      <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
+      <HostShell heading="Breakout Workspace">
         <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
           <SectionLabel>Workspace load failed</SectionLabel>
           <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
@@ -271,33 +306,58 @@ export default function HostWorkspace({
     return (
       <LandingScreen
         meetingTopic={meetingTopic}
-        hostName={screenName}
         participantCount={presentCount(live.liveState)}
-        roundCount={workspace.state.kind === "ready" ? workspace.state.workspace.rounds.length : null}
+        workflow={
+          workspace.state.kind === "ready"
+            ? { title: workspace.state.workspace.title, roundCount: workspace.state.workspace.rounds.length }
+            : null
+        }
+        ongoing={
+          liveRoundId && workspace.state.kind === "ready"
+            ? { roundLabel: roundLabel(workspace.state.workspace, liveRoundId), running: runningRoundId !== null }
+            : null
+        }
+        library={
+          <WorkflowLibrary
+            past={library.past}
+            savedPastIds={library.savedPastIds}
+            templates={library.templates}
+            hasWorkflow={workspace.state.kind === "ready"}
+            busy={starting}
+            onSavePast={(pastWorkflowId) =>
+              reportFailure("Could not save the template.", async () => {
+                await library.savePast(pastWorkflowId);
+                toast.success("Template saved.");
+              })
+            }
+            onDeleteTemplate={(templateId) =>
+              reportFailure("Could not delete the template.", async () => {
+                await library.removeTemplate(templateId);
+                toast.success("Template deleted.");
+              })
+            }
+            onUse={startFrom}
+          />
+        }
         busy={starting}
+        onReturnToLive={() => setView("live")}
+        onEndWorkflow={endWorkflow}
         onStartRoundOne={startRoundOne}
         onBuildRounds={buildRounds}
-        onUseTemplate={useTemplate}
       />
     );
   }
   if (currentView === "live" && liveRoundId) {
-    if (!livePlan || !live.liveState) {
-      return (
-        <HostShell meetingUUID={meetingUUID} role={role} heading="Live round">
-          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>Loading live round…</Card>
-        </HostShell>
-      );
-    }
+    if (!livePlan || !live.liveState) return <LoadingScreen message="Opening the live round…" />;
     return (
       <LiveRound
         workspace={workspace.state.workspace}
         round={livePlan}
         live={live.liveState}
-        connected={live.isConnected}
         operation={controller.operation}
         nextRound={nextRound}
-        onHome={() => setView("rounds")}
+        // The logo goes home; the landing page offers the way back to this round.
+        onHome={() => setView("landing")}
         onSkipRound={(roundId, skipped) =>
           reportFailure("Could not change that round.", async () =>
             workspace.applyWorkspace(await setRoundSkipped(meetingUUID, roundId, skipped)),
@@ -305,6 +365,7 @@ export default function HostWorkspace({
         }
         onEndRound={controller.close}
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
+        onEndWorkflow={endWorkflow}
         onPlace={placeInLiveRound}
         plans={plans}
         onAddRound={addLiveRound}
@@ -335,70 +396,66 @@ export default function HostWorkspace({
         onDeleteRound={workspace.deleteRound}
         onUpdateRound={workspace.updateRound}
         onUpdateWorkspace={workspace.updateWorkspace}
-        onEditRound={(roundId) => {
-          workspace.selectRound(roundId);
-          setView("draft");
-        }}
-      />
-    );
-  }
-
-  if (currentView === "task") {
-    const selected = workspace.selectedRound;
-    const after = workspace.state.workspace.rounds[
-      workspace.state.workspace.rounds.findIndex((r) => r.roundId === selected.roundId) + 1
-    ];
-    return (
-      <TaskEditor
-        workspace={workspace.state.workspace}
-        round={selected}
-        onBack={() => setView("draft")}
-        onBackToRounds={() => setView("rounds")}
-        onNext={() => {
-          if (!after) return setView("rounds");
-          workspace.selectRound(after.roundId);
-          setView("draft");
-        }}
-        nextLabel={
-          after
-            ? `Next: ${roundLabel(workspace.state.workspace, after.roundId)}`
-            : "Review & launch"
+        prepareLaunch={copyGroupsForLaunch}
+        onSaveTemplate={() =>
+          reportFailure("Could not save the template.", async () => {
+            await library.saveCurrent();
+            toast.success("Template saved.");
+          })
         }
+        onEditRound={(roundId, tab) => {
+          workspace.selectRound(roundId);
+          setView(tab === "tasks" ? "task" : "draft");
+        }}
       />
     );
   }
 
+  const selected = workspace.selectedRound;
   return (
     <RoundEditor
+      // A new round starts fresh: its own short loading pause and fade-in.
+      key={selected.roundId}
       meetingUUID={meetingUUID}
-      role={role}
       workspace={workspace.state.workspace}
-      selectedRound={workspace.selectedRound}
-      onSelectRound={workspace.selectRound}
+      selectedRound={selected}
       live={live}
-      onChangeView={setView}
+      tab={currentView === "task" ? "tasks" : "rooms"}
+      onTabChange={(tab) => setView(tab === "tasks" ? "task" : "draft")}
+      onRename={(title) => void workspace.updateRound(selected.roundId, { title })}
+      onBack={() => setView("rounds")}
+      onSelectRound={(roundId) => {
+        workspace.selectRound(roundId);
+        setView("draft");
+      }}
     />
   );
 }
 
+/** One round's setup: loads its draft (seeded from Round 1 when asked), then the Rooms | Tasks screen. */
 function RoundEditor({
   meetingUUID,
-  role,
   workspace,
   selectedRound,
-  onSelectRound,
   live,
-  onChangeView,
+  tab,
+  onTabChange,
+  onRename,
+  onBack,
+  onSelectRound,
 }: {
   meetingUUID: string;
-  role: ZoomRole | null;
   workspace: Workspace;
   selectedRound: RoundMeta;
-  onSelectRound: (roundId: string) => void;
   live: ReturnType<typeof useLiveState>;
-  onChangeView: (view: HostView) => void;
+  tab: SetupTab;
+  onTabChange: (tab: SetupTab) => void;
+  onRename: (title: string | null) => void;
+  onBack: () => void;
+  onSelectRound: (roundId: string) => void;
 }) {
   const label = roundLabel(workspace, selectedRound.roundId);
+  const position = workspace.rounds.findIndex((r) => r.roundId === selectedRound.roundId) + 1;
   const firstRound = workspace.rounds[0];
   const carry = workspace.sameRoomsEveryRound || workspace.samePeopleEveryRound;
   const seedSource = carry && firstRound.roundId !== selectedRound.roundId ? firstRound : null;
@@ -420,91 +477,55 @@ function RoundEditor({
   }
 
   const plan = useRoomPlan(meetingUUID, { roundId: selectedRound.roundId, title: label }, seedFromFirstRound);
-  const nextRound =
-    workspace.rounds[workspace.rounds.findIndex((r) => r.roundId === selectedRound.roundId) + 1] ?? null;
+  // A load that finishes instantly would flash the spinner; hold it for a moment instead.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(true), SETUP_MIN_LOADING_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  const tasks = useRoundTasks(meetingUUID, selectedRound.roundId);
+  const nextRound = workspace.rounds[position] ?? null;
+  // "Same groups": later rounds get their rooms at launch, so only Tasks is set up here.
+  const roomsLocked = workspace.sameRoomsEveryRound && workspace.samePeopleEveryRound && position > 1;
+  const shownTab: SetupTab = roomsLocked ? "tasks" : tab;
 
-  if (plan.state.kind !== "ready") {
+  if (plan.state.kind !== "ready" || !settled) {
+    const failed = plan.state.kind === "load-error";
     return (
-      <HostShell meetingUUID={meetingUUID} role={role} heading={`Rooms & people - ${label}`}>
-        {plan.state.kind === "loading" ? (
-          <Card tone="sunken" style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>
-            {seedLabel ? `Configuring ${label} from ${seedLabel}…` : `Loading ${label} draft…`}
-          </Card>
-        ) : (
-          <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
-            <SectionLabel>Draft load failed</SectionLabel>
-            <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{plan.state.message}</span>
-            <Button variant="secondary" size="sm" onClick={plan.retryLoad}>Retry load</Button>
-          </Card>
-        )}
-      </HostShell>
+      <RoundSetupPending
+        heading={selectedRound.title ?? `Round ${position}`}
+        tab={shownTab}
+        failed={failed}
+        message={
+          plan.state.kind === "load-error"
+            ? plan.state.message
+            : seedLabel
+              ? `Setting up ${label} from ${seedLabel}…`
+              : `Loading ${label}…`
+        }
+        onRetry={plan.retryLoad}
+        onBack={onBack}
+        onTabChange={onTabChange}
+      />
     );
   }
 
   return (
-    <ReadyRoundEditor
-      meetingUUID={meetingUUID}
-      role={role}
+    <RoundSetup
+      title={selectedRound.title}
+      placeholder={`Round ${position}`}
+      tab={shownTab}
+      roomsLocked={roomsLocked}
       plan={plan}
-      readyState={plan.state}
-      live={live}
-      onChangeView={onChangeView}
-      onNext={() => onChangeView("task")}
-      nextLabel="Next: Task & activities"
-    />
-  );
-}
-
-function ReadyRoundEditor({
-  meetingUUID,
-  role,
-  plan,
-  readyState,
-  live,
-  onChangeView,
-  onNext,
-  nextLabel,
-}: {
-  meetingUUID: string;
-  role: ZoomRole | null;
-  plan: ReturnType<typeof useRoomPlan>;
-  readyState: Extract<ReturnType<typeof useRoomPlan>["state"], { kind: "ready" }>;
-  live: ReturnType<typeof useLiveState>;
-  onChangeView: (view: HostView) => void;
-  onNext: () => void;
-  nextLabel: string;
-}) {
-  const round = readyState.draft;
-  const { liveState } = live;
-  const roster = rosterFrom(liveState);
-
-  return (
-    <Rooms
-      round={round}
-      roster={roster}
-      rosterKnown={liveState !== null}
-      save={readyState.save}
-      canAdd={plan.canAdd}
-      onAddRoom={plan.addRoom}
-      onRemoveRoom={plan.removeRoom}
-      onRenameRoom={plan.renameRoom}
-      onAssignParticipant={plan.assignParticipant}
-      onUnassignParticipant={plan.unassignParticipant}
-      onKeepParticipantInMain={plan.keepParticipantInMain}
-      onAutoAssign={plan.autoAssignParticipants}
-      onRetrySave={plan.retrySave}
-      onReloadDraft={plan.reloadDraft}
-      onBeforeNavigate={plan.flushSave}
-      onHome={() => onChangeView("landing")}
-      onBack={() => onChangeView("rounds")}
-      backLabel="Back to rounds"
-      onNext={onNext}
-      nextLabel={nextLabel}
-      railFooter={
-        <div style={{ marginTop: "auto" }}>
-          <MeetingBadge meetingUUID={meetingUUID} role={role ?? undefined} />
-        </div>
-      }
+      draft={plan.state}
+      tasks={tasks}
+      roster={rosterFrom(live.liveState)}
+      rosterKnown={live.liveState !== null}
+      nextLabel={nextRound ? "Next round ›" : "Done"}
+      onTabChange={onTabChange}
+      onRename={onRename}
+      onBack={onBack}
+      onNext={() => (nextRound ? onSelectRound(nextRound.roundId) : onBack())}
     />
   );
 }

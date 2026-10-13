@@ -52,6 +52,7 @@ export default function RoundSettingsModal({
               className="bw-round-settings__name"
               onSave={(title) => void onUpdateRound(round.roundId, { title })}
             />
+            <div className="bw-header-spacer" />
             <Pill tone={skipped ? "amber" : "neutral"}>{skipped ? "Skipped" : "Planned"}</Pill>
           </header>
 

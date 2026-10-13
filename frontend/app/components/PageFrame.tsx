@@ -1,0 +1,79 @@
+import type { ReactNode } from "react";
+
+export interface FrameTab<T extends string> {
+  id: T;
+  label: string;
+  /** Shown but not selectable; `hint` says why. */
+  disabled?: boolean;
+  hint?: string;
+}
+
+/**
+ * The screen shape shared by the live round, round setup and the participant's
+ * room: a top bar, one scrolling page, an optional sheet laid over the page's
+ * bottom edge, and a bottom navbar when there are tabs. Callers fill the bar and
+ * the page; the frame owns layout.
+ */
+export default function PageFrame<T extends string>({
+  tone = "live",
+  bar,
+  tabs = [],
+  activeTab,
+  onTabChange,
+  tabsLabel,
+  sheet,
+  contentKey,
+  children,
+}: {
+  /**
+   * "planning" lightens the top bar so setting up a round never looks live;
+   * "participant" tints it so a participant's room never looks like the host's.
+   */
+  tone?: "live" | "planning" | "participant";
+  /** Contents of the top bar, left to right. */
+  bar: ReactNode;
+  /** No tabs, no navbar: the page takes the space. */
+  tabs?: FrameTab<T>[];
+  activeTab?: T;
+  onTabChange?: (tab: T) => void;
+  /** Accessible name for the navbar. */
+  tabsLabel?: string;
+  /** Overlays the bottom of the page; it reads its parent's height to size itself. */
+  sheet?: ReactNode;
+  /** A new value fades the page in again, e.g. on a tab or round change. */
+  contentKey?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`bw-frame bw-frame--${tone}${tabs.length > 0 ? "" : " bw-frame--no-nav"}`}>
+      <header className="bw-frame__bar">{bar}</header>
+
+      <div className="bw-frame__main">
+        <main className="bw-frame__page">
+          <div className="bw-frame__content" key={contentKey}>
+            {children}
+          </div>
+        </main>
+        {sheet}
+      </div>
+
+      {tabs.length > 0 ? (
+        <nav className="bw-frame__nav" aria-label={tabsLabel}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className="bw-frame__tab"
+              aria-current={activeTab === tab.id ? "page" : undefined}
+              disabled={tab.disabled}
+              title={tab.hint}
+              onClick={() => onTabChange?.(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
+    </div>
+  );
+}

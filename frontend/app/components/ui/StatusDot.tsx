@@ -1,4 +1,4 @@
-export interface StatusDotProps {
+interface StatusDotProps {
   /** Any token colour. Room dots come from ROOM_DOTS in types/breakout.ts. */
   color: string;
   /** Circular 7px dot instead of the 10px squircle used on room cards. */

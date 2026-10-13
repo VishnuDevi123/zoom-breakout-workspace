@@ -3,22 +3,26 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { formatClock, useRemainingSec } from "@/lib/round-clock";
+import { memberStatus } from "@/lib/activity-kinds";
+import { roomMembers } from "@/lib/participant-status";
 import type { ParticipantRound } from "@/lib/use-participant-round";
 import { useRoomResponses } from "@/lib/use-room-responses";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
 import ActivityCards from "../ActivityCards";
-import ActivityPage from "./ActivityPage";
-import RoomSidebar from "../RoomSidebar";
+import AnswerModal from "../AnswerModal";
+import PageFrame from "../PageFrame";
+import RoomBar from "../RoomBar";
+import RoomPeople from "../RoomPeople";
 import SharedChecklist from "../SharedChecklist";
-import { Card, SectionLabel } from "../ui";
+import TaskDetails from "../TaskDetails";
+import ActivityPage from "./ActivityPage";
 
 /**
- * The room a participant works in for one round: the task and its shared
- * checklist on the left, the activities in the middle, and the room's people
- * and the host's message on the right. Opening an activity swaps the whole
- * page for that activity until the participant goes back.
+ * The room a participant works in for one round, in the host's live frame with
+ * a lighter bar: the task, instructions, resources and activities on the left
+ * (70%), the room's people and the shared checklist on the right (30%). Opening
+ * an activity swaps the whole page for that activity until the participant goes back.
  */
 export default function ParticipantWorkspace({
   round,
@@ -33,7 +37,7 @@ export default function ParticipantWorkspace({
   participantUUID: string;
   onBack: () => void;
 }) {
-  const { task, activities, roundTitle, roundPosition, roundCount } = round;
+  const { task, activities } = round;
   const roundId = live?.round?.roundId ?? "";
   const [openActivityId, setOpenActivityId] = useState<string | null>(null);
   const responses = useRoomResponses({
@@ -52,157 +56,62 @@ export default function ParticipantWorkspace({
   useEffect(() => {
     if (removedWhileOpen) toast("Your host removed that activity.");
   }, [removedWhileOpen]);
-  const remainingSec = useRemainingSec(live?.round?.endsAt ?? 0);
-  const roomUUID = live?.round?.roomUUIDs[room.id] ?? null;
-  const others = (live?.participants ?? [])
-    .filter((p) => p.location === roomUUID && p.participantUUID !== participantUUID)
-    .map((p) => p.name)
-    .filter(Boolean);
+  const people = roomMembers({ room, live, participantUUID }).map(({ participantUUID: uuid, name }) => {
+    const status = activities.length > 0 ? memberStatus(activities, view, uuid) : null;
+    return { participantUUID: uuid, name, status, done: status === "Submitted" };
+  });
 
-  if (openIndex !== -1) {
+  const openActivity = openIndex === -1 ? null : activities[openIndex];
+
+  // The shared board is a page of its own; an individual answer opens as a modal over this page.
+  if (openActivity?.kind === "ideaBoard") {
     return (
       <ActivityPage
-        activity={activities[openIndex]}
-        position={openIndex + 1}
+        activity={openActivity}
         room={room}
         live={live}
         participantUUID={participantUUID}
         checklist={task?.checklist ?? []}
         responses={responses}
         onBack={() => setOpenActivityId(null)}
+        onHome={onBack}
       />
     );
   }
 
   return (
-    <div className="bw-shell bw-participant-room">
-      <header className="bw-header bw-participant-workspace-header">
-        <button className="bw-back" onClick={onBack}>
-          ←
-        </button>
+    <>
+      <PageFrame
+        tone="participant"
+        bar={<RoomBar room={room} live={live} onHome={onBack} />}
+      >
+        <div className="bw-room-layout">
+          <section className="bw-session__column">
+            <TaskDetails
+              heading="Your task this round"
+              task={task}
+              emptyText="Your host has not written a task for this round. It appears here as soon as they do."
+            />
 
-        <div className="bw-room-header-group">
-          <span className="bw-room-header-dot" />
+            <ActivityCards
+              activities={activities}
+              view={view}
+              participantUUID={participantUUID}
+              onOpen={(activity) => setOpenActivityId(activity.id)}
+            />
+          </section>
 
-          <div className="bw-round-heading">
-            <span className="bw-header-title">{room.name}</span>
-            <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-2)" }}>
-              {others.length > 0
-                ? `You, ${others.join(", ")}`
-                : "You are the only one here so far"}
-            </span>
+          <div className="bw-session__column">
+            <RoomPeople heading="In this room" people={people} />
+            {task && task.checklist.length > 0 ? (
+              <SharedChecklist items={task.checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
+            ) : null}
           </div>
         </div>
-
-        <span className="bw-header-divider" />
-
-        <div className="bw-round-heading">
-          <span style={{ fontSize: "var(--bw-fs-body)", fontWeight: 500 }}>
-            {roundPosition > 0
-              ? `Round ${roundPosition} of ${roundCount} · `
-              : ""}
-            {roundTitle}
-          </span>
-        </div>
-
-        <div className="bw-header-spacer" />
-
-        {remainingSec !== null ? (
-          <div className="bw-timer bw-timer--end">
-            <span className="bw-timer__clock bw-mono">
-              {formatClock(remainingSec)}
-            </span>
-            <span className="bw-timer__label">left in round</span>
-          </div>
-        ) : null}
-      </header>
-
-      <div className="bw-body">
-        <aside className="bw-rail bw-rail--left bw-task-rail">
-          <div className="bw-field">
-            <SectionLabel>Your task this round</SectionLabel>
-            {task ? (
-              <h2 className="bw-task-goal">{task.goal}</h2>
-            ) : (
-              <p className="bw-task-empty">
-                Your host has not written a task for this round. It appears here
-                as soon as they do.
-              </p>
-            )}
-          </div>
-
-          {task && task.instructions.length > 0 ? (
-            <div className="bw-field">
-              <SectionLabel>Instructions</SectionLabel>
-              <Card className="bw-instruction-list">
-                {task.instructions.map((line, index) => (
-                  <div className="bw-instruction-row" key={line}>
-                    <span className="bw-mono bw-instruction-row__number">
-                      {index + 1}
-                    </span>
-                    <span>{line}</span>
-                  </div>
-                ))}
-              </Card>
-            </div>
-          ) : null}
-
-          {task && task.resources.length > 0 ? (
-            <div className="bw-field">
-              <SectionLabel>Resources from the host</SectionLabel>
-              {task.resources.map((resource) => (
-                <ResourceRow key={resource} resource={resource} />
-              ))}
-            </div>
-          ) : null}
-
-          {task ? (
-            <SharedChecklist items={task.checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
-          ) : null}
-        </aside>
-
-        <main className="bw-main">
-          <ActivityCards
-            activities={activities}
-            view={view}
-            participantUUID={participantUUID}
-            onOpen={(activity) => setOpenActivityId(activity.id)}
-          />
-        </main>
-
-        <RoomSidebar
-          room={room}
-          live={live}
-          activities={activities}
-          view={view}
-          participantUUID={participantUUID}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * One host-supplied link. A resource is stored as a plain string, so anything
- * that is not a URL is shown as text rather than as a dead link.
- */
-function ResourceRow({ resource }: { resource: string }) {
-  const isLink = /^https?:\/\//i.test(resource);
-
-  if (!isLink) {
-    return (
-      <div className="bw-resource-row">
-        <span className="bw-resource-row__mark" />
-        <span className="bw-resource-row__label">{resource}</span>
-      </div>
-    );
-  }
-
-  return (
-    <a className="bw-resource-row" href={resource} target="_blank" rel="noreferrer">
-      <span className="bw-resource-row__mark" />
-      <span className="bw-resource-row__label">{resource}</span>
-      <span className="bw-resource-row__open">Open</span>
-    </a>
+      </PageFrame>
+      {openActivity?.kind === "individual" ? (
+        <AnswerModal activity={openActivity} responses={responses} onClose={() => setOpenActivityId(null)} />
+      ) : null}
+    </>
   );
 }

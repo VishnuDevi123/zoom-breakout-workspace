@@ -8,7 +8,7 @@ import type { Activity, RoomTask, RoundTasks } from "@/types/breakout";
 
 const EMPTY_TASK: RoomTask = { goal: "", instructions: [], resources: [], checklist: [] };
 
-export type TaskEditorState = "loading" | "ready" | "saving" | "error";
+type TaskEditorState = "loading" | "ready" | "saving" | "error";
 
 /** What one save sends besides the ids: the round's task and its activities. */
 interface TaskDraft {

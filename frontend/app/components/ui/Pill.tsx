@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 
 type Tone = "neutral" | "outline" | "dark" | "accent" | "amber" | "teal" | "red";
 
-export interface PillProps extends HTMLAttributes<HTMLSpanElement> {
+interface PillProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: Tone;
 }
 

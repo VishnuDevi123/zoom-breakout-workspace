@@ -8,7 +8,7 @@ import type { RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
  * straight away. Both answer with their own message and both clear on their own,
  * so the launch waits rather than failing.
  */
-const ZOOM_BUSY_MESSAGES = ["can not edit the breakout room", "not ready"];
+const ZOOM_BUSY_MESSAGES = ["can not edit the breakout room as room are already open", "not ready"];
 const ZOOM_BUSY_WAIT_MS = 1_500;
 const ZOOM_BUSY_ATTEMPTS = 3;
 
@@ -117,11 +117,16 @@ export async function assignToOpenRooms(
 ): Promise<void> {
   const { rooms, state } = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList());
   if (state !== "open") throw new Error("Zoom has no breakout rooms open.");
-  const zoomIdByName = new Map(rooms.map((room) => [room.name, room.breakoutRoomId]));
   for (const { participantUUID, roomName } of placements) {
-    const uuid = zoomIdByName.get(roomName);
-    if (!uuid) throw new Error(`Zoom has no open room named "${roomName}".`);
-    await withZoomTimeout(`Assign to ${roomName}`, sdk.assignParticipantToBreakoutRoom({ participantUUID, uuid }));
+    const room = rooms.find((candidate) => candidate.name === roomName);
+    if (!room) throw new Error(`Zoom has no open room named "${roomName}".`);
+    // Already assigned there (an earlier try that Zoom took but the plan missed):
+    // Zoom refuses a repeat, and the plan save that follows is all that is needed.
+    if (room.participants?.some((person) => person.participantUUID === participantUUID)) continue;
+    await withZoomTimeout(
+      `Assign to ${roomName}`,
+      sdk.assignParticipantToBreakoutRoom({ participantUUID, uuid: room.breakoutRoomId }),
+    );
   }
 }
 

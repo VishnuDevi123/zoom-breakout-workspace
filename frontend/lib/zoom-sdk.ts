@@ -39,6 +39,7 @@ const HOST_CAPABILITIES = [
   "closeBreakoutRooms",
   "getBreakoutRoomList",
   "getMeetingParticipants",
+  "getAppContext",
 ];
 
 /**
@@ -46,10 +47,10 @@ const HOST_CAPABILITIES = [
  * app's API list in the Zoom Marketplace, otherwise the call fails at run time
  * with `reason:app_not_support`.
  */
-export const ZOOM_CAPABILITIES = [...BASE_CAPABILITIES, ...HOST_CAPABILITIES];
+const ZOOM_CAPABILITIES = [...BASE_CAPABILITIES, ...HOST_CAPABILITIES];
 
 /** Error code shown when the SDK is not on the page at all, e.g. a plain browser tab. */
-export const SDK_MISSING_CODE = "ZOOM_SDK_UNAVAILABLE";
+const SDK_MISSING_CODE = "ZOOM_SDK_UNAVAILABLE";
 
 export interface SdkErrorInfo {
   /** Machine-readable code, rendered verbatim so it can be searched in Zoom's docs. */
@@ -61,7 +62,7 @@ export interface SdkErrorInfo {
  * Outcome of the bootstrap. The two cases carry different fields, so they are a
  * union rather than one object with everything optional.
  */
-export type ZoomBootstrap =
+type ZoomBootstrap =
   | { kind: "ready"; sdk: ZoomSdk; meetingUUID: string }
   | { kind: "unavailable"; error: SdkErrorInfo };
 
@@ -142,6 +143,18 @@ async function bootstrap(): Promise<ZoomBootstrap> {
 export function configureZoomSdk(): Promise<ZoomBootstrap> {
   bootstrapPromise ??= bootstrap();
   return bootstrapPromise;
+}
+
+/**
+ * The encrypted app context for the backend's X-Zoom-App-Context header. Only
+ * the backend can decrypt it (to the Zoom user's `uid`). Read fresh for each
+ * request so an expired token is never reused. Needs the host capabilities.
+ */
+export async function readAppContextToken(): Promise<string> {
+  const bootstrap = await configureZoomSdk();
+  if (bootstrap.kind === "unavailable") throw new Error(bootstrap.error.message);
+  const { context } = await bootstrap.sdk.getAppContext();
+  return context;
 }
 
 let hostPromise: Promise<SdkErrorInfo | null> | null = null;

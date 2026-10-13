@@ -13,6 +13,12 @@ export const ROOM_DOTS = [
   "#0fbcb0",
   "#e58cc9",
   "#555a6a",
+  "#f5a623",
+  "#7ed321",
+  "#a4c484",
+  "#9f2929",
+  "#60d024",
+  "#4e3103",
 ] as const;
 
 export type RoomDot = (typeof ROOM_DOTS)[number];
@@ -101,16 +107,6 @@ export interface RosterEntry {
 export interface RosterRequest {
   parentUUID: string;
   participants: RosterEntry[];
-}
-
-/** Carry a mid-round placement into the later rounds that have not run. */
-export interface CarryPlacementRequest {
-  parentUUID: string;
-  /** The running round the person was just placed in; only rounds after it change. */
-  roundId: string;
-  participantUUID: string;
-  /** Matched by name in each later round, since every round has its own room ids. */
-  roomName: string;
 }
 
 export type RoundStatus = "planned" | "launched" | "closed" | "skipped";
@@ -210,14 +206,75 @@ export interface CheckListItem {
 
 export type Activity = IndividualActivity | IdeaBoardActivity;
 
+// ---- Workflows without people: what End Workflow keeps and a template restores ----
+
+/** One round as a template: room names only, no room ids, people or submissions. */
+export interface WorkflowRoundSnapshot {
+  title: string | null;
+  durationSec: number;
+  roomNames: string[];
+  task: RoomTask | null;
+  activities: Activity[];
+}
+
+export interface WorkflowSnapshot {
+  title: string;
+  sameRoomsEveryRound: boolean;
+  samePeopleEveryRound: boolean;
+  autoStartNextRound: boolean;
+  rounds: WorkflowRoundSnapshot[];
+}
+
+/** A workflow the host ended in this meeting. */
+export interface PastWorkflow extends WorkflowSnapshot {
+  id: string;
+  /** ISO time of End Workflow. */
+  endedAt: string;
+}
+
+/** A past workflow the host chose to keep. Owned by the Zoom user (`uid` from the app context), the same in every meeting. */
+export interface SavedTemplate extends WorkflowSnapshot {
+  id: string;
+  ownerUid: string;
+  savedAt: string;
+}
+
+/** POST /api/workspace/end. The frontend closes any open round first. */
+export interface EndWorkflowRequest {
+  parentUUID: string;
+  expectedRevision: number;
+}
+
+/** POST /api/workspace/replace. Use expectedRevision 0 when the meeting has no workflow. */
+export interface ReplaceWorkflowRequest {
+  parentUUID: string;
+  expectedRevision: number;
+  snapshot: WorkflowSnapshot;
+}
+
+/** POST /api/templates */
+export interface SaveTemplateRequest {
+  parentUUID: string;
+  pastWorkflowId: string;
+}
+
+/** POST /api/templates/current: the workflow being built, without people. */
+export interface SaveCurrentTemplateRequest {
+  parentUUID: string;
+}
+
 // ---- Responses: participant-written, one record per (parentUUID, roundId, roomId) ----
 
 export const NOTE_COLORS = [
-  "#fff4c4",
-  "#c3faf5",
-  "#fde0f0",
+  "#fccf0687",
+  "#06ead7",
   "#eef1ff",
   "#e3f7d4",
+  "#ff9999",
+  "#0fbcb0",
+  "#e58cc9",
+  "#7ed321",
+  "#a4c484",
 ] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
@@ -302,4 +359,3 @@ export type RemoveIdeaRequest = ResponseCaller;
 export interface TickRequest extends ResponseCaller {
   done: boolean;
 }
-

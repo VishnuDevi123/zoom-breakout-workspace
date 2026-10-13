@@ -3,33 +3,24 @@ import {useState, useEffect} from "react";
 import type {LiveState} from "@/types/breakout";
 
 
-export function useLiveState(parentUUID: string): { liveState: LiveState | null; isConnected: boolean } {
+/** The meeting's live state, pushed over SSE. EventSource reconnects on its own after a drop. */
+export function useLiveState(parentUUID: string): { liveState: LiveState | null } {
     const [liveState, setLiveState] = useState<LiveState | null>(null);
-
-    // boolean to check if the connection is open
-    const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
         if (!parentUUID) return;
         const eventSource = new EventSource(
           `/api/live/events?parentUUID=${encodeURIComponent(parentUUID)}`,
         );
-        eventSource.onopen = () => {
-            setIsConnected(true);
-        }
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data) as LiveState;
             setLiveState(data);
-        }
-        eventSource.onerror = (error) => {
-            // console.error("EventSource failed:", error);
-            setIsConnected(false);
         }
         return () => {
             eventSource.close();
         }
     }, [parentUUID]);
 
-    return {liveState, isConnected};
+    return {liveState};
 
 }

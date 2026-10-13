@@ -9,6 +9,7 @@ import liveRoutes from "./routes/live.ts";
 import workSpaceRoutes from "./routes/workspace.ts"
 import taskRoutes from "./routes/tasks.ts";
 import activity_responses_routes from "./routes/activity_responses.ts"
+import templateRoutes from "./routes/templates.ts";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use("/api/live", liveRoutes);
 app.use("/api/workspace", workSpaceRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/responses", activity_responses_routes);
+app.use("/api/templates", templateRoutes);
 // zoom OAuth callback route, only backend should handle this
 app.get("/auth/callback", (req, res) => {
   console.log("Auth callback received");

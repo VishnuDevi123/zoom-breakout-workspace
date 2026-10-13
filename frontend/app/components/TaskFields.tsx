@@ -70,13 +70,19 @@ export default function TaskFields({
           onChange={(instructions) => setTask({ ...task, instructions })}
           onCommit={(instructions) => commitLines("instructions", instructions)}
           onRemove={(index) =>
-            commitLines("instructions", task.instructions.filter((_, at) => at !== index))
+            commitLines(
+              "instructions",
+              task.instructions.filter((_, at) => at !== index),
+            )
           }
         />
       </div>
 
       <div className="bw-field">
-        <SectionLabel>Checklist · anyone in the room can tick</SectionLabel>
+        <SectionLabel>Checklist</SectionLabel>
+        <SectionLabel className="bw-field__subheading">
+          Anyone in the room can tick
+        </SectionLabel>
         <LineList
           lines={task.checklist.map((item) => item.label)}
           numbered={false}
@@ -84,7 +90,9 @@ export default function TaskFields({
           placeholder="Done when…"
           onChange={editChecklist}
           onCommit={() => commitChecklist(task.checklist)}
-          onRemove={(index) => commitChecklist(task.checklist.filter((_, at) => at !== index))}
+          onRemove={(index) =>
+            commitChecklist(task.checklist.filter((_, at) => at !== index))
+          }
         />
       </div>
 
@@ -98,7 +106,10 @@ export default function TaskFields({
           onChange={(resources) => setTask({ ...task, resources })}
           onCommit={(resources) => commitLines("resources", resources)}
           onRemove={(index) =>
-            commitLines("resources", task.resources.filter((_, at) => at !== index))
+            commitLines(
+              "resources",
+              task.resources.filter((_, at) => at !== index),
+            )
           }
         />
       </div>

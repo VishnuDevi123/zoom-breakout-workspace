@@ -42,6 +42,11 @@ interface ControllerInput {
   onLaunched?: (roundId: string, workspace: Workspace | null) => void;
   /** Called once Zoom closed the rooms and the backend recorded the close. */
   onClosed?: (workspace: Workspace | null) => void;
+  /**
+   * Runs just before a round's saved plan is read for launch, so the caller can
+   * write that plan first ("Same groups" copies the last round's groups here).
+   */
+  prepareLaunch?: (roundId: string) => Promise<void>;
 }
 
 /**
@@ -78,8 +83,9 @@ export function useLiveRoomController(input: ControllerInput) {
     return { sdk: bootstrap.sdk, hostUUID: current.participantUUID };
   }
 
-  async function run(kind: "launch" | "close", task: (step: (s: string) => void) => Promise<string>) {
-    if (operation.kind === "running") return;
+  /** Resolves true when the task succeeded; failures are reported here, not thrown. */
+  async function run(kind: "launch" | "close", task: (step: (s: string) => void) => Promise<string>): Promise<boolean> {
+    if (operation.kind === "running") return false;
     let lastStep = "Checking Zoom…";
     // Progress shows on the full-screen overlay; only the outcome is a toast.
     const step = (s: string) => {
@@ -91,10 +97,12 @@ export function useLiveRoomController(input: ControllerInput) {
       const message = await task(step);
       toast.success(message);
       if (aliveRef.current) setOperation({ kind: "success", message });
+      return true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Zoom operation failed.";
       toast.error(lastStep, { description: reason });
       if (aliveRef.current) setOperation({ kind: "error", message: `${lastStep} ${reason}` });
+      return false;
     }
   }
 
@@ -103,6 +111,10 @@ export function useLiveRoomController(input: ControllerInput) {
     void run("launch", async (step) => {
       if (!(await input.flushSave())) throw new Error("Draft must save before launching.");
       await new Promise((resolve) => setTimeout(resolve, LAUNCH_DELAY_MS));
+      if (input.prepareLaunch) {
+        step("Preparing groups…");
+        await input.prepareLaunch(roundId);
+      }
       const plan = await readSavedRoundPlan(input.parentUUID, roundId);
       const { sdk, hostUUID } = await hostSdk();
       await launchRoundInZoom(sdk, plan, hostUUID, step);
@@ -112,8 +124,9 @@ export function useLiveRoomController(input: ControllerInput) {
     });
   }
 
-  function close() {
-    void run("close", async () => {
+  /** Resolves true once Zoom and the backend both have the round closed. */
+  function close(): Promise<boolean> {
+    return run("close", async () => {
       const { sdk } = await hostSdk();
       await closeRoundInZoom(sdk);
       const closed = await markRoundClosed(input.parentUUID);

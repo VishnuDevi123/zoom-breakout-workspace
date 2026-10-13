@@ -161,7 +161,9 @@ declare global {
        * Host and co-host only. Inside a breakout room it returns that room's
        * people, not the whole meeting's.
        */
-      getMeetingParticipants: () => Promise<{ participants: ZoomMeetingParticipant[] }>;
+      getMeetingParticipants: () => Promise<{
+        participants: ZoomMeetingParticipant[];
+      }>;
 
       /**
        * Fires only for the current user's own context. The SDK has no matching
@@ -184,6 +186,13 @@ declare global {
       ) => Promise<unknown> | void;
 
       onAuthorized: (callback: (event: unknown) => void) => void;
+
+      /**
+       * Encrypted app context token (the X-Zoom-App-Context value). The browser
+       * cannot read it; the backend decrypts it with the client secret to get
+       * `uid`. Every role may call it.
+       */
+      getAppContext: () => Promise<{ context: string }>;
     };
   }
 }

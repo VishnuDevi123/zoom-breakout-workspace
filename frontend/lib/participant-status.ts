@@ -25,12 +25,6 @@ export function initialsFrom(displayName: string): string {
   return letters.join("").toUpperCase();
 }
 
-export const STATUS_LABEL: Record<ParticipantStatus, string> = {
-  "in-room": "in room",
-  unassigned: "in main",
-  left: "left meeting",
-};
-
 /** Live Zoom fact shown beside somebody already placed in the round draft. */
 export const DRAFT_MEMBER_STATUS_LABEL: Record<ParticipantStatus, string> = {
   "in-room": "planned · in room",
@@ -44,7 +38,10 @@ export const AVATAR_TINTS = ["#eef1ff", "#c3faf5", "#fff4c4", "#fde0f0", "#e3f7d
 /**
  * The people a participant shares a breakout room with, from the host's draft.
  * Once Zoom has reported which breakout room this is, only members actually in
- * it are kept. Names come from the webhook-fed live store; the caller is "You".
+ * it are kept, plus anyone webhooks report inside it whom the caller's copy of
+ * the draft does not list yet: the host can place people mid-round, and the
+ * caller only re-reads the draft when their own location changes.
+ * Names come from the webhook-fed live store; the caller is "You".
  */
 export function roomMembers({
   room,
@@ -57,7 +54,10 @@ export function roomMembers({
 }): { participantUUID: string; name: string }[] {
   const roomUUID = live?.round?.roomUUIDs[room.id] ?? null;
   const known = new Map((live?.participants ?? []).map((p) => [p.participantUUID, p]));
-  return room.participantUUIDs
+  const placedLater = (live?.participants ?? [])
+    .filter((p) => roomUUID && p.location === roomUUID && !room.participantUUIDs.includes(p.participantUUID))
+    .map((p) => p.participantUUID);
+  return [...room.participantUUIDs, ...placedLater]
     .filter((uuid) => uuid === participantUUID || !roomUUID || known.get(uuid)?.location === roomUUID)
     .map((uuid) => ({
       participantUUID: uuid,

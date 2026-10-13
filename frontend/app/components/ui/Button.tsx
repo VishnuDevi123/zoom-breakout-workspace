@@ -10,7 +10,7 @@ type Size = "sm" | "md" | "lg";
 /** A spinner that vanishes the moment it appears reads as a flicker, not as feedback. */
 const MIN_BUSY_MS = 400;
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   /** True while the action this button started is still running. */

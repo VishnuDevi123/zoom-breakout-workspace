@@ -6,22 +6,26 @@ import type { useRoomResponses } from "@/lib/use-room-responses";
 import type { CheckListItem, IdeaBoardActivity, IdeaNote } from "@/types/breakout";
 
 import ActivityPrompt from "./ActivityPrompt";
+import RoomPeople from "./RoomPeople";
 import SharedChecklist from "./SharedChecklist";
 import { Button } from "./ui";
 
 /**
  * The room's shared board: everyone's sticky notes, oldest first, and a card to
- * add another. Only a note's author can edit or remove it. The task's shared
- * checklist sits in the right column.
+ * add another. Only a note's author can edit or remove it. "← All activities"
+ * sits above the question; the right column shows who has added ideas, then the
+ * task's shared checklist.
  */
 export default function IdeaBoardPanel({
   activity,
+  members,
   participantUUID,
   checklist,
   responses,
   onBack,
 }: {
   activity: IdeaBoardActivity;
+  members: { participantUUID: string; name: string }[];
   participantUUID: string;
   checklist: CheckListItem[];
   responses: ReturnType<typeof useRoomResponses>;
@@ -31,6 +35,11 @@ export default function IdeaBoardPanel({
   const [newIdea, setNewIdea] = useState("");
   const [adding, setAdding] = useState(false);
   const notes = view?.ideas[activity.id] ?? [];
+  // A board counts as done for someone once they have added a note.
+  const people = members.map((member) => {
+    const count = notes.filter((note) => note.participantUUID === member.participantUUID).length;
+    return { ...member, status: count > 0 ? `${count} ${count === 1 ? "idea" : "ideas"}` : "No ideas yet", done: count > 0 };
+  });
 
   async function add() {
     setAdding(true);
@@ -40,7 +49,11 @@ export default function IdeaBoardPanel({
 
   return (
     <>
-      <main className="bw-main">
+      <section className="bw-session__column">
+        {/* Same back link as the host's room results ("← All rooms"). */}
+        <button type="button" className="bw-results__back" onClick={onBack}>
+          ← All activities
+        </button>
         <ActivityPrompt activity={activity} />
 
         <div className="bw-board">
@@ -70,14 +83,12 @@ export default function IdeaBoardPanel({
             Add
           </Button>
         </div>
-      </main>
+      </section>
 
-      <aside className="bw-rail bw-activity-side">
+      <div className="bw-session__column">
+        <RoomPeople heading="Working on this board" people={people} />
         <SharedChecklist items={checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
-        <Button variant="secondary" className="bw-activity-side__back" onClick={onBack}>
-          Back to activities
-        </Button>
-      </aside>
+      </div>
     </>
   );
 }

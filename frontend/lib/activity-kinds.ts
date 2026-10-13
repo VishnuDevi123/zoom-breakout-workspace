@@ -23,7 +23,7 @@ export const ACTIVITY_KINDS: Record<
   },
 };
 
-export type ActivityProgress = "notStarted" | "working" | "completed";
+type ActivityProgress = "notStarted" | "working" | "completed";
 
 export const PROGRESS_LABELS: Record<ActivityProgress, string> = {
   notStarted: "Not started",

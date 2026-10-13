@@ -1,11 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { useHostGate } from "@/lib/host-gate";
 
-import CheckingScreen from "./screens/CheckingScreen";
 import HostWorkspace from "./screens/HostWorkspace";
+import LoadingScreen from "./screens/LoadingScreen";
 import ParticipantScreen from "./screens/ParticipantScreen";
 import UnsupportedScreen from "./screens/UnsupportedScreen";
+
+/** The start-up spinner shows at least this long, so a fast load does not flash past it. */
+const STARTUP_MIN_LOADING_MS = 500;
 
 /**
  * Slice 1 gate.
@@ -19,7 +24,27 @@ import UnsupportedScreen from "./screens/UnsupportedScreen";
  * component and no host control is ever rendered before the role is known.
  */
 export default function ZoomClient() {
-  const { state, role, screenName, meetingUUID, participantUUID, meetingTopic, sdkError } =
+  const [minElapsed, setMinElapsed] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setMinElapsed(true), STARTUP_MIN_LOADING_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // The real screen mounts at once and loads its data behind the spinner; the
+  // wrapper never changes, so revealing it does not remount anything.
+  return (
+    <>
+      {minElapsed ? null : <LoadingScreen message="Connecting to Zoom…" />}
+      <div hidden={!minElapsed}>
+        <GateScreen />
+      </div>
+    </>
+  );
+}
+
+/** One of the four gate states: checking, host, participant, unsupported. */
+function GateScreen() {
+  const { state, role, meetingUUID, participantUUID, meetingTopic, sdkError } =
     useHostGate();
 
   switch (state) {
@@ -28,7 +53,6 @@ export default function ZoomClient() {
         <HostWorkspace
           meetingUUID={meetingUUID}
           meetingTopic={meetingTopic}
-          screenName={screenName}
           role={role}
         />
       );
@@ -43,6 +67,6 @@ export default function ZoomClient() {
 
     case "checking":
     default:
-      return <CheckingScreen />;
+      return <LoadingScreen message="Connecting to Zoom…" />;
   }
 }

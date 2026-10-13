@@ -17,20 +17,20 @@ import {
   keepParticipantInMain as keepInMain,
 } from "@/lib/room-plan-assignments";
 
-export const MAX_ROOMS = 50;
+export const MAX_ROOMS = 20;
 const SAVE_DELAY_MS = 500;
 
-export interface SelectedRound {
+interface SelectedRound {
   roundId: string;
   title: string;
 }
 
-export type DraftSaveState =
+type DraftSaveState =
   | { kind: "saved" }
   | { kind: "saving" }
   | { kind: "error"; message: string; conflict: boolean };
 
-export type RoomPlanState =
+type RoomPlanState =
   | { kind: "loading" }
   | { kind: "load-error"; message: string }
   | { kind: "ready"; draft: RoundPlanDraft; save: DraftSaveState };
@@ -108,6 +108,9 @@ export function useRoomPlan(
 ) {
   const key = `${parentUUID}\u0000${selectedRound.roundId}`;
   const seedRef = useRef(seed);
+  // Only names a draft created from scratch. Kept out of the load effect's
+  // dependencies, so renaming the round does not throw the draft away and reload it.
+  const titleRef = useRef(selectedRound.title);
   const initialCache = draftCache.get(key);
   const preservedInitial = initialCache && isDirty(initialCache) ? initialCache : null;
   const [state, setState] = useState<RoomPlanState>(() =>
@@ -116,7 +119,6 @@ export function useRoomPlan(
       : { kind: "loading" },
   );
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [savedRevision, setSavedRevision] = useState(preservedInitial?.revision ?? 0);
 
   const keyRef = useRef(key);
   const draftRef = useRef<RoundPlanDraft | null>(preservedInitial?.draft ?? null);
@@ -218,7 +220,6 @@ export function useRoomPlan(
 
             if (keyRef.current !== requestKey) return false;
             revisionRef.current = result.data.revision;
-            setSavedRevision(result.data.revision);
             savedFingerprintRef.current = requestFingerprint;
 
             if (draftRef.current && fingerprint(draftRef.current) === requestFingerprint) {
@@ -268,6 +269,10 @@ export function useRoomPlan(
   }, [seed]);
 
   useEffect(() => {
+    titleRef.current = selectedRound.title;
+  }, [selectedRound.title]);
+
+  useEffect(() => {
     const controller = new AbortController();
     keyRef.current = key;
     queuedRef.current = false;
@@ -282,7 +287,6 @@ export function useRoomPlan(
       savedFingerprintRef.current = cached.savedFingerprint;
       void Promise.resolve().then(() => {
         if (!controller.signal.aborted && keyRef.current === key) {
-          setSavedRevision(cached.revision);
           setState({ kind: "ready", draft: cached.draft, save: cached.save });
         }
       });
@@ -294,7 +298,6 @@ export function useRoomPlan(
     savedFingerprintRef.current = "";
     void Promise.resolve().then(() => {
       if (!controller.signal.aborted && keyRef.current === key) {
-        setSavedRevision(0);
         setState({ kind: "loading" });
       }
     });
@@ -312,7 +315,7 @@ export function useRoomPlan(
           draft = (await seedRef.current?.()) ?? {
             parentUUID,
             roundId: selectedRound.roundId,
-            title: selectedRound.title,
+            title: titleRef.current,
             rooms: [],
             stayInMainParticipantUUIDs: [],
           };
@@ -331,7 +334,6 @@ export function useRoomPlan(
         const save: DraftSaveState = revision === 0 ? { kind: "saving" } : { kind: "saved" };
         draftRef.current = draft;
         revisionRef.current = revision;
-        setSavedRevision(revision);
         savedFingerprintRef.current = savedFingerprint;
         draftCache.set(key, { draft, revision, savedFingerprint, save });
         setState({ kind: "ready", draft, save });
@@ -346,7 +348,7 @@ export function useRoomPlan(
 
     void load();
     return () => controller.abort();
-  }, [key, loadAttempt, parentUUID, selectedRound.roundId, selectedRound.title]);
+  }, [key, loadAttempt, parentUUID, selectedRound.roundId]);
 
   useEffect(() => () => saveAbortRef.current?.abort(), []);
 
