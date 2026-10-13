@@ -18,7 +18,7 @@ const KEY_STEP_PX = 24;
  * room grid. The host drags it taller or shorter; it never pushes the rooms
  * around, so it publishes its height and the grid pads its bottom by that much.
  */
-export interface SheetPerson {
+interface SheetPerson {
   participantUUID: string;
   name: string;
 }

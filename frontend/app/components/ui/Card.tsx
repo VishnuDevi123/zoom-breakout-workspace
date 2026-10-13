@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 
 type Tone = "default" | "sunken" | "dashed";
 
-export interface CardProps extends HTMLAttributes<HTMLDivElement> {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   tone?: Tone;
   /** Large radius and padding, used for page-level panels. */
   large?: boolean;

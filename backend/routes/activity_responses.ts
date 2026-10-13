@@ -59,21 +59,6 @@ function assertChecklistItem(room: RoomRef, itemId: string): void {
 }
 
 /**
- * GET /api/responses/:roundId/activities?parentUUID=<meeting uuid>
- * The round's activities, read from the task store. No room check: definitions
- * are the same for every room. A round with no task yet has no activities.
- */
-router.get("/:roundId/activities", (req, res) => {
-  const parentUUID = req.query.parentUUID;
-  if (typeof parentUUID !== "string" || !parentUUID.trim()) {
-    throw new ResponseError("parentUUID must be a non-empty string.", 400);
-  }
-  const activities = getRoundTasks(parentUUID, req.params.roundId)?.activities ?? [];
-  const body: ApiResponse<Activity[]> = { success: true, data: activities };
-  res.json(body);
-});
-
-/**
  * GET /api/responses/:roundId/rooms/:roomId?parentUUID=<meeting uuid>&participantUUID=<caller>
  * The caller's view of the room. A room nobody has written to returns empty maps.
  */

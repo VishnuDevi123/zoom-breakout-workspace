@@ -13,7 +13,7 @@ import type {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-export type WorkspaceState =
+type WorkspaceState =
   | { kind: "loading" }
   | { kind: "missing" }
   | { kind: "error"; message: string }

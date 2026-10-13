@@ -32,7 +32,7 @@ interface ApplyRoleInput {
 /** Stable for the whole meeting, including across breakout room hops. */
 type ParticipantUUID = string;
 
-export interface HostGateValue {
+interface HostGateValue {
   state: HostState;
   /** Raw SDK role. Null until getUserContext() resolves. */
   role: ZoomRole | null;

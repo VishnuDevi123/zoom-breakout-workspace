@@ -25,12 +25,6 @@ export function initialsFrom(displayName: string): string {
   return letters.join("").toUpperCase();
 }
 
-export const STATUS_LABEL: Record<ParticipantStatus, string> = {
-  "in-room": "in room",
-  unassigned: "in main",
-  left: "left meeting",
-};
-
 /** Live Zoom fact shown beside somebody already placed in the round draft. */
 export const DRAFT_MEMBER_STATUS_LABEL: Record<ParticipantStatus, string> = {
   "in-room": "planned · in room",

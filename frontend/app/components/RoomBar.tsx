@@ -21,8 +21,9 @@ export default function RoomBar({
     <>
       <BrandMark onHome={onHome} />
       <span className="bw-header-title">{room.name}</span>
+      <div className="bw-header-spacer" />
       {remainingSec !== null ? (
-        <span className="bw-live-clock bw-mono bw-room-bar__clock" title="Time left in this round">
+        <span className="bw-live-clock bw-mono" title="Time left in this round">
           {formatClock(remainingSec)}
         </span>
       ) : null}

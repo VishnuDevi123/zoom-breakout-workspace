@@ -17,7 +17,6 @@ import { roundLabel, useWorkspace } from "@/lib/use-workspace";
 import type { LiveState, RoundMeta, RoundPlanDraft, WorkflowSnapshot, Workspace, ZoomRole } from "@/types/breakout";
 
 import LiveRound from "../LiveRound";
-import MeetingBadge from "../MeetingBadge";
 import WorkflowLibrary from "../WorkflowLibrary";
 import { BrandMark, Button, Card, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
@@ -55,18 +54,8 @@ function rosterFrom(live: LiveState | null): Participant[] {
   }));
 }
 
-/** Shell shown while nothing is editable yet: loading, errors, empty workspace. */
-function HostShell({
-  meetingUUID,
-  role,
-  heading,
-  children,
-}: {
-  meetingUUID: string;
-  role: ZoomRole | null;
-  heading: string;
-  children: React.ReactNode;
-}) {
+/** Shell for the one screen with nothing to edit yet: the workspace failed to load. */
+function HostShell({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
     <div className="bw-shell">
       <header className="bw-header">
@@ -78,11 +67,6 @@ function HostShell({
       </header>
       <div className="bw-body">
         <main className="bw-main">{children}</main>
-        <aside className="bw-rail">
-          <div style={{ marginTop: "auto" }}>
-            <MeetingBadge meetingUUID={meetingUUID} role={role ?? undefined} />
-          </div>
-        </aside>
       </div>
     </div>
   );
@@ -309,7 +293,7 @@ export default function HostWorkspace({
   }
   if (workspace.state.kind === "error") {
     return (
-      <HostShell meetingUUID={meetingUUID} role={role} heading="Breakout Workspace">
+      <HostShell heading="Breakout Workspace">
         <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
           <SectionLabel>Workspace load failed</SectionLabel>
           <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
@@ -370,7 +354,6 @@ export default function HostWorkspace({
         workspace={workspace.state.workspace}
         round={livePlan}
         live={live.liveState}
-        connected={live.isConnected}
         operation={controller.operation}
         nextRound={nextRound}
         // The logo goes home; the landing page offers the way back to this round.

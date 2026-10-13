@@ -4,7 +4,7 @@ import { PROGRESS_LABELS } from "@/lib/activity-kinds";
 import { initialsFrom } from "@/lib/participant-status";
 import type { Activity, IndividualAnswer, RoomResponsesHostView } from "@/types/breakout";
 
-import { progressText, type RoomPerson } from "./RoomResultsPage";
+import type { RoomPerson } from "./RoomResultsPage";
 import { Card, Pill, SectionLabel } from "./ui";
 
 /**

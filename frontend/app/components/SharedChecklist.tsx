@@ -36,7 +36,6 @@ export default function SharedChecklist({
   }
 
   if (items.length === 0) return null;
-  const doneCount = items.filter((item) => view?.ticks[item.id]).length;
 
   return (
     <div className="bw-checklist">

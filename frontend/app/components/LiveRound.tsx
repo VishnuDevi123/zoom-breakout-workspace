@@ -50,7 +50,6 @@ export default function LiveRound({
   workspace,
   round,
   live,
-  connected,
   operation,
   nextRound,
   onHome,
@@ -67,7 +66,6 @@ export default function LiveRound({
   workspace: Workspace;
   round: RoundPlanDraft;
   live: LiveState;
-  connected: boolean;
   operation: LiveOperationState;
   nextRound: RoundMeta | null;
   onHome: () => void;
