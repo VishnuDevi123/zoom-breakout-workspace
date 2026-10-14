@@ -975,6 +975,20 @@ input[type="checkbox"] {
     linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
 }
 
+.bw-ai-resume {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-accent-deep);
+  cursor: pointer;
+}
+
+.bw-ai-resume:hover,
+.bw-ai-resume:focus-visible {
+  text-decoration: underline;
+}
+
 .bw-landing-divider {
   display: flex;
   align-items: center;

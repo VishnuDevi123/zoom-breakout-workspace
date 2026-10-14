@@ -1,6 +1,6 @@
 # Architecture
 
-Zoom App for planning and running breakout rounds. A Next.js frontend runs inside the Zoom client and is the only thing that calls the Zoom Apps SDK. An Express backend stores the plans, records launches, receives Zoom webhooks and pushes live state to the frontend over SSE. The backend never calls Zoom.
+Zoom App for planning and running breakout rounds. A Next.js frontend runs inside the Zoom client and is the only thing that calls the Zoom Apps SDK. An Express backend stores the plans, records launches, receives Zoom webhooks and pushes live state to the frontend over SSE. The backend never calls Zoom. It calls OpenAI only to draft workflows the host asks for.
 
 ## Boundaries
 
@@ -11,6 +11,7 @@ Field lists live in `backend/types/breakout.ts`.
 | Workspace (`Workspace`, `RoundMeta`) | `backend/store/workspace.ts`, one record per meeting | `backend/routes/workspace.ts`, `frontend/lib/use-workspace.ts`, `screens/RoundsOverview.tsx` (workflow page) |
 | Host navigation (landing → workflow page → round setup [Rooms \| Tasks], plus live from the first launch until End Workflow) | `HostView` state in `screens/HostWorkspace.tsx`; no URL routes | `LandingScreen.tsx`, `RoundsOverview.tsx`, `RoundSetup.tsx`, `LiveRound.tsx`; setup and live share `PageFrame.tsx` and `NotPlacedSheet.tsx` |
 | Past workflows and saved templates (`WorkflowSnapshot`, `PastWorkflow`, `SavedTemplate`) | `backend/store/templates.ts`: past workflows in memory per meeting; templates in DynamoDB (`TEMPLATES_TABLE`, key `ownerUid` + `id`) via `backend/services/dynamo.ts` | `backend/routes/templates.ts`, `/api/workspace/end\|past\|replace`, `frontend/lib/use-workflow-library.ts`, `WorkflowLibrary.tsx`, `SaveTemplateModal.tsx` |
+| AI workflow builder (`DraftWorkflowRequest`, `DraftWorkflowResponse`, `AiChatMessage`) | Nothing stored: the chat lives in the host's browser; the backend is stateless and calls OpenAI (`openai` SDK, Responses API, strict Zod schema) | `backend/services/ai.ts`, `backend/routes/ai.ts` at `/api/ai`, `frontend/lib/use-ai-builder.ts`, `AiPrompt.tsx` (landing prompt), `AiChatPanel.tsx` (chat + proposals) |
 | Round plan (`RoundPlan`: rooms and who is in them) | `backend/store/round-plans.ts`, keyed `(parentUUID, roundId)` | `backend/routes/round-plans.ts`, `frontend/lib/use-room-plan.ts`, `room-plan-assignments.ts`, `room-plan-copy.ts`, `use-round-summaries.ts` |
 | Round task (`RoundTasks`, `RoomTask` incl. `checklist`, plus `activities`) | `backend/store/tasks.ts`, keyed `(parentUUID, roundId)` | `backend/routes/tasks.ts`, `frontend/lib/use-round-tasks.ts` (host), `use-participant-round.ts` (participant), `TaskFields.tsx`, `ActivityList.tsx` |
 | Activity responses (`RoomResponses`: answers, idea notes, checklist ticks) | `backend/store/activity_responses.ts`, keyed `(parentUUID, roundId, roomId)` | `backend/routes/activity_responses.ts` at `/api/responses`, `frontend/lib/use-room-responses.ts` (participant), `use-room-results.ts` (host) |
@@ -52,6 +53,9 @@ read library      host     -> GET /api/workspace/past, GET /api/templates (heade
 save template     host     -> POST /api/templates (from a past workflow) or POST /api/templates/current (workflow being built)
 use template      host     -> POST /api/workspace/replace {snapshot}     samples and saved templates; refused once a round has run
 delete template   host     -> DELETE /api/templates/:templateId
+draft with AI     host     -> POST /api/ai/workflow {messages, draft}  (X-Zoom-App-Context) -> {kind:"question"} or {kind:"workflow", workflow}
+                  backend  -> OpenAI Responses API                     nothing saved; the chat is resent whole each turn
+use AI proposal   host     -> POST /api/workspace/replace {snapshot}     same path and confirm as a template
 ```
 
 Launch, close and skip reply with the workspace as well, because all three change its revision.
@@ -62,6 +66,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - Participant key: `participantUUID` (`participant_uuid` in webhooks). Never `participantId` or `user_id`; Zoom reissues those on every room hop.
 - Plan rooms have app-owned ids; Zoom room ids never enter a plan. The SDK's `breakoutRoomId` and the webhook's `breakout_room_uuid` differ and cannot be mapped; `store/live.ts` learns the webhook uuid from the first planned person who enters.
 - Round ids are stable (`round-N`, next = highest + 1). Display order comes from the array, never the id. A null title shows as "Round N".
+- AI requests use the same `X-Zoom-App-Context` check as templates (a signed-in Zoom user, not a guest), so nobody outside Zoom can spend the OpenAI key. The `uid` is checked, not stored.
 - Template owner: `uid` (the Zoom user id) inside the encrypted `getAppContext()` token. The host's app sends the token as `X-Zoom-App-Context`; `services/app-context.ts` decrypts it (AES-256-GCM, key = SHA-256 of `ZOOM_CLIENT_SECRET`), checks `exp` and refuses guests, who carry `iid` and no `uid`. The browser never sends a user id, and the same `uid` follows the account across meetings and devices.
 
 ## Principles
@@ -80,6 +85,8 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - A workflow has three stages: building (no round run yet), ongoing (from the first launch) and ended. Once ongoing, the builder is closed: landing shows only the Ongoing Workflow card, and the live Session page is the only place to change upcoming rounds. Ending moves the workflow, without people or submissions, into Past workflows; it never reopens in the builder.
 - A closed round's plan decides who may read its submissions, so nothing rewrites it: bulk room edits touch only planned and skipped rounds, and closed rounds cannot be removed. This is enforced by the frontend only.
 - A template is a `WorkflowSnapshot`: rounds, times, room names, task and activities, never people. Using one replaces a workflow that has not started, with new ids and every round planned.
+- The AI only proposes. It returns a question or a `WorkflowSnapshot`; nothing is saved or sent to Zoom until the host presses "Use this workflow", which goes through `/api/workspace/replace` and its validators like any template. The AI never adds Zoom capabilities.
+- The model fills a schema, not the snapshot itself: no ids (the server adds them), minutes instead of seconds, and one `grouping` choice (`same | new | each`) mapped to the two workspace flags. Schema limits copy the store limits. It asks one question only when the session's purpose is unclear, picks the details itself otherwise, and leaves `autoStartNextRound` false and `resources` empty unless the host asks or gives links.
 - Extend existing stores, routes and hooks before adding new ones. Mirror type changes to both `types/breakout.ts` files. After removing a path, remove its types, CSS and comments in the same change.
 
 ## Known limits
@@ -90,11 +97,13 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - Every capability in `ZOOM_CAPABILITIES` must stay ticked on the Marketplace API list, or `config()` fails with `reason:app_not_support`.
 - `replaceWorkflow` is not atomic: a snapshot that fails validation part way leaves the new workflow incomplete.
 - Submissions exist only until End Workflow, so a participant can review past rounds only while the workflow runs.
+- An AI reply takes 4–12 s. The landing progress bar is timed, not real. Cancel only stops the browser waiting; the backend still finishes the OpenAI call.
+- The AI chat lives only in the open landing page: closing the panel keeps it ("Continue your AI chat" reopens it), pressing Generate starts a new one, and leaving the landing page loses it.
 
 ## Active scope
 
-Week 8: participant UI and user flow rework, then participant past-round review (existing plan and responses reads), then SQLite persistence with templates keyed by `uid`.
+AI layer for the Agentic AI Summit demo. Done: AI workflow builder (backend `/api/ai/workflow`, landing redesign with prompt, generating state and chat panel). Next to decide: AI help during a live round (propose an activity or a task through the existing task save), then a demo page.
 
 ## Infra
 
-ngrok -> Caddy `:8080` (`/api/*` -> Express `:4000` with `flush_interval -1` for SSE; everything else -> Next `:3000`). `ZOOM_WEBHOOK_SECRET` in `backend/.env`. Marketplace event subscription: `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`.
+ngrok -> Caddy `:8080` (`/api/*` -> Express `:4000` with `flush_interval -1` for SSE; everything else -> Next `:3000`). `ZOOM_WEBHOOK_SECRET` and `OPENAI_API_KEY` in `backend/.env` (and on Render); the model name is `MODEL` in `backend/services/ai.ts`. Marketplace event subscription: `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`.

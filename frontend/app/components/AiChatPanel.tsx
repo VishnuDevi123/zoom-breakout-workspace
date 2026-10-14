@@ -30,7 +30,7 @@ export default function AiChatPanel({
   pending: boolean;
   /** True when a workflow is being built, so using a proposal replaces it. */
   hasWorkflow: boolean;
-  /** Resolves true when the AI answered, so the composer clears. */
+  /** Resolves false when the send failed or was cancelled, so the composer gets its text back. */
   onSend: (text: string) => Promise<boolean>;
   onNewChat: () => void;
   onUse: (snapshot: WorkflowSnapshot) => Promise<void>;
@@ -54,9 +54,12 @@ export default function AiChatPanel({
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
+  // The message moves into the chat at once, so the box clears on send; a failed
+  // send puts the text back for another try.
   async function send() {
     if (!request || pending) return;
-    if (await onSend(request)) setText("");
+    setText("");
+    if (!(await onSend(request))) setText(request);
   }
 
   function use(workflow: WorkflowSnapshot) {
@@ -65,7 +68,8 @@ export default function AiChatPanel({
   }
 
   return createPortal(
-    <div className="bw-ai-panel-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
+    // No click-away close: a stray click must not hide the chat. × / ← / Escape close it.
+    <div className="bw-ai-panel-backdrop">
       <aside className="bw-ai-panel" role="dialog" aria-modal="true" aria-label="Build with AI">
         <header className="bw-ai-panel__header">
           <button type="button" className="bw-ai-panel__back" aria-label="Back" onClick={onClose}>

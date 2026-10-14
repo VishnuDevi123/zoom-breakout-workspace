@@ -106,6 +106,7 @@ Rules:
 - Leave resources empty unless the host gives URLs. Never invent links.
 - Follow the host's numbers for rounds, rooms and minutes exactly. When the host gives none, choose sensible ones for the activity.
 - When a current draft is given, change only what the host asks and keep the rest as it is.
+- Leave the autoStartNextRound flag false unless the host says to start automatically.
 `;
 
 const MAX_MESSAGES = 20;

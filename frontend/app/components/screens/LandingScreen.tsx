@@ -106,6 +106,11 @@ export default function LandingScreen({
                 </div>
 
                 <AiPrompt pending={ai.pending} onGenerate={generate} onCancel={ai.cancel} />
+                {ai.turns.length > 0 && !chatOpen && !ai.pending ? (
+                  <button type="button" className="bw-ai-resume" onClick={() => setChatOpen(true)}>
+                    Continue your AI chat ›
+                  </button>
+                ) : null}
 
                 {/* Dimmed and out of reach (inert) while the AI works; only the prompt's Cancel stays live. */}
                 <div className={`bw-landing-rest${ai.pending ? " bw-landing-rest--dimmed" : ""}`} inert={ai.pending}>
