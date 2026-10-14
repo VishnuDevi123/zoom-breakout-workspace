@@ -29,7 +29,7 @@ const MIN_DURATION_SEC = 30;
 /** How rounds get their groups. Stored as the workspace's two existing flags. */
 type Grouping = "same" | "new" | "each";
 
-const GROUPING_OPTIONS: { id: Grouping; label: string; hint: string }[] = [
+export const GROUPING_OPTIONS: { id: Grouping; label: string; hint: string }[] = [
   { id: "same", label: "Same groups every round", hint: "Set rooms and people once, in Round 1." },
   { id: "new", label: "New groups each round", hint: "Same rooms, people mixed up each round." },
   { id: "each", label: "I'll set up each round", hint: "Every round has its own rooms and people." },
@@ -42,7 +42,7 @@ const GROUPING_FLAGS: Record<Grouping, Pick<Workspace, "sameRoomsEveryRound" | "
 };
 
 /** Same people without the same rooms has no meaning, so it reads as "each round". */
-function groupingOf(workspace: Workspace): Grouping {
+export function groupingOf(workspace: Pick<Workspace, "sameRoomsEveryRound" | "samePeopleEveryRound">): Grouping {
   if (!workspace.sameRoomsEveryRound) return "each";
   return workspace.samePeopleEveryRound ? "same" : "new";
 }

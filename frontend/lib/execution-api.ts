@@ -1,5 +1,7 @@
 import type {
   AddIdeaRequest,
+  DraftWorkflowRequest,
+  DraftWorkflowResponse,
   ApiResponse,
   EditIdeaRequest,
   LiveActionResponse,
@@ -212,6 +214,22 @@ export async function saveCurrentAsTemplate(
       method: "POST",
       headers: templateHeaders(appContext),
       body: JSON.stringify(request),
+    }),
+  );
+}
+
+/** Ask the AI for a workflow, or for the details it needs first. Host only, like templates; saves nothing. */
+export async function draftWorkflowWithAi(
+  appContext: string,
+  request: DraftWorkflowRequest,
+  signal: AbortSignal,
+): Promise<DraftWorkflowResponse> {
+  return apiResult(
+    await fetch("/api/ai/workflow", {
+      method: "POST",
+      headers: templateHeaders(appContext),
+      body: JSON.stringify(request),
+      signal,
     }),
   );
 }

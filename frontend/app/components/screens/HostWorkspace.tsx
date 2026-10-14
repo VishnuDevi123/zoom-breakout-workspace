@@ -296,7 +296,7 @@ export default function HostWorkspace({
       <HostShell heading="Breakout Workspace">
         <Card style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
           <SectionLabel>Workspace load failed</SectionLabel>
-          <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
+          <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-2)" }}>{workspace.state.message}</span>
           <Button variant="secondary" size="sm" onClick={workspace.reload}>Retry load</Button>
         </Card>
       </HostShell>
@@ -344,6 +344,7 @@ export default function HostWorkspace({
         onEndWorkflow={endWorkflow}
         onStartRoundOne={startRoundOne}
         onBuildRounds={buildRounds}
+        onUse={startFrom}
       />
     );
   }

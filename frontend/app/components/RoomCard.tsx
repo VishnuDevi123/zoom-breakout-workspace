@@ -90,7 +90,7 @@ export default function RoomCard({
         })}
 
         {participants.length === 0 ? (
-          <span style={{ fontSize: "var(--bw-fs-secondary)", color: "var(--bw-muted-3)" }}>
+          <span style={{ fontSize: "var(--bw-fs-meta)", color: "var(--bw-muted-3)" }}>
             Nobody planned here yet
           </span>
         ) : null}
