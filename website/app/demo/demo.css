@@ -1,0 +1,861 @@
+/*
+ * Simulated Zoom meeting around the Breakout Workspace panels. Meeting chrome
+ * is dark like Zoom; the panels reuse the app's light tokens from globals.css.
+ */
+.dm-shell {
+  --dm-bg: #111318;
+  --dm-surface: #1c1f26;
+  --dm-tile: #23262e;
+  --dm-line: #2e323c;
+  --dm-text: #e8eaef;
+  --dm-muted: #9aa1ae;
+
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--dm-bg);
+  color: var(--dm-text);
+  font-family: var(--bw-font-ui);
+}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+
+.dm-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--dm-line);
+}
+
+.dm-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+
+.dm-topbar__mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-amber);
+  color: var(--bw-ink);
+  font-size: var(--bw-fs-label);
+  font-weight: 700;
+}
+
+.dm-topbar__note {
+  font-size: var(--bw-fs-meta);
+  color: var(--dm-muted);
+}
+
+.dm-topbar__spacer {
+  flex: 1;
+}
+
+.dm-switch {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--dm-line);
+  border-radius: var(--bw-radius-md);
+  background: var(--dm-surface);
+}
+
+.dm-switch__option {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--bw-radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--dm-muted);
+  cursor: pointer;
+}
+
+.dm-switch__option[aria-checked="true"] {
+  background: var(--bw-accent);
+  color: #fff;
+}
+
+/* ── Stage: gallery and docked panels ────────────────────── */
+
+/*
+ * A row: the meeting takes what the open panels leave. Panels open and close
+ * from Apps. One side shown: its panel docks right, wider. Both: host left,
+ * participant right.
+ */
+.dm-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 1px;
+  background: var(--dm-line);
+}
+
+.dm-meeting {
+  order: 2;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--dm-bg);
+}
+
+/* Main meeting and the visitor's room share the column; the compact one holds only the host. */
+.dm-meeting__section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dm-meeting__section--compact {
+  flex: none;
+  border-bottom: 1px solid var(--dm-line);
+}
+
+.dm-meeting__section--compact .dm-gallery {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 200px));
+}
+
+.dm-meeting__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+}
+
+.dm-meeting__skip {
+  padding: 4px 10px;
+  border: 1px solid var(--dm-line);
+  border-radius: var(--bw-radius-pill);
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-label);
+  color: var(--dm-text);
+  cursor: pointer;
+}
+
+.dm-meeting__caption {
+  margin: 0;
+  padding: 8px 14px 12px;
+  font-size: var(--bw-fs-label);
+  color: var(--dm-muted);
+}
+
+.dm-gallery {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-content: start;
+  gap: 8px;
+  padding: 8px;
+}
+
+/* A small room fills the space it has, rows included, so nobody drops below the fold. */
+.dm-gallery--room {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+}
+
+.dm-gallery--room .dm-tile {
+  aspect-ratio: auto;
+}
+
+.dm-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--bw-radius-md);
+  background: var(--dm-tile);
+}
+
+.dm-tile {
+  animation: bwFadeIn 400ms ease-out both;
+  transition: box-shadow 200ms ease;
+}
+
+/* Moving to a breakout room: shrink and fade out of the main meeting. */
+.dm-tile--leaving {
+  animation: dmTileLeave 700ms ease-in forwards;
+}
+
+@keyframes dmTileLeave {
+  to {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+/* Zoom's active-speaker frame. */
+.dm-tile--speaking {
+  box-shadow: 0 0 0 2px #2fbf71;
+}
+
+.dm-tile__bubble {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  padding: 6px 9px;
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font-size: var(--bw-fs-label);
+  line-height: 1.35;
+  color: var(--bw-ink);
+  animation: bwFadeIn 250ms ease-out both;
+}
+
+/* Someone's earlier line, kept while another person speaks. */
+.dm-tile__bubble--past {
+  opacity: 0.5;
+}
+
+.dm-tile__avatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: var(--bw-fs-body);
+  font-weight: 700;
+  color: #fff;
+}
+
+.dm-tile__name {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  max-width: calc(100% - 12px);
+  padding: 2px 6px;
+  border-radius: var(--bw-radius-sm);
+  background: rgb(0 0 0 / 55%);
+  font-size: var(--bw-fs-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dm-tile__you {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 8px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-accent);
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+}
+
+/* ── App panels (light, like the real app) ───────────────── */
+
+.dm-panel {
+  order: 3;
+  flex: none;
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+  animation: dmPanelIn 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.dm-stage--both .dm-panel {
+  width: 360px;
+}
+
+.dm-stage--both .dm-panel--host {
+  order: 1;
+}
+
+@keyframes dmPanelIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+.dm-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--bw-border);
+}
+
+.dm-panel__app {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+
+.dm-panel__who {
+  padding: 8px 14px;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.dm-panel--host .dm-panel__who {
+  background: var(--bw-accent-tint);
+}
+
+.dm-panel--participant .dm-panel__who {
+  background: var(--bw-teal-tint);
+}
+
+.dm-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+/* ── App screens inside the panels ───────────────────────── */
+
+.dm-app {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dm-app--waiting {
+  padding-top: 24px;
+  text-align: center;
+}
+
+.dm-app__title {
+  margin: 0;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.dm-app__goal {
+  margin: 4px 0;
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+}
+
+.dm-app__meta {
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.dm-app__back {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-accent-deep);
+  cursor: pointer;
+}
+
+.dm-rounds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dm-rounds__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bw-border-faint);
+  font-size: var(--bw-fs-body);
+}
+
+.dm-rounds__row--next {
+  font-weight: 600;
+}
+
+.dm-steps {
+  margin: 0;
+  padding-left: 20px;
+  list-style: decimal; /* Tailwind's reset removes list markers */
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+}
+
+.dm-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bw-danger-text);
+}
+
+.dm-live__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bw-danger);
+}
+
+.dm-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.dm-room-card,
+.dm-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  text-align: left;
+  color: var(--bw-ink);
+  cursor: pointer;
+}
+
+.dm-room-card:hover,
+.dm-room-card:focus-visible,
+.dm-activity:hover,
+.dm-activity:focus-visible {
+  border-color: var(--bw-accent);
+}
+
+.dm-room-card__name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+
+/* What the room is talking about right now; the visitor's turn is stronger. */
+.dm-focus {
+  border-radius: var(--bw-radius-md);
+  box-shadow: 0 0 0 4px var(--bw-accent-tint);
+  transition: box-shadow 300ms ease;
+}
+
+.dm-focus--your-turn {
+  box-shadow: 0 0 0 2px var(--bw-accent), 0 0 0 6px var(--bw-accent-tint);
+}
+
+.dm-activity {
+  width: 100%;
+}
+
+.dm-activity__title {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.dm-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dm-results__heading {
+  margin: 0;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+
+.dm-results__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface-sunken);
+  font-size: var(--bw-fs-body);
+  line-height: 1.45;
+}
+
+.dm-results__by,
+.dm-note__by {
+  font-size: var(--bw-fs-label);
+  color: var(--bw-muted);
+}
+
+.dm-notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.dm-note {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 96px;
+  padding: 10px;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-amber-tint);
+  font-size: var(--bw-fs-meta);
+  line-height: 1.4;
+  animation: bwFadeIn 300ms ease-out both;
+}
+
+.dm-note-form {
+  display: flex;
+  gap: 8px;
+}
+
+.dm-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface-sunken);
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+  resize: vertical;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+
+.dm-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: 0 16px;
+  border-top: 1px solid var(--dm-line);
+  background: var(--dm-surface);
+}
+
+.dm-toolbar__group {
+  display: flex;
+  gap: 18px;
+}
+
+.dm-tool {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--bw-fs-label);
+  color: var(--dm-muted);
+}
+
+.dm-tool svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dm-tool--active {
+  color: var(--dm-text);
+}
+
+.dm-tool--button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--bw-radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-label);
+  cursor: pointer;
+}
+
+.dm-tool--button:hover,
+.dm-tool--button:focus-visible {
+  background: var(--dm-tile);
+  color: var(--dm-text);
+}
+
+/* The tour is waiting for Apps. */
+.dm-tool--pulse {
+  color: var(--dm-text);
+  box-shadow: 0 0 0 2px var(--bw-accent);
+  animation: dmPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dmPulse {
+  50% {
+    box-shadow: 0 0 0 6px rgb(79 70 229 / 35%);
+  }
+}
+
+.dm-ai-prompt__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--bw-accent);
+}
+
+.dm-tool__badge {
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  padding: 0 4px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--dm-line);
+  font-size: 10px;
+  color: var(--dm-text);
+}
+
+.dm-toolbar__end {
+  padding: 6px 16px;
+  border-radius: var(--bw-radius-sm);
+  background: #e5484d;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ── Tour, welcome, top bar actions ──────────────────────── */
+
+.dm-topbar__action {
+  padding: 6px 12px;
+  border: 1px solid var(--dm-line);
+  border-radius: var(--bw-radius-md);
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--dm-text);
+  cursor: pointer;
+}
+
+/*
+ * The part of the screen the current tour step talks about. Drawn on a layer
+ * above the children: an inset shadow sits under their backgrounds (the panel
+ * header and the "Host view" strip hid it). Clicks pass through.
+ */
+.dm-panel,
+.dm-meeting {
+  position: relative;
+}
+
+.dm-stage--focus-host .dm-panel--host::after,
+.dm-stage--focus-participant .dm-panel--participant::after,
+.dm-stage--focus-meeting .dm-meeting::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 3px solid var(--bw-accent);
+  pointer-events: none;
+}
+
+.dm-tour {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--bw-radius-lg);
+  background: var(--bw-surface);
+  box-shadow: var(--bw-shadow-2);
+  color: var(--bw-ink);
+  animation: bwModalIn 220ms ease-out both;
+}
+
+
+.dm-tour__count {
+  font-size: var(--bw-fs-label);
+  color: var(--bw-muted);
+}
+
+.dm-tour__title,
+.dm-welcome__title {
+  margin: 0;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+
+.dm-tour__body {
+  margin: 0;
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+}
+
+.dm-tour__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.dm-tour__skip {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dm-tour__waiting {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent-deep);
+}
+
+.dm-welcome .dm-topbar__brand {
+  color: var(--bw-ink);
+}
+
+.dm-welcome__picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dm-welcome__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--bw-fs-body);
+}
+
+/* The AI prompt in the host panel shows the cached prompt as text. */
+.dm-ai-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.dm-ai-prompt__text {
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+}
+
+/* ── Narrow screens: one column, no "Both" ───────────────── */
+
+@media (max-width: 1100px) {
+  .dm-stage--both {
+    flex-wrap: wrap;
+  }
+
+  .dm-stage--both .dm-meeting {
+    flex-basis: 100%;
+    height: 30%;
+  }
+
+  .dm-stage--both .dm-panel {
+    flex: 1;
+    width: auto;
+    height: 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-tile,
+  .dm-tile__bubble {
+    animation: none;
+  }
+
+  .dm-tile--leaving {
+    animation: none;
+    opacity: 0;
+  }
+
+  .dm-panel {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .dm-topbar__note,
+  .dm-topbar__name,
+  .dm-topbar__action:last-child,
+  .dm-switch__option--wide,
+  .dm-toolbar__group:first-child,
+  .dm-tool:not(.dm-tool--button) {
+    display: none;
+  }
+
+  /* Meeting strip on top, the open panel below. */
+  .dm-stage {
+    flex-direction: column;
+  }
+
+  .dm-stage .dm-meeting {
+    flex: 1 1 28%;
+  }
+
+  .dm-stage .dm-panel {
+    flex: 1 1 72%;
+    width: auto;
+  }
+
+  .dm-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+
+  /* Over the gallery strip at the top, clear of the panel below. */
+  .dm-tour {
+    top: 60px;
+    bottom: auto;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    translate: none;
+  }
+
+  .dm-tile__avatar {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 18px; /* clear of the name label on small tiles */
+    font-size: var(--bw-fs-label);
+  }
+}
