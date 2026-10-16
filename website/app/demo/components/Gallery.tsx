@@ -32,7 +32,7 @@ export default function Gallery({
   leavingIds = [],
   speech = null,
   lastSaid = {},
-  room = false,
+  columns,
 }: {
   people: Person[];
   hostId: string;
@@ -41,11 +41,16 @@ export default function Gallery({
   speech?: Entry | null;
   /** Each person's last line; shown faded on their tile while someone else speaks. */
   lastSaid?: Record<string, string>;
-  /** A small breakout room: big tiles, like Zoom with a few people. */
-  room?: boolean;
+  /** Set: the tiles fill the whole area in this many columns, like Zoom's gallery view. */
+  columns?: number;
 }) {
+  const fill = columns !== undefined;
   return (
-    <div className={room ? "dm-gallery dm-gallery--room" : "dm-gallery"}>
+    <div
+      className={fill ? "dm-gallery dm-gallery--fill" : "dm-gallery"}
+      // The column count comes from the number of people; CSS reads it as a variable.
+      style={fill ? ({ "--dm-cols": columns } as React.CSSProperties) : undefined}
+    >
       {people.map((person) => {
         const speaking = speech?.by === person.id;
         const classes = ["dm-tile", speaking ? "dm-tile--speaking" : "", leavingIds.includes(person.id) ? "dm-tile--leaving" : ""];

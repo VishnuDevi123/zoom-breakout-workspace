@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SCENARIOS } from "@/data/scenarios";
+import { nexusScenario } from "@/data/scenarios/nexus";
 
 import DemoApp from "./components/DemoApp";
 import "./demo.css";
@@ -11,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function DemoPage() {
-  return <DemoApp scenarios={SCENARIOS} />;
+  return <DemoApp scenario={nexusScenario} />;
 }

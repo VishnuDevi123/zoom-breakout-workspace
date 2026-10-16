@@ -36,12 +36,9 @@ function holdAfter(line: TalkLine | undefined): number {
  * Runs one round of the simulation: the leave animation, the compressed clock,
  * and the visitor's room talk, line by line, pausing on the visitor's turn.
  */
-export function useRoundRuntime(scenario: Scenario, appsOpen: boolean) {
-  // Without the tour both apps start open; the tour has the visitor open them from Apps.
-  const [state, dispatch] = useReducer(demoReducer, appsOpen, (open) => ({
-    ...initialDemoState,
-    apps: { host: open, participant: open },
-  }));
+export function useRoundRuntime(scenario: Scenario) {
+  // Both apps start closed: the visitor opens Breakout Workspace from Apps, as in Zoom.
+  const [state, dispatch] = useReducer(demoReducer, initialDemoState);
   const [now, setNow] = useState(0);
   const talk = scenario.rounds[state.roundIndex]?.talk ?? [];
   const nextLine = talk[state.talkIndex];
@@ -88,11 +85,5 @@ export function useRoundRuntime(scenario: Scenario, appsOpen: boolean) {
     progress,
     launch: (roundIndex: number) => dispatch({ kind: "launch", roundIndex }),
     end: () => dispatch({ kind: "end", rest: talk.slice(state.talkIndex) }),
-    /** Plays everything up to the visitor's turn (or to the end) at once. */
-    skip: () => {
-      const turn = talk.findIndex((line, index) => index >= state.talkIndex && line.kind === "visitorTurn");
-      dispatch({ kind: "skip", lines: talk.slice(state.talkIndex, turn === -1 ? talk.length : turn + 1) });
-    },
-    canSkip: state.phase === "live" && !state.waitingFor && Boolean(nextLine),
   };
 }

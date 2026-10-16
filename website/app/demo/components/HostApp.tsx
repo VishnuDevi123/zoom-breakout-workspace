@@ -81,7 +81,12 @@ export default function HostApp({
             {round.roomNames.length} rooms · {round.activities.length} activities · {round.task?.checklist.length ?? 0} checklist items
           </span>
         </div>
-        <button type="button" className="bw-button bw-button--primary bw-button--lg" onClick={() => onLaunch(state.roundIndex)}>
+        <button
+          type="button"
+          className="bw-button bw-button--primary bw-button--lg"
+          data-tour="launch"
+          onClick={() => onLaunch(state.roundIndex)}
+        >
           Launch Round {state.roundIndex + 1}
         </button>
       </div>
@@ -100,7 +105,7 @@ export default function HostApp({
         <p className="dm-app__meta">All {scenario.workflow.rounds.length} rounds are done.</p>
       )
     ) : (
-      <button type="button" className="bw-button bw-button--secondary bw-button--lg" onClick={onEnd}>
+      <button type="button" className="bw-button bw-button--secondary bw-button--lg" data-tour="end-round" onClick={onEnd}>
         End round · {formatClock(remainingSec)} left
       </button>
     );
@@ -176,7 +181,13 @@ function LiveRooms({
       <h2 className="dm-app__title">{title}</h2>
       <div className="dm-room-grid">
         {outcomes.map((outcome) => (
-          <button key={outcome.room} type="button" className="dm-room-card" onClick={() => onOpenRoom(outcome.room)}>
+          <button
+            key={outcome.room}
+            type="button"
+            className="dm-room-card"
+            data-tour={outcome.room === myRoom ? "visitor-room" : undefined}
+            onClick={() => onOpenRoom(outcome.room)}
+          >
             <span className="dm-room-card__name">
               {outcome.room}
               {outcome.room === myRoom ? <span className="bw-pill bw-pill--accent">{scenario.visitor.name.split(" ")[0]}</span> : null}
@@ -238,7 +249,9 @@ function AiBuilder({
   const { workflow } = scenario;
   const totalSec = workflow.rounds.reduce((sum, round) => sum + round.durationSec, 0);
   const [typed, setTyped] = useState(stage === "prompt" ? 0 : scenario.aiPrompt.length);
-  const typing = typed < scenario.aiPrompt.length;
+  // Next can move past the prompt mid-typing; from then on the whole prompt shows.
+  const typing = stage === "prompt" && typed < scenario.aiPrompt.length;
+  const shown = typing ? typed : scenario.aiPrompt.length;
 
   // The guide types the host's request, a few characters at a time (about 3 s).
   useEffect(() => {
@@ -253,7 +266,7 @@ function AiBuilder({
       <p className="dm-app__meta">Describe it and AI builds the rounds, rooms, tasks and activities.</p>
       <div className="bw-ai-prompt dm-ai-prompt">
         <p className="dm-ai-prompt__text">
-          {scenario.aiPrompt.slice(0, typed)}
+          {scenario.aiPrompt.slice(0, shown)}
           {typing ? <span className="dm-ai-prompt__caret" aria-hidden="true" /> : null}
         </p>
         {stage === "prompt" && typing ? (
@@ -262,7 +275,7 @@ function AiBuilder({
           </button>
         ) : null}
         {stage === "prompt" && !typing ? (
-          <button type="button" className="bw-button bw-button--primary bw-button--md" onClick={onGenerate}>
+          <button type="button" className="bw-button bw-button--primary bw-button--md" data-tour="generate" onClick={onGenerate}>
             Generate
           </button>
         ) : null}
@@ -292,7 +305,7 @@ function AiBuilder({
               </li>
             ))}
           </ol>
-          <button type="button" className="bw-button bw-button--primary bw-button--md" onClick={onUse}>
+          <button type="button" className="bw-button bw-button--primary bw-button--md" data-tour="use-workflow" onClick={onUse}>
             Use this workflow
           </button>
         </div>

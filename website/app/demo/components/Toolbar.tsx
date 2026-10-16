@@ -35,16 +35,13 @@ function DecorativeItem({ label, badge }: { label: string; badge?: number }) {
 export default function Toolbar({
   participantCount,
   appsOpen,
-  appsPulse,
   onApps,
 }: {
   participantCount: number;
   appsOpen: boolean;
-  /** The tour is waiting for the visitor to press Apps. */
-  appsPulse: boolean;
   onApps: () => void;
 }) {
-  const appsClass = ["dm-tool", "dm-tool--button", appsOpen ? "dm-tool--active" : "", appsPulse ? "dm-tool--pulse" : ""];
+  const appsClass = ["dm-tool", "dm-tool--button", appsOpen ? "dm-tool--active" : ""];
   return (
     <footer className="dm-toolbar">
       <div className="dm-toolbar__group">
@@ -56,7 +53,7 @@ export default function Toolbar({
         {CENTER.map((label) => (
           <DecorativeItem key={label} label={label} badge={label === "Participants" ? participantCount : undefined} />
         ))}
-        <button type="button" className={appsClass.filter(Boolean).join(" ")} aria-pressed={appsOpen} onClick={onApps}>
+        <button type="button" className={appsClass.filter(Boolean).join(" ")} aria-pressed={appsOpen} data-tour="apps" onClick={onApps}>
           <Icon label="Apps" />
           Apps
         </button>

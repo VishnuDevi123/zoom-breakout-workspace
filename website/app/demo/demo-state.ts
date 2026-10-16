@@ -43,6 +43,8 @@ export interface DemoState {
 }
 
 export type DemoAction =
+  /** The tour's Next and Back set the whole state at once. */
+  | { kind: "replace"; state: DemoState }
   | { kind: "openApp"; role: "host" | "participant"; open: boolean }
   | { kind: "openRoom"; room: string | null }
   | { kind: "generate" }
@@ -110,6 +112,8 @@ function play(state: DemoState, line: TalkLine): DemoState {
 
 export function demoReducer(state: DemoState, action: DemoAction): DemoState {
   switch (action.kind) {
+    case "replace":
+      return action.state;
     case "openApp":
       return {
         ...state,

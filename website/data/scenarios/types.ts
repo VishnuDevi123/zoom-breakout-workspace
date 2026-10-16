@@ -2,12 +2,10 @@ import type { WorkflowSnapshot } from "@/types/breakout";
 
 /**
  * One demo session as data. The simulation engine never changes per scenario:
- * a new session is a new file of this shape, picked in the welcome modal.
+ * a new session is a new file of this shape.
  */
 export interface Scenario {
   id: string;
-  /** Shown in the session picker. */
-  label: string;
   meetingTitle: string;
   /** The cached AI builder example: what the host "typed". */
   aiPrompt: string;
@@ -34,6 +32,7 @@ export type TourEvent =
   | "participantAppOpened"
   | "visitorTurn"
   | "visitorAnswered"
+  | "noteAsked"
   | "visitorPosted"
   | "roomOpened"
   | "ended";
@@ -47,7 +46,24 @@ export interface TourStep {
   view?: "host" | "participant" | "both";
   /** Set: the step waits for this and moves on when it happens. Unset: a Next button. */
   until?: TourEvent;
+  /** Buttons to point at, in order: the first one on screen blinks until clicked. */
+  point?: TourPoint[];
+  /** Set: start pointing only once this happened (the room asks first). */
+  pointWhen?: TourEvent;
 }
+
+/** A button the tour can point at; the button carries it as `data-tour`. */
+export type TourPoint =
+  | "apps"
+  | "generate"
+  | "use-workflow"
+  | "launch"
+  | "answer"
+  | "submit-answer"
+  | "board"
+  | "post-note"
+  | "visitor-room"
+  | "end-round";
 
 export interface Person {
   id: string;

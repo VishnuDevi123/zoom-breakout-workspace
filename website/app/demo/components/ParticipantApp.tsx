@@ -123,7 +123,12 @@ export default function ParticipantApp({
       <span className="bw-section-label">Activities</span>
       {round.activities.map((activity) => (
         <div key={activity.id} {...focusProps(activity.kind === "individual" ? "individual" : "board")}>
-          <button type="button" className="dm-activity" onClick={() => setOpenActivity(activity)}>
+          <button
+            type="button"
+            className="dm-activity"
+            data-tour={activity.kind === "individual" ? "answer" : "board"}
+            onClick={() => setOpenActivity(activity)}
+          >
             <span className="dm-app__meta">{activity.kind === "individual" ? "Your answer" : "Shared board"}</span>
             <span className="dm-activity__title">{activity.title}</span>
             <span className="dm-app__meta">
@@ -179,12 +184,13 @@ function AnswerModal({
           <h3 className="dm-app__title">{activity.title}</h3>
           <p className="dm-app__meta">{activity.description}</p>
           <textarea className="dm-input" rows={4} value={text} onChange={(event) => setText(event.target.value)} />
-          <p className="dm-app__meta">Only the host sees your answer when submitted.</p>
+          <p className="dm-app__meta">Only the host sees your answer for this type of question when submitted.</p>
         </div>
         <div className="bw-overlay__footer">
           <button
             type="button"
             className="bw-button bw-button--primary bw-button--md"
+            data-tour="submit-answer"
             onClick={() => onSubmit(text.trim() || suggestion)}
           >
             Submit to host
@@ -248,7 +254,7 @@ function IdeaBoard({
           aria-label="New note"
           onChange={(event) => setText(event.target.value)}
         />
-        <button type="submit" className="bw-button bw-button--primary bw-button--md">
+        <button type="submit" className="bw-button bw-button--primary bw-button--md" data-tour="post-note">
           {posted ? "Post another" : "Post"}
         </button>
       </form>

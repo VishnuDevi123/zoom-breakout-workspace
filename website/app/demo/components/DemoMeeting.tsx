@@ -6,7 +6,9 @@ import type { Scenario } from "@/data/scenarios/types";
 
 import { formatClock } from "../clock";
 import { roomsFor, visitorRoom } from "../demo-state";
+import { stateAtStep, fulfil } from "../tour-actions";
 import { useRoundRuntime } from "../use-round-runtime";
+import { useTourPointer } from "../use-tour-pointer";
 import AppPanel from "./AppPanel";
 import Gallery from "./Gallery";
 import HostApp from "./HostApp";
@@ -42,24 +44,22 @@ function useNarrowScreen(): boolean {
 export default function DemoMeeting({
   scenario,
   tour,
-  appsOpen,
   onTourClose,
   onReplay,
-  onReset,
 }: {
   scenario: Scenario;
   /** True while the guided tour runs. */
   tour: boolean;
-  /** Start with both app panels open (exploring); the tour has the visitor open them. */
-  appsOpen: boolean;
   onTourClose: () => void;
   onReplay: () => void;
-  onReset: () => void;
 }) {
   // The visitor's own view choice, and the tour step they made it at.
   const [picked, setPicked] = useState<{ view: DemoView; step: number }>({ view: "both", step: -1 });
   const [stepFloor, setStepFloor] = useState(0);
-  const runtime = useRoundRuntime(scenario, appsOpen);
+  // Bumped by Back: remounts what is inside the panels, so no modal or board view from a later
+  // step stays open. The panels themselves stay, so an open app does not play its opening again.
+  const [rewinds, setRewinds] = useState(0);
+  const runtime = useRoundRuntime(scenario);
   const { state, dispatch } = runtime;
   const narrow = useNarrowScreen();
 
@@ -71,6 +71,8 @@ export default function DemoMeeting({
     stepIndex += 1;
   }
   const step = tour ? scenario.tour[stepIndex] : null;
+  const pointing = !step?.pointWhen || reached(step.pointWhen, state, scenario.visitor.id);
+  useTourPointer(pointing ? step?.point : undefined);
 
   // The tour shows whose screen each step needs; a view the visitor picks holds until the tour switches again.
   const tourViewStep = scenario.tour.findLastIndex((candidate, index) => index <= stepIndex && candidate.view);
@@ -92,13 +94,18 @@ export default function DemoMeeting({
     if (view !== "host") dispatch({ kind: "openApp", role: "participant", open: !appOpen });
   }
 
+  const mainPeople = inRooms ? [scenario.host] : everyone;
+  const compactMain = inRooms && view === "both";
   const mainMeeting = (
     <MeetingSection
       label={inRooms ? "Main meeting · everyone else is in breakout rooms" : scenario.meetingTitle}
-      compact={inRooms && view === "both"}
+      main
+      compact={compactMain}
     >
       <Gallery
-        people={inRooms ? [scenario.host] : everyone}
+        people={mainPeople}
+        // Two rows when there are more than a few people (14 → 7 × 2), filling the screen.
+        columns={compactMain ? undefined : mainPeople.length > 3 ? Math.ceil(mainPeople.length / 2) : mainPeople.length}
         hostId={scenario.host.id}
         youId={you}
         leavingIds={state.phase === "launching" ? everyone.filter((person) => person.id !== scenario.host.id).map((person) => person.id) : []}
@@ -109,23 +116,20 @@ export default function DemoMeeting({
   const breakoutRoom = (
     <MeetingSection
       label={`${room} · ${formatClock(remainingSec)} left · sped up`}
-      action={runtime.canSkip ? <button type="button" className="dm-meeting__skip" onClick={runtime.skip}>Skip ahead ›</button> : null}
     >
-      <Gallery people={roomPeople} hostId={scenario.host.id} youId={you} speech={state.speech} lastSaid={state.lastSaid} room />
-      <p className="dm-meeting__caption">
-        Simulated conversation. In a real session this is Zoom audio; Breakout Workspace never records it.
-      </p>
+      <Gallery people={roomPeople} hostId={scenario.host.id} youId={you} speech={state.speech} lastSaid={state.lastSaid} columns={2} />
     </MeetingSection>
   );
 
   return (
     <div className="dm-shell">
-      <TopBar view={view} onViewChange={(next) => setPicked({ view: next, step: stepIndex })} onReplay={onReplay} onReset={onReset} />
+      <TopBar view={view} onViewChange={(next) => setPicked({ view: next, step: stepIndex })} onReplay={onReplay} />
 
       <div className={`dm-stage dm-stage--${view}${step ? ` dm-stage--focus-${step.target}` : ""}`}>
         {view !== "participant" && state.apps.host ? (
           <AppPanel role="host" person={scenario.host}>
             <HostApp
+              key={rewinds}
               scenario={scenario}
               state={state}
               progress={runtime.progress}
@@ -148,6 +152,7 @@ export default function DemoMeeting({
         {view !== "host" && state.apps.participant ? (
           <AppPanel role="participant" person={scenario.visitor}>
             <ParticipantApp
+              key={rewinds}
               scenario={scenario}
               state={state}
               onTick={(item) => dispatch({ kind: "tick", by: scenario.visitor.id, item })}
@@ -161,7 +166,6 @@ export default function DemoMeeting({
       <Toolbar
         participantCount={everyone.length}
         appsOpen={appOpen}
-        appsPulse={step?.until === "hostAppOpened" || step?.until === "participantAppOpened"}
         onApps={toggleApps}
       />
 
@@ -171,7 +175,18 @@ export default function DemoMeeting({
           step={step}
           index={stepIndex}
           total={scenario.tour.length}
-          onNext={() => setStepFloor(stepIndex + 1)}
+          onNext={() => {
+            // A step that waits is done for the visitor, as if they had clicked.
+            if (step.until) dispatch({ kind: "replace", state: fulfil(step.until, state, scenario, Date.now()) });
+            setStepFloor(stepIndex + 1);
+          }}
+          onBack={() => {
+            // Replay from the start to the step before: the script is fixed, so the state is the same.
+            dispatch({ kind: "replace", state: stateAtStep(stepIndex - 1, scenario, Date.now()) });
+            setStepFloor(stepIndex - 1);
+            setPicked({ view: "both", step: -1 });
+            setRewinds((count) => count + 1);
+          }}
           onClose={onTourClose}
         />
       ) : null}
@@ -179,13 +194,13 @@ export default function DemoMeeting({
   );
 }
 
-/** One meeting area: a label bar (with an optional action) over a gallery. */
-function MeetingSection({ label, action, compact, children }: { label: string; action?: ReactNode; compact?: boolean; children: ReactNode }) {
+/** One meeting area: a label bar over a gallery. `main` is the main meeting, otherwise a breakout room. */
+function MeetingSection({ label, main, compact, children }: { label: string; main?: boolean; compact?: boolean; children: ReactNode }) {
+  const classes = ["dm-meeting__section", main ? "dm-meeting__section--main" : "", compact ? "dm-meeting__section--compact" : ""];
   return (
-    <section className={`dm-meeting__section${compact ? " dm-meeting__section--compact" : ""}`} aria-label={label}>
+    <section className={classes.filter(Boolean).join(" ")} aria-label={label}>
       <header className="dm-meeting__bar">
         <span className="dm-meeting__title">{label}</span>
-        {action}
       </header>
       {children}
     </section>
