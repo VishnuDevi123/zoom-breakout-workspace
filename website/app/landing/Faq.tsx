@@ -29,7 +29,7 @@ const QUESTIONS: { question: string; answer: ReactNode }[] = [
   {
     question: "What's in a saved template?",
     answer:
-      "The plan: rounds, timings, room names, tasks and activities. Never people or answers. Templates belong to the host's Zoom account, so next month's session starts from one in any meeting, with one click.",
+      "The plan: rounds, timings, room names, tasks and activities. Never the participants or answers. Templates belong to the host's Zoom account, so host can reuse them in future meetings with one click.",
   },
   {
     question: "Does it replace Zoom's breakout rooms?",
