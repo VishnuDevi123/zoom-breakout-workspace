@@ -1,0 +1,152 @@
+{
+  "title": "Nexus Corp Onboarding: The Greenest Supply Chain by 2030",
+  "autoStartNextRound": false,
+  "rounds": [
+    {
+      "title": "Transparency: Map the Green Supply Chain",
+      "roomNames": [
+        "Room 1",
+        "Room 2",
+        "Room 3",
+        "Room 4"
+      ],
+      "durationSec": 900,
+      "task": {
+        "goal": "Build a shared, honest picture of how transparent information can help Nexus move toward the greenest supply chain by 2030.",
+        "instructions": [
+          "Sketch a shipment’s journey from origin to customer.",
+          "Mark where emissions, delays, or other sustainability impacts are visible and where information is missing.",
+          "Suggest one practical way to make a missing piece of information clearer.",
+          "Label each idea with its stage of the journey so the host can quickly track themes across rooms."
+        ],
+        "resources": [],
+        "checklist": [
+          {
+            "id": "caeacad0-0061-4b9f-81aa-3e4aefc57902",
+            "label": "We mapped a shipment journey."
+          },
+          {
+            "id": "931c01b2-cb76-4fb1-befa-ae0fb533246e",
+            "label": "We identified at least one information gap affecting sustainability."
+          },
+          {
+            "id": "c0588bed-50c3-4c1a-a4b7-4a0652df6f5b",
+            "label": "We suggested a way to make that gap more transparent."
+          }
+        ]
+      },
+      "activities": [
+        {
+          "kind": "individual",
+          "title": "Where would transparency help most?",
+          "description": "Privately name one point in a shipment’s journey where better information could help Nexus make a greener decision.",
+          "id": "d1ecb26a-4541-4db4-ab2d-e64292afca5f"
+        },
+        {
+          "kind": "ideaBoard",
+          "title": "What should Nexus make visible?",
+          "description": "Add shared sticky notes for useful sustainability information, such as emissions, packaging, or delivery progress.",
+          "id": "3077b4c9-88a4-4d42-a710-486fe27a6af1"
+        }
+      ]
+    },
+    {
+      "title": "Customer Obsession: Make Sustainable Delivery Work for Customers",
+      "roomNames": [
+        "Room 1",
+        "Room 2",
+        "Room 3",
+        "Room 4"
+      ],
+      "durationSec": 1200,
+      "task": {
+        "goal": "Identify how Nexus can meet customer needs while making lower-impact supply-chain choices.",
+        "instructions": [
+          "Choose a customer scenario, such as an urgent delivery, a return, or a request for greener packaging.",
+          "Describe what the customer needs and what trade-off a sustainable option might create.",
+          "Propose a solution that balances customer value with environmental impact.",
+          "Record the customer need, proposed solution, and sustainability benefit as separate, clearly labeled items for host review."
+        ],
+        "resources": [],
+        "checklist": [
+          {
+            "id": "b6b9fcdb-23e5-49a4-9fc1-3fc5c9f5e962",
+            "label": "We described a specific customer need."
+          },
+          {
+            "id": "2f20968b-e166-49f6-8159-3d8f6299dd6e",
+            "label": "We proposed a solution that addresses the need."
+          },
+          {
+            "id": "98e1e989-4a4b-46fa-b764-d6998f8ccce0",
+            "label": "We explained the solution’s sustainability benefit and any trade-off."
+          }
+        ]
+      },
+      "activities": [
+        {
+          "kind": "individual",
+          "title": "What does a customer need from a greener supply chain?",
+          "description": "Privately share one customer need Nexus should protect while working toward its 2030 goal.",
+          "id": "fe90882b-0ad6-4bc8-bf25-979874dfa7bd"
+        },
+        {
+          "kind": "ideaBoard",
+          "title": "How can we make the greener choice customer-first?",
+          "description": "Post shared ideas for sustainable delivery, packaging, or returns that still work well for customers.",
+          "id": "c053b93f-c8b6-4044-94a8-7cb598870666"
+        }
+      ]
+    },
+    {
+      "title": "Bias for Action: Run a 2030 Green-Supply-Chain Experiment",
+      "roomNames": [
+        "Room 1",
+        "Room 2",
+        "Room 3",
+        "Room 4"
+      ],
+      "durationSec": 900,
+      "task": {
+        "goal": "Turn one promising sustainability idea into a small, measurable next step Nexus can test soon.",
+        "instructions": [
+          "Choose one idea from the earlier rounds or propose a new one.",
+          "Define a small experiment Nexus could start within 30 days.",
+          "Name an owner role, a first action, and one measure of environmental or customer impact.",
+          "Keep the output in the format idea / first action / measure / owner role so the host can track commitments across rooms."
+        ],
+        "resources": [],
+        "checklist": [
+          {
+            "id": "b0d16166-7e60-4d45-addd-42a982261bd2",
+            "label": "We chose one focused idea to test."
+          },
+          {
+            "id": "15e544d8-45b9-47f8-8513-513456938712",
+            "label": "We named a first action and an owner role."
+          },
+          {
+            "id": "ce22e97c-3d67-474c-b844-22a4572bc593",
+            "label": "We selected a measure that can show whether the experiment helps."
+          }
+        ]
+      },
+      "activities": [
+        {
+          "kind": "individual",
+          "title": "What action can you take?",
+          "description": "Privately name one action within your influence that could support Nexus’s greenest-supply-chain-by-2030 goal.",
+          "id": "cbe3a7eb-06e7-4261-9bd9-62106e735331"
+        },
+        {
+          "kind": "ideaBoard",
+          "title": "What should Nexus test next?",
+          "description": "Post shared experiments with a clear first step and a measurable sustainability or customer outcome.",
+          "id": "3e736769-e013-48d4-b609-0830aa0b3c97"
+        }
+      ]
+    }
+  ],
+  "sameRoomsEveryRound": true,
+  "samePeopleEveryRound": false
+}

@@ -1,0 +1,3085 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Colours and the type scale were agreed for the UI refinement
+ * (2026-10-03); component classes live here too so the primitives stay plain CSS.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bw-bg: #eef1f5;
+  --bw-surface: #ffffff;
+  --bw-surface-sunken: #f8f9fb;
+  --bw-surface-muted: #f3f4f6;
+  /* Page frame bars (live round, round setup), kept apart so each can be recoloured on its own. */
+  --bw-frame-bar-bg: #1f2430;
+  --bw-frame-nav-bg: #1f2430;
+  /* Round setup: a light bar so planning never looks like a live round. */
+  --bw-frame-planning-bar-bg: #ffffff;
+  --bw-frame-participant-bar-bg: #F5F5F4;
+
+  /* Borders: cards and dividers use --bw-border, form controls the strong one (3:1). */
+  --bw-border: #d8dee8;
+  --bw-border-soft: #d8dee8;
+  --bw-border-faint: #eef1f5;
+  --bw-border-strong: #8a94a6;
+
+  /* Ink */
+  --bw-ink: #172033;
+  --bw-ink-title: #172033;
+  --bw-ink-hover: #2c3547;
+  --bw-muted: #5b6576;
+  --bw-muted-2: #5b6576;
+  --bw-muted-3: #5b6576;
+  /* Disabled and decorative only, never for text that must be read. */
+  --bw-muted-4: #8a94a6;
+
+  /* Accent */
+  --bw-accent: #4f46e5;
+  --bw-accent-deep: #4338ca;
+  --bw-accent-tint: #eef2ff;
+
+  /* Destructive: fill and text pass 4.5:1 on white. */
+  --bw-danger: #c24444;
+  --bw-danger-hover: #d95555;
+  --bw-danger-text: #b93c3c;
+
+  /* Status */
+  --bw-teal: #0fbcb0;
+  --bw-teal-deep: #187574;
+  --bw-teal-tint: #c3faf5;
+  --bw-amber: #ffd02f;
+  --bw-amber-tint: #fff4c4;
+  --bw-amber-deep: #746019;
+  --bw-red: #ff9999;
+  --bw-red-tint: #ffc6c6;
+  --bw-red-deep: #600000;
+
+  /* Room dots */
+  --bw-dot-1: #fcb900;
+  --bw-dot-2: #4262ff;
+  --bw-dot-3: #ff9999;
+  --bw-dot-4: #0fbcb0;
+  --bw-dot-5: #e58cc9;
+  --bw-dot-6: #555a6a;
+
+  /* Type scale */
+  /* Type scale: one token per job, so resizing one kind of text never moves another. */
+  --bw-fs-header: 20px; /* app bar and page header titles */
+  --bw-fs-main-heading: 28px; /* the one main heading on a page */
+  --bw-fs-subheading: 12px; /* the line under the main heading, muted */
+  --bw-fs-section: 15px; /* section headings, card, modal and round titles */
+  --bw-fs-body: 14px; /* body text */
+  --bw-fs-button: 14px;
+  --bw-fs-button-sm: 13px;
+  --bw-fs-meta: 13px; /* secondary lines, hints, metadata */
+  --bw-fs-label: 12px; /* small labels and pills */
+  --bw-fs-display: 26px; /* round clocks */
+
+  /* Radii */
+  --bw-radius-sm: 6px;
+  --bw-radius-md: 10px;
+  --bw-radius-lg: 14px;
+  --bw-radius-pill: 9999px;
+
+  /* Elevation */
+  --bw-shadow-1: 0 1px 2px rgb(23 32 51 / 6%);
+  --bw-shadow-2: 0 12px 32px rgb(23 32 51 / 16%);
+
+  --bw-font-ui: var(--font-hanken), "Noto Sans", -apple-system, sans-serif;
+  --bw-font-mono: var(--font-plex-mono), monospace;
+}
+
+/* Header text grows only when the panel is both wide and tall. */
+
+
+@media (min-width: 750px) and (min-height: 700px) {
+  :root {
+    --bw-fs-header: 22px;
+  }
+}
+
+/* 3. Drop down to 20px when width is 600px or below */
+@media (max-width: 600px) {
+  :root {
+    --bw-fs-main-heading: 20px; 
+  }
+}
+
+@theme inline {
+  --color-bw-bg: var(--bw-bg);
+  --color-bw-surface: var(--bw-surface);
+  --color-bw-border: var(--bw-border);
+  --color-bw-ink: var(--bw-ink);
+  --color-bw-accent: var(--bw-accent);
+  --font-sans: var(--bw-font-ui);
+  --font-mono: var(--bw-font-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bw-bg);
+  color: var(--bw-ink);
+  font-family: var(--bw-font-ui);
+  font-size: var(--bw-fs-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Text stays inside its box: flex and grid children may shrink, long words break. */
+.bw-card,
+.bw-pill,
+.bw-button,
+.bw-overlay__panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--bw-accent);
+}
+
+.bw-mono {
+  font-family: var(--bw-font-mono);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d5d8e0;
+  border-radius: var(--bw-radius-pill);
+}
+
+@keyframes bwPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(255, 153, 153, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 153, 153, 0.05);
+  }
+}
+
+/* ── Button ─────────────────────────────────────────────────────────────── */
+
+/* Labels wrap rather than spill when a row runs out of width. */
+.bw-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  max-width: 100%;
+  border-radius: var(--bw-radius-pill);
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.bw-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bw-button--sm {
+  min-height: 32px;
+  padding: 5px 13px;
+  font-size: var(--bw-fs-button-sm);
+}
+
+.bw-button--md {
+  min-height: 36px;
+  padding: 6px 16px;
+  font-size: var(--bw-fs-button);
+}
+
+.bw-button--lg {
+  min-height: 40px;
+  padding: 8px 20px;
+  font-size: var(--bw-fs-button);
+}
+
+.bw-button--primary {
+  border: 0;
+  background: var(--bw-accent);
+  color: #fff;
+}
+
+.bw-button--primary:hover:not(:disabled) {
+  background: var(--bw-accent-deep);
+}
+
+.bw-button--secondary {
+  border: 1px solid var(--bw-border);
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+}
+
+.bw-button--secondary:hover:not(:disabled) {
+  border-color: var(--bw-accent);
+}
+
+.bw-button--danger {
+  border: 0;
+  background: var(--bw-danger);
+  color: #fff;
+}
+
+.bw-button--danger:hover:not(:disabled) {
+  background: var(--bw-danger-hover);
+}
+
+.bw-button--ghost {
+  border: 0;
+  background: none;
+  color: var(--bw-accent);
+  padding: 0;
+}
+
+.bw-button--ghost:hover:not(:disabled) {
+  color: var(--bw-accent-deep);
+}
+
+/* Busy: the label keeps the button's width while a spinner sits over it. */
+.bw-button--busy:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.bw-button--busy .bw-button__label {
+  visibility: hidden;
+}
+
+.bw-button--busy .bw-spinner {
+  position: absolute;
+}
+
+/* ── Spinner ────────────────────────────────────────────────────────────── */
+
+.bw-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--bw-radius-pill);
+  animation: bwSpin 800ms linear infinite;
+}
+
+.bw-spinner--lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+@keyframes bwSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bwBreathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-spinner {
+    animation: bwBreathe 1200ms ease-in-out infinite;
+  }
+}
+
+/* ── Card ───────────────────────────────────────────────────────────────── */
+
+.bw-card {
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  box-shadow: var(--bw-shadow-1);
+  padding: 14px;
+}
+
+.bw-card--lg {
+  border-radius: var(--bw-radius-lg);
+  padding: 22px 24px;
+}
+
+.bw-card--sunken {
+  background: var(--bw-surface-sunken);
+  border-color: var(--bw-border-faint);
+  box-shadow: none;
+}
+
+.bw-card--dashed {
+  border: 1px dashed var(--bw-border-strong);
+  background: var(--bw-surface-sunken);
+}
+
+/* ── Pill / Badge ───────────────────────────────────────────────────────── */
+
+.bw-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--bw-radius-pill);
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.bw-pill--neutral {
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+}
+
+.bw-pill--outline {
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  color: var(--bw-muted-2);
+}
+
+.bw-pill--dark {
+  background: var(--bw-ink);
+  color: #fff;
+}
+
+.bw-pill--accent {
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent);
+}
+
+.bw-pill--amber {
+  background: var(--bw-amber-tint);
+  color: var(--bw-amber-deep);
+}
+
+.bw-pill--teal {
+  background: var(--bw-teal-tint);
+  color: var(--bw-teal-deep);
+}
+
+.bw-pill--red {
+  background: var(--bw-red-tint);
+  color: var(--bw-red-deep);
+}
+
+/* ── StatusDot ──────────────────────────────────────────────────────────── */
+
+.bw-dot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.bw-dot--round {
+  border-radius: var(--bw-radius-pill);
+  width: 3px;
+  height: 3px;
+}
+
+.bw-dot--pulse {
+  animation: bwPulse 2s ease-in-out infinite;
+}
+
+/* ── SectionLabel ───────────────────────────────────────────────────────── */
+
+.bw-section-label {
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bw-muted-3);
+}
+
+/* ── Shell layout (screen 03 proportions) ───────────────────────────────── */
+
+.bw-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bw-surface);
+}
+
+.bw-header {
+  min-height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap:13px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--bw-border);
+}
+
+.bw-brand-mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--bw-fs-meta);
+  font-weight: 700;
+}
+
+.bw-brand-mark--link {
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.bw-round-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bw-header-title {
+  font-size: var(--bw-fs-header);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.bw-header-subtitle {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-modal-title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+
+.bw-header-spacer {
+  flex: 1;
+}
+
+.bw-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.bw-main {
+  flex: 1;
+  min-width: 0;
+  padding: 20px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bw-rail {
+  width: 268px;
+  flex: none;
+  border-left: 1px solid var(--bw-border);
+  background: var(--bw-surface-sunken);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.bw-rooms-input {
+  width: 56px;
+  padding: 5px 7px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  font-size: var(--bw-fs-meta);
+}
+
+/* Cards are at least 228px wide; the column count follows the space. */
+.bw-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+  gap: 12px;
+}
+
+/* Host landing: one centred column, one clear next step, templates below. */
+.bw-landing-page {
+  align-items: center;
+}
+
+/* Auto margins centre the column; on a short window it simply starts at the top and scrolls. */
+.bw-landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 640px;
+  margin-block: auto;
+  text-align: center;
+}
+
+/* Every landing state fades in, including the return after End Workflow. */
+.bw-landing {
+  animation: bwPageIn 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-landing {
+    animation-name: bwFadeIn;
+  }
+}
+
+.bw-landing-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Library tabs under the landing column: Templates | Saved | Past, one list of rows. */
+.bw-library {
+  width: 100%;
+  margin-top: 8px;
+  text-align: left;
+}
+
+.bw-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--bw-border);
+}
+
+.bw-tabs__tab {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+.bw-tabs__tab:hover {
+  color: var(--bw-ink);
+}
+
+.bw-tabs__tab[aria-selected="true"] {
+  border-bottom-color: var(--bw-accent);
+  color: var(--bw-ink);
+  font-weight: 600;
+}
+
+.bw-library-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.bw-library-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 6px;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+
+.bw-library-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bw-library-row__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bw-library-row__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bw-library-row__meta,
+.bw-library-empty {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-library-empty {
+  margin: 0;
+  padding: 14px 6px;
+}
+
+/* Header action that changes (Launch next <-> End Workflow) fades in. */
+.bw-swap-in {
+  animation: bwFadeIn 200ms ease-out both;
+}
+
+.bw-landing > .bw-card {
+  width: 100%;
+  text-align: left;
+}
+
+.bw-landing-title {
+  margin: 0;
+  font-size: var(--bw-fs-main-heading);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.bw-landing-lede {
+  margin: 0;
+  max-width: 520px;
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+
+/* Participant landing still lays two summary cards side by side. */
+.bw-landing-cards {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.bw-landing-cards .bw-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.bw-landing-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bw-landing-subheading {
+  margin: 0;
+  font-size: var(--bw-fs-subheading);
+  color: var(--bw-muted);
+}
+
+/* AI prompt: a gradient ring (padding-box white over a border-box gradient) around one field. */
+.bw-ai-prompt {
+  width: 100%;
+  padding: 18px;
+  border: 2px solid transparent;
+  border-radius: var(--bw-radius-lg);
+  background:
+    linear-gradient(var(--bw-surface-sunken), var(--bw-surface-sunken)) padding-box,
+    linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
+  box-shadow: var(--bw-shadow-2);
+}
+
+.bw-ai-prompt__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+}
+
+.bw-ai-prompt__spark {
+  color: var(--bw-accent);
+}
+
+.bw-ai-prompt__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+  outline: none;
+}
+
+.bw-ai-prompt__field .bw-button[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
+}
+
+.bw-ai-prompt__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bw-ai-prompt__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bw-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-accent-deep);
+  cursor: pointer;
+}
+
+.bw-chip:hover,
+.bw-chip:focus-visible {
+  border-color: var(--bw-accent);
+}
+
+.bw-ai-progress {
+  margin-top: 12px;
+  text-align: left;
+}
+
+.bw-ai-progress__track {
+  height: 4px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-accent-tint);
+  overflow: hidden;
+}
+
+/* Timed, not real progress: eases towards 90% and waits there for the answer. */
+.bw-ai-progress__bar {
+  height: 100%;
+  background: var(--bw-accent);
+  animation: bwAiProgress 12s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes bwAiProgress {
+  from { width: 4%; }
+  to { width: 90%; }
+}
+
+.bw-ai-progress__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+/* Everything under the prompt; dims while the AI works. */
+.bw-landing-rest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  transition: opacity 300ms ease;
+}
+
+.bw-landing-rest--dimmed {
+  opacity: 0.4;
+}
+
+/* AI chat panel: slides in from the right over the dimmed landing; full screen on a narrow panel. */
+.bw-ai-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30; /* below .bw-overlay (40), so the replace confirm sits on top */
+  background: rgb(23 32 51 / 35%);
+  animation: bwFadeIn 200ms ease-out both;
+}
+
+.bw-ai-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  background: var(--bw-surface-sunken);
+  box-shadow: var(--bw-shadow-2);
+  animation: bwAiSlideIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes bwAiSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-ai-panel {
+    animation-name: bwFadeIn;
+  }
+}
+
+.bw-ai-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--bw-border);
+  background: var(--bw-surface);
+}
+
+.bw-ai-panel__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+
+.bw-ai-panel__back,
+.bw-ai-panel__close {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-header);
+  line-height: 1;
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+/* Back arrow only when the panel covers the whole screen; × otherwise. */
+.bw-ai-panel__back {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .bw-ai-panel__back {
+    display: block;
+  }
+
+  .bw-ai-panel__close {
+    display: none;
+  }
+}
+
+.bw-ai-panel__chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.bw-ai-bubble {
+  max-width: 85%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--bw-radius-lg);
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bw-ai-bubble--host {
+  align-self: flex-end;
+  background: var(--bw-accent);
+  color: #fff;
+}
+
+.bw-ai-bubble--question {
+  align-self: flex-start;
+  border: 1px solid var(--bw-border);
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+}
+
+.bw-ai-bubble--thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bw-muted);
+}
+
+/* Same gradient ring as the landing prompt. */
+.bw-ai-proposal {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(100%, 380px);
+  padding: 14px 16px;
+  border: 2px solid transparent;
+  border-radius: var(--bw-radius-lg);
+  background:
+    linear-gradient(var(--bw-surface), var(--bw-surface)) padding-box,
+    linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
+}
+
+.bw-ai-proposal__lead,
+.bw-ai-proposal__meta {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-ai-proposal__title {
+  margin-top: 6px;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bw-ai-proposal__rounds {
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.bw-ai-proposal__round {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bw-border-faint);
+  font-size: var(--bw-fs-body);
+}
+
+.bw-ai-panel__composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px 16px;
+  padding: 6px 6px 6px 14px;
+  border: 2px solid transparent;
+  border-radius: var(--bw-radius-md);
+  background:
+    linear-gradient(var(--bw-surface), var(--bw-surface)) padding-box,
+    linear-gradient(90deg, #38bdf8, var(--bw-accent), #a3e635) border-box;
+}
+
+.bw-ai-resume {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-accent-deep);
+  cursor: pointer;
+}
+
+.bw-ai-resume:hover,
+.bw-ai-resume:focus-visible {
+  text-decoration: underline;
+}
+
+.bw-landing-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-landing-divider::before,
+.bw-landing-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--bw-border);
+}
+
+.bw-landing-builds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+/* Continue draft: the whole row is one button. */
+.bw-draft-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  text-align: left;
+  color: var(--bw-ink);
+  cursor: pointer;
+}
+
+.bw-draft-card:hover:not(:disabled),
+.bw-draft-card:focus-visible {
+  border-color: var(--bw-accent);
+}
+
+.bw-draft-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bw-draft-card__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent);
+}
+
+.bw-draft-card__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bw-draft-card__label,
+.bw-landing-card__meta {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-draft-card__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw-draft-card__chevron {
+  font-size: var(--bw-fs-header);
+  color: var(--bw-muted);
+}
+
+.bw-landing-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.bw-landing-card--live {
+  border-color: var(--bw-red);
+}
+
+.bw-landing-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bw-landing-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bw-danger-text);
+}
+
+.bw-landing-card__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+
+.bw-round-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* Workflow page round card: name and time, a summary line, then its buttons. */
+.bw-round-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 4px solid var(--bw-border);
+}
+
+.bw-round-row__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bw-round-row__summary {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+.bw-round-row__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bw-editable-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* While renaming: the input, with any error under it. */
+.bw-editable-name--editing {
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.bw-room-card__name {
+  flex: 1;
+}
+
+/* EditableName puts the text in an inner .bw-room-name, which sets its own size.
+   Same size as the round setup title (.bw-setup-title): 20px, 22px on large panels. */
+.bw-workspace-title .bw-room-name {
+  font-size: var(--bw-fs-header);
+}
+
+.bw-back {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface);
+  font-size: var(--bw-fs-meta);
+  cursor: pointer;
+}
+
+.bw-add-round {
+  padding: 14px;
+  border: 1px dashed var(--bw-border-strong);
+  border-radius: var(--bw-radius-md);
+  background: transparent;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+.bw-add-round:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bw-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--bw-fs-meta);
+  cursor: pointer;
+}
+
+.bw-room-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 150px;
+}
+
+.bw-room-card__header {
+  min-height: 25px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.bw-room-name,
+.bw-member-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw-room-name {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+
+.bw-member-name {
+  flex: 1;
+  font-size: var(--bw-fs-meta);
+}
+
+.bw-room-name-input {
+  flex: 1;
+  min-width: 80px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--bw-accent);
+  border-radius: var(--bw-radius-sm);
+  outline: none;
+  color: var(--bw-ink);
+  font: 600 12.5px var(--bw-font-ui);
+}
+
+.bw-icon-button {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--bw-radius-sm);
+  background: transparent;
+  color: var(--bw-muted-4);
+  font: 12px var(--bw-font-ui);
+  cursor: pointer;
+}
+
+.bw-icon-button:hover:not(:disabled),
+.bw-icon-button:focus-visible {
+  border-color: var(--bw-border-soft);
+  background: var(--bw-surface-sunken);
+  color: var(--bw-ink);
+}
+
+.bw-icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.bw-room-menu {
+  position: relative;
+  flex: none;
+}
+
+.bw-room-menu summary {
+  list-style: none;
+}
+
+.bw-room-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.bw-room-menu__popover {
+  position: absolute;
+  z-index: 2;
+  top: 26px;
+  right: 0;
+  min-width: 112px;
+  padding: 4px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  box-shadow: 0 5px 18px rgba(28, 28, 30, 0.12);
+}
+
+.bw-room-menu__popover button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--bw-radius-sm);
+  background: transparent;
+  color: var(--bw-red-deep);
+  font: 500 11px var(--bw-font-ui);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bw-room-menu__popover button:hover:not(:disabled) {
+  background: var(--bw-red-tint);
+}
+
+.bw-room-menu__popover button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bw-field-error {
+  color: var(--bw-danger-text);
+  font-size: var(--bw-fs-meta);
+}
+
+.bw-member-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface-sunken);
+}
+.bw-member-row.bw-member-row--unavailable {
+  border: 1px dashed var(--bw-red);
+  background: #fffafa;
+}
+.bw-member-status {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  color: var(--bw-muted-4);
+  font-size: var(--bw-fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw-member-menu {
+  position: relative;
+  flex: none;
+}
+
+.bw-member-menu summary,
+.bw-add-person-menu summary {
+  list-style: none;
+}
+
+.bw-member-menu summary::-webkit-details-marker,
+.bw-add-person-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.bw-member-menu__popover,
+.bw-add-person-menu__popover {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  padding: 4px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  box-shadow: 0 5px 18px rgba(28, 28, 30, 0.12);
+}
+
+.bw-member-menu__popover {
+  top: 25px;
+  min-width: 140px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.bw-member-menu__popover button,
+.bw-add-person-menu__popover button {
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--bw-radius-sm);
+  background: transparent;
+  color: var(--bw-ink);
+  font: 500 11px var(--bw-font-ui);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bw-member-menu__popover button:hover,
+.bw-member-menu__popover button:focus-visible,
+.bw-add-person-menu__popover button:hover,
+.bw-add-person-menu__popover button:focus-visible {
+  background: var(--bw-accent-tint);
+  outline: none;
+}
+
+.bw-menu-label {
+  display: block;
+  padding: 5px 8px 3px;
+  color: var(--bw-muted-3);
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bw-add-person-menu {
+  position: relative;
+  margin-top: auto;
+}
+
+.bw-add-person-menu summary,
+.bw-add-person-button {
+  width: 100%;
+  padding: 6px;
+  border: 1px dashed var(--bw-border-strong);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  color: var(--bw-muted-2);
+  font: 500 11px var(--bw-font-ui);
+  text-align: center;
+  cursor: pointer;
+}
+
+.bw-add-person-menu summary:hover,
+.bw-add-person-menu summary:focus-visible {
+  border-color: var(--bw-accent);
+  color: var(--bw-accent-deep);
+  outline: none;
+}
+
+.bw-add-person-menu__popover {
+  right: auto;
+  bottom: 31px;
+  left: 0;
+  width: 100%;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.bw-add-person-menu__popover button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.bw-add-person-menu__popover button > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bw-add-person-button {
+  margin-top: auto;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.bw-placement-select {
+  width: 84px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 21px 0 7px;
+  border: 1px solid var(--bw-border-soft);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+  font: 500 var(--bw-fs-meta) var(--bw-font-ui);
+}
+
+.bw-placement-select:focus-visible {
+  border-color: var(--bw-accent);
+  outline: 2px solid var(--bw-accent-tint);
+}
+
+.bw-placement-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.bw-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+}
+
+.bw-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--bw-border-soft);
+  border-radius: var(--bw-radius-pill);
+}
+
+.bw-stepper button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  font-size: var(--bw-fs-meta);
+  cursor: pointer;
+}
+
+.bw-stepper button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bw-room-count {
+  padding: 0 4px;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Side panel up to 900px: the header may wrap; actions stay right-aligned. */
+@media (max-width: 900px) {
+  .bw-header {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+
+  .bw-header-spacer {
+    min-width: 20px;
+  }
+}
+
+/* Narrow: the rail stacks under the main column. Only the wrapping .bw-header
+   drops its spacer; frame bars, cards and modal headers keep theirs at every width. */
+@media (max-width: 639px) {
+  .bw-header .bw-header-spacer {
+    display: none;
+  }
+
+  .bw-round-heading {
+    flex: 1;
+  }
+
+  .bw-body {
+    flex-direction: column;
+  }
+
+  .bw-rail {
+    width: auto;
+    border-top: 1px solid var(--bw-border);
+    border-left: 0;
+  }
+}
+
+/* ── Participant landing ───────────────────────────────────────────── */
+.bw-participant-main {
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 18px;
+  animation: bwPageIn 200ms ease-out both;
+}
+
+/* A past round's board as plain lines: "Name: idea". */
+.bw-idea-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-idea-list__name {
+  font-weight: 600;
+}
+
+/* Earlier rounds on the participant landing: one row per finished round. */
+.bw-earlier {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 640px;
+  text-align: left;
+}
+.bw-earlier__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  box-shadow: var(--bw-shadow-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bw-earlier__row:hover,
+.bw-earlier__row:focus-visible {
+  border-color: var(--bw-accent);
+}
+.bw-earlier__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-body);
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+
+/* Start-up spinner and message. No fade: ZoomClient, then the host or participant
+   screen render it in turn, and a fade would replay at each hand-over. */
+.bw-loading {
+  align-items: center;
+  justify-content: center;
+}
+
+.bw-loading__mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  color: var(--bw-accent);
+}
+
+.bw-loading__message {
+  margin-top: 4px;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+
+.bw-loading__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-participant-card {
+  padding: 13px;
+  border-radius: var(--bw-radius-md);
+  gap: 5px;
+}
+.bw-participant-card--accent {
+  border-color: var(--bw-accent);
+  background: var(--bw-accent-tint);
+}
+.bw-participant-card__label {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-muted-3);
+}
+.bw-participant-card__label--accent {
+  color: var(--bw-accent-deep);
+}
+.bw-participant-card__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+.bw-participant-card__meta {
+  font-size: var(--bw-fs-meta);
+  line-height: 1.45;
+  color: var(--bw-muted);
+}
+.bw-participant-card__clock {
+  font-size: var(--bw-fs-display);
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+.bw-participant-roster__names {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bw-fs-meta);
+}
+.bw-participant-roster__count {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-participant-roster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+  padding: 11px 14px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+}
+.bw-participant-step {
+  display: flex;
+  gap: 9px;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+.bw-participant-step__number {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent);
+  padding-top: 2px;
+}
+.bw-participant-note {
+  margin-top: auto;
+  padding: 11px;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+}
+
+/* ── Task editor ───────────────────────────────────────────────────── */
+.bw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bw-field__subheading{
+  display: flex;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--bw-muted-2);
+}
+.bw-goal-input {
+  padding: 11px 12px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-section);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--bw-ink);
+}
+.bw-goal-input:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: 1px;
+}
+.bw-line-list {
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  overflow: hidden;
+}
+.bw-line-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 11px;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+.bw-line-row__number {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+.bw-line-row__input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+}
+.bw-line-row__input:focus-visible {
+  outline: none;
+}
+.bw-line-add {
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-top: 1px dashed var(--bw-border-soft);
+  background: var(--bw-surface-sunken);
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted-2);
+  cursor: pointer;
+}
+.bw-line-add:hover {
+  color: var(--bw-ink);
+}
+
+/* ── Participant room: task text ───────────────────────────────────── */
+.bw-task-goal {
+  margin: 0;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: pretty;
+  color: var(--bw-ink);
+}
+.bw-task-empty {
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+.bw-instruction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.bw-instruction-row {
+  display: flex;
+  gap: 9px;
+  padding: 9px 11px;
+  font-size: var(--bw-fs-body);
+  line-height: 1.45;
+  border-bottom: 1px solid var(--bw-border-faint);
+}
+.bw-instruction-row:last-child {
+  border-bottom: 0;
+}
+.bw-instruction-row__number {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent);
+  padding-top: 2px;
+}
+.bw-resource-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border-faint);
+  border-radius: var(--bw-radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+a.bw-resource-row:hover {
+  border-color: var(--bw-accent);
+}
+.bw-resource-row__mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-accent-tint);
+}
+.bw-resource-row__label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bw-fs-body);
+  overflow-wrap: anywhere;
+}
+.bw-resource-row__open {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+.bw-activities-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bw-activities-empty {
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+  max-width: 460px;
+}
+
+/* ── Modal ─────────────────────────────────────────────────────────── */
+/* Covers the whole screen, header included, and centres the panel. */
+.bw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(23 32 51 / 40%);
+  animation: bwFadeIn 180ms ease-out both;
+}
+.bw-overlay__panel {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-lg);
+  box-shadow: var(--bw-shadow-2);
+  overflow: hidden;
+  animation: bwModalIn 180ms ease-out both;
+}
+.bw-overlay__panel--sm {
+  max-width: 420px;
+}
+.bw-overlay__panel--lg {
+  max-width: 880px;
+}
+.bw-overlay--closing {
+  animation: bwFadeOut 140ms ease-in both;
+}
+.bw-overlay--closing .bw-overlay__panel {
+  animation: bwModalOut 140ms ease-in both;
+}
+.bw-overlay__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--bw-border);
+}
+.bw-overlay__body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 16px;
+  overflow: auto;
+}
+.bw-overlay__footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--bw-border);
+}
+@keyframes bwFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes bwFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes bwModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes bwModalOut {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-overlay__panel {
+    animation-name: bwFadeIn;
+  }
+  .bw-overlay--closing .bw-overlay__panel {
+    animation-name: bwFadeOut;
+  }
+}
+
+/* ── Task summary in the live rail ─────────────────────────────────── */
+.bw-task-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px;
+  text-align: left;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  font: inherit;
+  cursor: pointer;
+}
+.bw-task-summary:hover:not(:disabled) {
+  border-color: var(--bw-accent);
+}
+.bw-task-summary:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.bw-task-summary__goal {
+  font-size: var(--bw-fs-body);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bw-ink);
+}
+.bw-task-summary__action {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent);
+}
+
+/* ── Live badge ────────────────────────────────────────────────────── */
+.bw-live-badge {
+  display: flex;
+  align-items: center;
+  /* The pulse ring is drawn outside the dot, so it needs room on the left. */
+  gap: 9px;
+  padding-left: 3px;
+}
+.bw-live-badge__label {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--bw-red-deep);
+}
+.bw-live-badge__label--off {
+  color: var(--bw-muted-3);
+}
+
+/* ── Page frame (live round, round setup): top bar, one page, bottom navbar ── */
+.bw-frame {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr) 70px;
+  background: var(--bw-bg);
+}
+.bw-frame__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 16px;
+  background: var(--bw-frame-bar-bg);
+  color: #fff;
+}
+.bw-frame__bar .bw-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bw-frame__bar .bw-live-badge__label {
+  color: var(--bw-red);
+}
+.bw-frame__bar .bw-live-badge__label--off {
+  color: #9aa3b2;
+}
+.bw-frame__bar .bw-stepper button {
+  color: var(--bw-ink);
+}
+.bw-live-clock {
+  font-size: var(--bw-fs-display);
+  font-weight: 600;
+  line-height: 1;
+}
+/* Holds the scrolling page and the sheet laid over its bottom edge. */
+.bw-frame--planning .bw-frame__bar {
+  background: var(--bw-frame-planning-bar-bg);
+  color: var(--bw-ink);
+  border-bottom: 1px solid var(--bw-border);
+}
+@keyframes bwPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.bw-setup-pending {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #000000;
+}
+.bw-setup-title .bw-room-name {
+  font-size: var(--bw-fs-header);
+}
+.bw-sheet__subtitle {
+  flex: none;
+  padding: 0 20px 8px;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-muted);
+}
+.bw-save-problem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bw-save-problem__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bw-frame__main {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.bw-frame__page {
+  height: 100%;
+  overflow: auto;
+  container: frame-page / inline-size;
+}
+/* The sheet covers the bottom of the page, so the last rooms can scroll above it. */
+/* Every new page, tab or round fades in rather than appearing at once. */
+.bw-frame__content {
+  animation: bwPageIn 200ms ease-out both;
+  padding: 20px 20px calc(20px + var(--bw-sheet-h, 0px));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-frame__content {
+    animation-name: bwFadeIn;
+  }
+}
+@container frame-page (max-width: 639px) {
+  .bw-frame__content {
+    padding: 12px 12px calc(12px + var(--bw-sheet-h, 0px));
+  }
+}
+.bw-live-room-name {
+  font-size: var(--bw-fs-section);
+}
+.bw-live-room-empty {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-initials-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bw-initials {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  cursor: default;
+}
+/* Session page: this round on the left, the rounds still to come on the right. */
+.bw-session {
+  display: grid;
+  grid-template-columns: minmax(260px, 3fr) minmax(0, 7fr);;
+  gap: 24px;
+  align-items: start;
+}
+@container frame-page (max-width: 719px) {
+  .bw-session {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.bw-session__column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bw-round-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.bw-round-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bw-round-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+.bw-round-card__time {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-round-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bw-button--danger-text {
+  color: var(--bw-danger-text);
+}
+.bw-button--danger-text:hover:not(:disabled) {
+  border-color: var(--bw-danger-text);
+}
+.bw-round-settings__name .bw-room-name {
+  font-size: var(--bw-fs-section);
+}
+.bw-round-settings__rooms {
+  font-size: var(--bw-fs-body);
+}
+.bw-stepper--inline {
+  align-self: flex-start;
+}
+/* Zoom launch/close progress: centred spinner and the current step. */
+.bw-zoom-progress {
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px;
+  text-align: center;
+  color: var(--bw-accent);
+}
+.bw-zoom-progress .bw-modal-title {
+  color: var(--bw-ink);
+}
+.bw-zoom-progress__step {
+  font-size: var(--bw-fs-body);
+  color: var(--bw-muted);
+}
+.bw-confirm-message {
+  margin: 0;
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+/* ── Workflow page: rounds (60%) beside workflow settings (40%) ──────── */
+.bw-workflow {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.bw-workflow__settings {
+  width: auto;
+  gap: 14px;
+}
+@media (max-width: 639px) {
+  .bw-workflow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.bw-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bw-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  cursor: pointer;
+}
+.bw-choice:has(input:checked) {
+  border-color: var(--bw-accent);
+  background: var(--bw-accent-tint);
+}
+.bw-choice input {
+  margin-top: 3px;
+  accent-color: var(--bw-accent);
+}
+.bw-choice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bw-choice__label {
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+.bw-choice__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-launch {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-readiness {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--bw-fs-meta);
+}
+.bw-readiness__item::before {
+  margin-right: 6px;
+  font-weight: 700;
+}
+.bw-readiness__item--ok::before {
+  content: "✓";
+  color: var(--bw-teal-deep);
+}
+.bw-readiness__item--warn {
+  color: var(--bw-amber-deep);
+}
+.bw-readiness__item--warn::before {
+  content: "!";
+}
+
+/* ── Host results: a room's work, then one activity's submissions ───── */
+.bw-room-card--clickable {
+  cursor: pointer;
+}
+.bw-room-card--clickable:hover,
+.bw-room-card--clickable:focus-visible {
+  border-color: var(--bw-accent);
+  outline: none;
+}
+.bw-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.bw-results__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+/* Back is a quiet text link above the page, not a button competing with the title. */
+.bw-results__back {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-accent);
+  cursor: pointer;
+  position: relative;
+  top: -6px;
+  left: -6px;
+}
+.bw-results__back:hover {
+  color: var(--bw-accent-deep);
+}
+.bw-results__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bw-border);
+}
+.bw-results__heading-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bw-results__question {
+  margin: 0;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.bw-results__details {
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted);
+  white-space: pre-wrap;
+}
+.bw-results__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+/* Head count beside the room name, 2px over the usual secondary size. */
+.bw-results__count {
+  flex: none;
+  font-size: var(--bw-fs-section);
+  color: var(--bw-muted);
+}
+.bw-results__meta {
+  flex: none;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-results__split {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+/* Left column: people, then the checklist at the bottom. */
+.bw-results__side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.bw-results__people,
+.bw-results__work {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-results__person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.bw-results__person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-meta);
+  font-weight: 500;
+}
+/* Narrow: people become one wrapping row above the work. */
+@container frame-page (max-width: 639px) {
+  .bw-results__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bw-results__people {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+}
+.bw-results__activity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  box-shadow: var(--bw-shadow-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bw-results__activity:hover,
+.bw-results__activity:focus-visible {
+  border-color: var(--bw-accent);
+}
+.bw-results__activity-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+.bw-results__chevron {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-results__answers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-results__answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bw-results__answer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* The submitted answer sits in its own box, apart from the name and status. */
+.bw-results__answer-text {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface-sunken);
+  font-size: var(--bw-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ── Not yet placed: a resizable sheet over the bottom of the room grid ── */
+.bw-sheet {
+  position: absolute;
+  inset: auto 0 0;
+  max-height: 40%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bw-surface);
+  border-radius: var(--bw-radius-lg) var(--bw-radius-lg) 0 0;
+  box-shadow: 0 -6px 20px rgb(23 32 51 / 10%);
+  overflow: hidden;
+}
+.bw-sheet__handle {
+  flex: none;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+.bw-sheet__handle::before {
+  content: "";
+  width: 36px;
+  height: 4px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-border-strong);
+}
+.bw-sheet__handle:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: -2px;
+}
+.bw-sheet__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px 10px;
+}
+.bw-sheet__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+}
+.bw-sheet__list {
+  min-height: 0;
+  margin: 0;
+  padding: 0 20px 16px;
+  list-style: none;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.bw-sheet__person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+}
+.bw-sheet__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-meta);
+  font-weight: 500;
+}
+.bw-sheet__person .bw-placement-select {
+  width: 104px;
+  height: 32px;
+}
+
+/* Each tab is only as large as its pill, so the bar around it is not clickable. */
+.bw-frame__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: var(--bw-frame-nav-bg);
+}
+.bw-frame__tab {
+  padding: 8px 20px;
+  border: 0;
+  border-radius: var(--bw-radius-pill);
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  color: #9aa3b2;
+  cursor: pointer;
+}
+.bw-frame__tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.bw-frame__tab:hover:not(:disabled) {
+  color: #fff;
+}
+.bw-frame__tab[aria-current="page"] {
+  background: var(--bw-accent);
+  color: #fff;
+}
+
+/* ── Activities (task page rail, live rail, activity panel) ─────────── */
+.bw-activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bw-activity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+.bw-activity-card:hover {
+  border-color: var(--bw-accent);
+}
+.bw-activity-card--confirm {
+  cursor: default;
+  gap: 9px;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.45;
+  color: var(--bw-red-deep);
+  border-color: var(--bw-red);
+}
+.bw-activity-card__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.bw-activity-card__grip {
+  color: var(--bw-muted-4);
+  cursor: grab;
+}
+.bw-activity-card__kind {
+  flex: 1;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-activity-card__title {
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+}
+.bw-activity-card__description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.45;
+  color: var(--bw-muted-2);
+}
+.bw-activity-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.bw-activity-badge {
+  padding: 2px 7px;
+  border-radius: var(--bw-radius-sm);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+}
+.bw-activity-empty {
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted-2);
+}
+.bw-activity-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bw-activity-add:hover {
+  border-color: var(--bw-ink);
+}
+.bw-activity-add__swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+.bw-activity-add__label {
+  flex: 1;
+  font-size: var(--bw-fs-body);
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+.bw-activity-add__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted-3);
+}
+.bw-activity-description {
+  padding: 9px 12px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+/* ── Participant room page: activity cards ───────────────────────── */
+.bw-activity-count {
+  padding: 2px 8px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+  font-size: var(--bw-fs-meta);
+  font-weight: 500;
+  color: var(--bw-muted);
+}
+/* Activity cards */
+.bw-room-activity {
+  container-type: inline-size;
+  container-name: room-activity;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+.bw-room-activity__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.bw-room-activity__break {
+  display: none;
+}
+.bw-room-activity__spacer {
+  flex: 1;
+}
+/* Same as the host's activity card kind label: sentence case, 13/600 ink. */
+.bw-room-activity__kind {
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-room-activity__question {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: var(--bw-fs-body);
+  line-height: 1.45;
+  color: var(--bw-ink);
+}
+.bw-room-activity__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.bw-progress-pill {
+  padding: 2px 8px;
+  border-radius: var(--bw-radius-pill);
+  font-size: var(--bw-fs-meta);
+  font-weight: 500;
+}
+.bw-progress-pill--notStarted {
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+}
+.bw-progress-pill--working {
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent);
+}
+.bw-progress-pill--completed {
+  background: var(--bw-teal-tint);
+  color: var(--bw-);
+}
+
+/* ── Participant room frame: the host's live bar, lighter, with no navbar ── */
+.bw-frame--no-nav {
+  grid-template-rows: 56px minmax(0, 1fr);
+}
+.bw-frame--participant .bw-frame__bar {
+  background: #e8f9ff;
+  color: #000000;  
+  border-bottom: 1px solid var(--bw-border);
+}
+/* 70/30 like the host's Session page, with no dividers; one column under 720px. */
+.bw-room-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(240px, 3fr);
+  gap: 24px;
+  align-items: start;
+}
+@container frame-page (max-width: 719px) {
+  .bw-room-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.bw-room-member__status {
+  font-size: var(--bw-fs-meta);
+  font-weight: 500;
+}
+.bw-room-member__status--open {
+  color: var(--bw-muted);
+}
+.bw-room-member__status--done {
+  color: var(--bw-teal-deep);
+}
+/* Shared checklist (room page and board page) */
+.bw-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+}
+.bw-checklist__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.bw-checklist__title {
+  white-space: nowrap;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bw-muted-3);
+}
+.bw-checklist__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* Fixed 16px box, centred on the label's first line (14px x 1.45 = 20px line).
+   The tick is drawn in CSS, not a "✓" glyph, so ticking never changes a line box. */
+.bw-checklist__box {
+  position: relative;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1.5px solid var(--bw-border-strong);
+  border-radius: 5px;
+}
+.bw-checklist__row--done .bw-checklist__box {
+  background: var(--bw-accent);
+  border-color: var(--bw-accent);
+}
+.bw-checklist__row--done .bw-checklist__box::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.bw-checklist__label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+}
+.bw-checklist__row--done .bw-checklist__label {
+  text-decoration: line-through;
+  color: var(--bw-muted);
+}
+
+/* Activity card adapts to its own width. Narrow: type on line one, status on
+   line two, question full width, Open bottom right. */
+@container room-activity (max-width: 360px) {
+  .bw-room-activity__break {
+    display: block;
+    flex-basis: 100%;
+    height: 0;
+  }
+  .bw-room-activity__spacer {
+    display: none;
+  }
+  .bw-room-activity__header {
+    row-gap: 6px;
+  }
+  .bw-room-activity__question {
+    font-size: var(--bw-fs-meta);
+  }
+}
+
+/* ── Participant activity page: the prompt and the work ──────────────── */
+/* Same pair as the host's submissions heading (.bw-results__question / __details),
+   with the question a size larger: question 17/600 ink, description 13 grey. */
+.bw-activity-page__question {
+  margin: 0;
+  font-size: calc(var(--bw-fs-section) + 4px);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-activity-page__description {
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bw-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Individual answer */
+.bw-answer__box {
+  flex: 1;
+  min-height: 260px;
+  padding: 14px 16px;
+  border: 1px solid var(--bw-ink);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface-sunken);
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  line-height: 1.55;
+  color: var(--bw-ink);
+  resize: vertical;
+}
+/* Idea board */
+/* Fixed-size square notes: they wrap to fewer columns instead of stretching and
+   shrinking with the panel. */
+.bw-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 150px);
+  gap: 12px;
+  align-items: start;
+}
+.bw-note {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 9px 10px;
+  border-radius: var(--bw-radius-md);
+  box-shadow: 0 2px 6px rgb(28 28 30 / 8%);
+}
+.bw-note__title {
+  font-size: var(--bw-fs-meta);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-note__text {
+  flex: 1;
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-note__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bw-note__author {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bw-fs-meta);
+  font-weight: 700;
+  color: var(--bw-ink);
+}
+.bw-note__action {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  font-weight: 600;
+  color: var(--bw-ink);
+  cursor: pointer;
+}
+.bw-note__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.bw-note__action--strong {
+  text-decoration: underline;
+}
+.bw-note__action--danger {
+  color: var(--bw-red-deep);
+}
+.bw-note__title-input,
+.bw-note__text-input {
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid rgb(28 28 30 / 20%);
+  border-radius: var(--bw-radius-sm);
+  background: rgb(255 255 255 / 70%);
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-ink);
+}
+.bw-note__text-input {
+  resize: vertical;
+}
+.bw-board__add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  width: 130px;
+  aspect-ratio: 1;
+  justify-content: center;
+  margin-top: auto;
+  align-self: flex-start;
+  padding: 8px;
+  border: 1px dashed var(--bw-border-strong);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface-sunken);
+}
+.bw-board__input {
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-meta);
+}
+
+/* Save as template above Launch workflow, pinned to the bottom of the settings column. */
+.bw-workflow__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--bw-border);
+}
