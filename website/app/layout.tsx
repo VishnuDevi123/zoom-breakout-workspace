@@ -15,9 +15,25 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
+const DESCRIPTION =
+  "A Zoom App prototype: plan breakout rounds with AI, launch Zoom's rooms in one click and follow every room live. Try the interactive demo.";
+
+// The shared-link card (LinkedIn, Slack, X). The image is app/opengraph-image.jpg; on Vercel,
+// Next.js makes its URL absolute from the production domain, so no metadataBase is needed.
 export const metadata: Metadata = {
   title: "Breakout Workspace",
-  description: "A Zoom App prototype for planning and running breakout rounds, with an interactive demo.",
+  description: DESCRIPTION,
+  openGraph: {
+    type: "website",
+    siteName: "Breakout Workspace",
+    title: "Breakout Workspace · a Zoom App prototype",
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Breakout Workspace · a Zoom App prototype",
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

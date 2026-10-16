@@ -83,7 +83,9 @@ export default function ParticipantApp({
       <span className="bw-section-label">
         Round {state.roundIndex + 1} · {visitorRoom(scenario, state.roundIndex)}
       </span>
-      <h2 className="dm-app__title">{round.title ?? `Round ${state.roundIndex + 1}`}</h2>
+      <h2 className="dm-app__title">
+        {round.title ?? `Round ${state.roundIndex + 1}`}
+      </h2>
 
       {round.task ? (
         <>
@@ -122,17 +124,28 @@ export default function ParticipantApp({
 
       <span className="bw-section-label">Activities</span>
       {round.activities.map((activity) => (
-        <div key={activity.id} {...focusProps(activity.kind === "individual" ? "individual" : "board")}>
+        <div
+          key={activity.id}
+          {...focusProps(
+            activity.kind === "individual" ? "individual" : "board",
+          )}
+        >
           <button
             type="button"
             className="dm-activity"
             data-tour={activity.kind === "individual" ? "answer" : "board"}
             onClick={() => setOpenActivity(activity)}
           >
-            <span className="dm-app__meta">{activity.kind === "individual" ? "Your answer" : "Shared board"}</span>
+            <span className="dm-app__meta">
+              {activity.kind === "individual" ? "Your answer" : "Idea board"}
+            </span>
             <span className="dm-activity__title">{activity.title}</span>
             <span className="dm-app__meta">
-              {activity.kind === "individual" ? (myAnswer ? "Submitted" : "Not started") : `${state.notes.length} notes`}
+              {activity.kind === "individual"
+                ? myAnswer
+                  ? "Submitted"
+                  : "Not started"
+                : `${state.notes.length} notes`}
             </span>
           </button>
         </div>
@@ -171,7 +184,12 @@ function AnswerModal({
   const [text, setText] = useState(initial);
 
   return (
-    <div className="bw-overlay" role="dialog" aria-modal="true" aria-label={activity.title}>
+    <div
+      className="bw-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={activity.title}
+    >
       <div className="bw-overlay__panel">
         <div className="bw-overlay__header">
           <span className="bw-pill bw-pill--accent">Your answer</span>
@@ -183,8 +201,15 @@ function AnswerModal({
         <div className="bw-overlay__body">
           <h3 className="dm-app__title">{activity.title}</h3>
           <p className="dm-app__meta">{activity.description}</p>
-          <textarea className="dm-input" rows={4} value={text} onChange={(event) => setText(event.target.value)} />
-          <p className="dm-app__meta">Only the host sees your answer for this type of question when submitted.</p>
+          <textarea
+            className="dm-input"
+            rows={4}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <p className="dm-app__meta">
+            Only the host sees your answer once you submit it.
+          </p>
         </div>
         <div className="bw-overlay__footer">
           <button
