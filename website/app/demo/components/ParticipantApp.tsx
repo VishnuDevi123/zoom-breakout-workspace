@@ -63,6 +63,8 @@ export default function ParticipantApp({
     );
   }
 
+  const myAnswer = state.answers.find((answer) => answer.by === you);
+
   if (openActivity?.kind === "ideaBoard") {
     return (
       <IdeaBoard
@@ -75,8 +77,6 @@ export default function ParticipantApp({
       />
     );
   }
-
-  const myAnswer = state.answers.find((answer) => answer.by === you);
 
   return (
     <div className="dm-app" ref={root}>
@@ -167,7 +167,10 @@ export default function ParticipantApp({
   );
 }
 
-/** Individual answer: an editable suggestion, or the visitor's own words. Empty submits the suggestion. */
+/**
+ * Individual answer: a modal over the participant's app panel only (not the
+ * meeting), so it never sits behind the tour card. Empty submits the suggestion.
+ */
 function AnswerModal({
   activity,
   initial,
@@ -184,13 +187,8 @@ function AnswerModal({
   const [text, setText] = useState(initial);
 
   return (
-    <div
-      className="bw-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={activity.title}
-    >
-      <div className="bw-overlay__panel">
+    <div className="dm-panel-modal" role="dialog" aria-modal="true" aria-label={activity.title}>
+      <div className="bw-overlay__panel dm-panel-modal__card">
         <div className="bw-overlay__header">
           <span className="bw-pill bw-pill--accent">Your answer</span>
           <div className="bw-header-spacer" />
@@ -201,15 +199,8 @@ function AnswerModal({
         <div className="bw-overlay__body">
           <h3 className="dm-app__title">{activity.title}</h3>
           <p className="dm-app__meta">{activity.description}</p>
-          <textarea
-            className="dm-input"
-            rows={4}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-          />
-          <p className="dm-app__meta">
-            Only the host sees your answer once you submit it.
-          </p>
+          <textarea className="dm-input" rows={4} aria-label="Your answer" value={text} onChange={(event) => setText(event.target.value)} />
+          <p className="dm-app__meta">Only the host sees your answer once you submit it.</p>
         </div>
         <div className="bw-overlay__footer">
           <button
