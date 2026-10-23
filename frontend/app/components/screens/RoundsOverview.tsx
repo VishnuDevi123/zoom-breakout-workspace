@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { readRoundTasks, readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
+import { ApiError, readRoundTasks, readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
+import { formatClock } from "@/lib/round-clock";
 import { rebalanceEvenly, shuffleEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
-import { MAX_ROOMS, newRoom } from "@/lib/use-room-plan";
+import { newRoom } from "@/lib/use-room-plan";
+import { MAX_ROOMS } from "@/types/breakout";
 import { roundLabel } from "@/lib/use-workspace";
 import type {
   LiveState,
@@ -52,12 +54,6 @@ function withRoomCount(draft: RoundPlanDraft, count: number): RoundPlanDraft {
   const rooms = [...draft.rooms];
   while (rooms.length < count) rooms.push(newRoom(rooms));
   return { ...draft, rooms: rooms.slice(0, count) };
-}
-
-function formatDuration(totalSec: number): string {
-  const minutes = Math.floor(totalSec / 60);
-  const seconds = totalSec % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 /** Rounds overview: order, titles and timing. Rooms are planned per round in the editor. */
@@ -112,7 +108,7 @@ export default function RoundsOverview({
   const [applying, setApplying] = useState(false);
   // Everyone Zoom still reports in the meeting. The host is never placed in a room.
   const eligibleUUIDs = (live?.participants ?? [])
-    .filter((participant) => participant.location !== "left" && !participant.isHost)
+    .filter((participant) => participant.location !== "left" && participant.role === "attendee")
     .map((participant) => participant.participantUUID);
 
   /** First draft for a round nobody has configured: seeded from round 1 when the host asked for that. */
@@ -130,12 +126,17 @@ export default function RoundsOverview({
     return copyRooms(source, empty, { withPeople: workspace.samePeopleEveryRound });
   }
 
-  /** Write one round's draft. The editor may have saved since this page loaded, so a stale revision retries once. */
+  /**
+   * Write one round's draft. The editor may have saved since this page loaded: on a
+   * stale revision (409) the change is applied once more to the saved plan. Any
+   * other failure is reported as it is.
+   */
   async function writePlan(round: RoundMeta, change: (draft: RoundPlanDraft) => RoundPlanDraft) {
     const known = plans[round.roundId] ?? null;
     try {
       await saveRoundPlan(parentUUID, change(known ?? startingDraft(round)), known?.revision ?? 0);
     } catch (error) {
+      if (!(error instanceof ApiError && error.status === 409)) throw error;
       const fresh = await readSavedRoundPlan(parentUUID, round.roundId).catch(() => null);
       if (!fresh) throw error;
       await saveRoundPlan(parentUUID, change(fresh), fresh.revision);
@@ -208,7 +209,7 @@ export default function RoundsOverview({
           <span className="bw-header-subtitle">
             {anyLaunched
               ? "A round is live"
-              : `Draft · ${workspace.rounds.length} ${workspace.rounds.length === 1 ? "round" : "rounds"} · ${formatDuration(totalSec)}`}
+              : `Draft · ${workspace.rounds.length} ${workspace.rounds.length === 1 ? "round" : "rounds"} · ${formatClock(totalSec)}`}
           </span>
         </div>
         <div className="bw-header-spacer" />
@@ -224,7 +225,7 @@ export default function RoundsOverview({
                 round={round}
                 position={index + 1}
                 plan={plans[round.roundId] ?? null}
-                groupsFromFirst={
+                groupsFromPrevious={
                   grouping === "same" && round.roundId !== firstRoundId
                 }
                 onRename={(title) =>
@@ -536,7 +537,7 @@ function LaunchWorkflow({
         <ConfirmModal
           title="Launch this workflow?"
           message={
-            `${which} · ${formatDuration(target.durationSec)} · ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. ` +
+            `${which} · ${formatClock(target.durationSec)} · ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. ` +
             `${placed} placed${unplaced > 0 ? ` · ${unplaced} not placed will stay in the main room` : ""}.`
           }
           confirmLabel="Launch"
@@ -591,7 +592,7 @@ function RoundRow({
   round,
   position,
   plan,
-  groupsFromFirst,
+  groupsFromPrevious,
   onRename,
   onDuration,
   onDelete,
@@ -601,7 +602,7 @@ function RoundRow({
   position: number;
   plan: RoundPlan | null;
   /** "Same groups": this round launches with the previous round's rooms and people, so it has no Rooms button. */
-  groupsFromFirst: boolean;
+  groupsFromPrevious: boolean;
   onRename: (title: string | null) => void;
   onDuration: (durationSec: number) => void;
   onDelete: () => void;
@@ -609,8 +610,8 @@ function RoundRow({
 }) {
   const roomCount = plan?.rooms.length ?? 0;
   const placedCount = plan?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0;
-  const summary = groupsFromFirst
-    ? "Groups from Round 1"
+  const summary = groupsFromPrevious
+    ? "Groups from the previous round"
     : roomCount === 0
       ? "No rooms yet"
       : `${roomCount} ${roomCount === 1 ? "room" : "rooms"} · ${placedCount} placed`;
@@ -628,7 +629,7 @@ function RoundRow({
           >
             −
           </button>
-          <span className="bw-room-count bw-mono">{formatDuration(round.durationSec)}</span>
+          <span className="bw-room-count bw-mono">{formatClock(round.durationSec)}</span>
           <button type="button" aria-label="Longer" onClick={() => onDuration(round.durationSec + DURATION_STEP_SEC)}>
             +
           </button>
@@ -636,7 +637,7 @@ function RoundRow({
       </div>
       <span className="bw-round-row__summary">{summary}</span>
       <div className="bw-round-row__actions">
-        {groupsFromFirst ? null : (
+        {groupsFromPrevious ? null : (
           <Button variant="secondary" size="sm" onClick={() => onOpen("rooms")}>
             Rooms
           </Button>

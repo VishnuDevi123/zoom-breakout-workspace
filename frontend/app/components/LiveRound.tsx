@@ -52,6 +52,7 @@ export default function LiveRound({
   live,
   operation,
   nextRound,
+  canRunRounds,
   onHome,
   onSkipRound,
   onEndRound,
@@ -68,7 +69,10 @@ export default function LiveRound({
   live: LiveState;
   operation: LiveOperationState;
   nextRound: RoundMeta | null;
-  onHome: () => void;
+  /** Host only: launch, close, End Workflow and round edits. A co-host places people, edits tasks and adjusts time. */
+  canRunRounds: boolean;
+  /** Absent for a co-host, who has no landing page to return to. */
+  onHome?: () => void;
   /** Mark a later round as one to skip, or put a skipped one back. */
   onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
   onEndRound: () => void;
@@ -117,7 +121,7 @@ export default function LiveRound({
     ...round.stayInMainParticipantUUIDs,
   ]);
   const waiting = participants.filter(
-    (p) => p.location === "main" && !p.isHost && !planned.has(p.participantUUID),
+    (p) => p.location === "main" && p.role === "attendee" && !planned.has(p.participantUUID),
   );
 
   async function place(key: string, next: RoundPlanDraft) {
@@ -153,7 +157,10 @@ export default function LiveRound({
   }
 
   // Keyed so a swap (adding or deleting the last upcoming round) fades in.
-  const actionButton = open ? (
+  // A co-host has no round controls; the slot names their role so the missing buttons read as intended.
+  const actionButton = !canRunRounds ? (
+    <Pill tone="accent" title="The host launches and ends rounds">Co-host</Pill>
+  ) : open ? (
     <Button key="end-round" variant="danger" size="sm" busy={busy} onClick={() => setConfirmingEnd(true)}>
       End round
     </Button>
@@ -274,6 +281,7 @@ export default function LiveRound({
             plans={plans}
             tasks={tasks}
             open={open}
+            canEditRounds={canRunRounds}
             onEditTask={() => setEditingTask(true)}
             onAddRound={onAddRound}
             onUpdateRound={onUpdateRound}

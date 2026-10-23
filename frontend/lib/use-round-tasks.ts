@@ -8,6 +8,12 @@ import type { Activity, RoomTask, RoundTasks } from "@/types/breakout";
 
 const EMPTY_TASK: RoomTask = { goal: "", instructions: [], resources: [], checklist: [] };
 
+/** True when the host wrote anything; an empty task saves as `all: null`. */
+export function taskHasContent(task: RoomTask): boolean {
+  const filled = (lines: string[]) => lines.some((line) => line.trim().length > 0);
+  return Boolean(task.goal.trim()) || filled(task.instructions) || filled(task.resources) || task.checklist.length > 0;
+}
+
 type TaskEditorState = "loading" | "ready" | "saving" | "error";
 
 /** What one save sends besides the ids: the round's task and its activities. */
@@ -80,7 +86,7 @@ export function useRoundTasks(parentUUID: string, roundId: string) {
         const saved = await saveRoundTasks({
           parentUUID,
           roundId,
-          all: next.task.goal.trim() ? next.task : null,
+          all: taskHasContent(next.task) ? next.task : null,
           rooms: roomsRef.current,
           activities: next.activities,
           expectedRevision: revisionRef.current,

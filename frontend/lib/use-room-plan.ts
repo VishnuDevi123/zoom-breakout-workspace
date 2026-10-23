@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  MAX_ROOMS,
   ROOM_DOTS,
   type ApiResponse,
   type PlannedRoom,
@@ -17,7 +18,6 @@ import {
   keepParticipantInMain as keepInMain,
 } from "@/lib/room-plan-assignments";
 
-export const MAX_ROOMS = 20;
 const SAVE_DELAY_MS = 500;
 
 interface SelectedRound {

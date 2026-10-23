@@ -6,6 +6,9 @@
  */
 
 /** Colour dots used to identify a room. Lifted from the design token palette. */
+/** Most rooms one round can plan. Store, AI schema and editor all use it. */
+export const MAX_ROOMS = 20;
+
 export const ROOM_DOTS = [
   "#fcb900",
   "#4262ff",
@@ -70,10 +73,13 @@ export interface HealthResponse {
   uptimeSeconds: number;
 }
 
+/** Meeting role from webhooks and the roster. Host and co-hosts run the host app and are never placed in rooms. */
+export type MeetingRole = "host" | "coHost" | "attendee";
+
 export interface LiveParticipant {
   participantUUID: string;
   name: string;
-  isHost: boolean;
+  role: MeetingRole;
   location: "main" | "left" | string;
 }
 
@@ -98,7 +104,7 @@ export interface LiveState {
 export interface RosterEntry {
   participantUUID: string;
   name: string;
-  isHost: boolean;
+  role: MeetingRole;
   /** Planned room id when Zoom reports the person inside a room; null for the main room. */
   roomId: string | null;
 }
@@ -237,6 +243,8 @@ export interface SavedTemplate extends WorkflowSnapshot {
   id: string;
   ownerUid: string;
   savedAt: string;
+  /** The past workflow it was saved from, so each is saved once. Absent when saved from the workflow being built. */
+  sourcePastWorkflowId?: string;
 }
 
 /** POST /api/workspace/end. The frontend closes any open round first. */
@@ -317,11 +325,6 @@ export interface IdeaNote {
   color: NoteColor;
 }
 
-export interface ChecklistTick {
-  participantUUID: string;
-  authorName: string;
-}
-
 export interface RoomResponses {
   parentUUID: string;
   roundId: string;
@@ -330,8 +333,8 @@ export interface RoomResponses {
   answers: Record<string, Record<string, IndividualAnswer>>;
   /** activityId -> notes, oldest first. */
   ideas: Record<string, IdeaNote[]>;
-  /** Task checklist itemId -> who ticked it. A missing item means unticked. */
-  ticks: Record<string, ChecklistTick>;
+  /** Task checklist itemId -> true when ticked; a missing item means unticked. Who ticked is not kept: no screen shows it. */
+  ticks: Record<string, true>;
   /** activityId -> last "Idea N" number handed out. Never goes down. */
   ideaCounters: Record<string, number>;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   configureZoomSdk,
@@ -57,12 +57,17 @@ const INITIAL: HostGateValue = {
   sdkError: null,
 };
 
-/** Host and co-host are treated identically. Everyone else gets the participant screen. */
+/** Launch, close, planning and End Workflow belong to the meeting host alone, so only one app acts on the timer. */
+export function canRunRounds(role: ZoomRole | null): boolean {
+  return role === "host";
+}
+
+/** Host and co-host get the host app (a co-host with fewer controls). Everyone else gets the participant screen. */
 export function canManageRooms(role: ZoomRole | null): boolean {
   return role === "host" || role === "coHost";
 }
 
-export function useHostGate(): HostGateValue {
+export function useHostGate(): HostGateValue & { recheckRole: () => void } {
   const [value, setValue] = useState<HostGateValue>(INITIAL);
 
   /**
@@ -80,6 +85,9 @@ export function useHostGate(): HostGateValue {
 
   /** Needed by the role-change handler, which fires long after the bootstrap. */
   const sdkRef = useRef<ZoomSdk | null>(null);
+
+  /** The effect's applyRole, for a recheck that starts outside it. */
+  const applyRoleRef = useRef<((input: ApplyRoleInput) => Promise<void>) | null>(null);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -134,6 +142,8 @@ export function useHostGate(): HostGateValue {
       if (!aliveRef.current || !context) return;
       setValue((previous) => ({ ...previous, meetingTopic: context.meetingTopic }));
     }
+
+    applyRoleRef.current = applyRole;
 
     /**
      * Re-routes on the spot when the host promotes or demotes this user. No
@@ -203,5 +213,19 @@ export function useHostGate(): HostGateValue {
     };
   }, []);
 
-  return value;
+  /**
+   * onMyUserContextChange is host-only, so an attendee's app never hears its own
+   * promotion. The participant screen calls this when the role-change webhook
+   * reaches it over SSE; Zoom's own answer then decides the screen.
+   */
+  const recheckRole = useCallback(() => {
+    const sdk = sdkRef.current;
+    if (!sdk) return;
+    sdk
+      .getUserContext()
+      .then((context) => applyRoleRef.current?.({ role: context.role, screenName: context.screenName }))
+      .catch((error: unknown) => console.warn("Role recheck failed.", error));
+  }, []);
+
+  return { ...value, recheckRole };
 }

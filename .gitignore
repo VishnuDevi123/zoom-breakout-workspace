@@ -56,3 +56,9 @@ week5-verticle-slices/
 week6-verticle-slices/
 week7-verticle-slices/
 presentation/
+recordings/
+
+
+# Local agent docs (not committed)
+docs/
+.claude/

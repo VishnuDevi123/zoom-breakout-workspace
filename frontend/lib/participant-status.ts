@@ -1,4 +1,4 @@
-import type { LiveState, PlannedRoom } from "@/types/breakout";
+import type { LiveState, MeetingRole, PlannedRoom } from "@/types/breakout";
 
 /** Where a participant is from the draft editor's point of view. */
 export type ParticipantStatus = "in-room" | "unassigned" | "left";
@@ -14,7 +14,12 @@ export interface Participant {
   status: ParticipantStatus;
   /** Internal id of the room the person sits in, or null when unassigned. */
   roomId: string | null;
-  isHost: boolean;
+  role: MeetingRole;
+}
+
+/** " · host" or " · co-host" after a name; nothing for an attendee. */
+export function roleSuffix(role: MeetingRole): string {
+  return role === "host" ? " · host" : role === "coHost" ? " · co-host" : "";
 }
 
 /** "Ada Lovelace" -> "AL". Falls back to the first character for single words. */

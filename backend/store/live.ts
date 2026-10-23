@@ -119,6 +119,11 @@ export function markLaunchedRound(parentUUID: string, roundId: string, durationS
     // endsAt 0 means no timer: the round runs until the host closes it.
     const endsAt = durationSec > 0 ? Date.now() + durationSec * 1000 : 0
     meeting.round = { roundId, roomUUIDs, endsAt, timerEnded: false }
+    // People Zoom moved before this report arrived (or before a lost report was
+    // recovered) are already in a room; learn those rooms from them now.
+    for (const p of meeting.participants.values()) {
+        if (p.location !== "main" && p.location !== "left") learnRoom(meeting, parentUUID, p.participantUUID, p.location)
+    }
     armTimer(meeting, parentUUID, endsAt)
     notify(parentUUID)
     return getLive(parentUUID)
@@ -153,11 +158,13 @@ export function applyRoster(parentUUID: string, entries: RosterEntry[]): LiveSta
 
     for (const entry of entries) {
         const known = meeting.participants.get(entry.participantUUID)
+        // The room list marks only the host, so the roster may raise a role but never lower one.
+        if (known && entry.role !== "attendee") known.role = entry.role
         if (known && known.location !== "left") continue
         meeting.participants.set(entry.participantUUID, {
             participantUUID: entry.participantUUID,
             name: entry.name,
-            isHost: entry.isHost || Boolean(known?.isHost),
+            role: entry.role !== "attendee" ? entry.role : (known?.role ?? "attendee"),
             location: rosterLocation(meeting, entry.roomId),
         })
     }
@@ -183,6 +190,7 @@ interface WebhookBody {
                 participant_uuid?: string;
                 user_name?: string;
                 leave_reason?: string;
+                new_role?: string;
             };
         };
     };
@@ -217,7 +225,7 @@ export function applyEvent(body: unknown): void {
     const entry: LiveParticipant = meeting.participants.get(participantUUID) ?? {
         participantUUID,
         name: participant?.user_name ?? "",
-        isHost: Boolean(participant?.id) && participant?.id === object?.host_id,
+        role: Boolean(participant?.id) && participant?.id === object?.host_id ? "host" : "attendee",
         location: "main",
     }
 
@@ -232,6 +240,10 @@ export function applyEvent(body: unknown): void {
             break
         case "meeting.participant_joined":
             if (!wasKnown || entry.location === "left") entry.location = "main"
+            break
+        case "meeting.participant_role_changed":
+            // Zoom says "co-host"; the SDK and this app say "coHost".
+            entry.role = participant?.new_role === "host" ? "host" : participant?.new_role === "co-host" ? "coHost" : "attendee"
             break
         case "meeting.participant_left":
             if (participant?.leave_reason?.includes("breakout")) return

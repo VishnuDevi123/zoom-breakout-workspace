@@ -11,6 +11,7 @@ import type { LiveState, PlannedRoom } from "@/types/breakout";
 
 import { Button, Card, SectionLabel, StatusDot } from "../ui";
 import LoadingScreen from "./LoadingScreen";
+import WaitingScreen from "./WaitingScreen";
 import ParticipantWorkspace from "./ParticipantWorkspace";
 import PastRoundPage from "./PastRoundPage";
 
@@ -31,15 +32,23 @@ const HOW_IT_WORKS = [
 export default function ParticipantScreen({
   parentUUID,
   participantUUID,
+  onPromoted,
 }: {
   parentUUID: string;
   participantUUID: string;
+  /** The backend heard Zoom make this person a host or co-host; Zoom confirms before the screen changes. */
+  onPromoted: () => void;
 }) {
   const [showWorkspace, setShowWorkspace] = useState(false);
   const { liveState } = useLiveState(parentUUID);
   const roundId = liveState?.round?.roundId ?? "";
+  const me = liveState?.participants.find((p) => p.participantUUID === participantUUID);
   // Empty when webhooks have not reported this person yet; then the plan alone decides.
-  const location = liveState?.participants.find((p) => p.participantUUID === participantUUID)?.location ?? "";
+  const location = me?.location ?? "";
+  const promoted = me !== undefined && me.role !== "attendee";
+  useEffect(() => {
+    if (promoted) onPromoted();
+  }, [promoted, onPromoted]);
   const round = useParticipantRound({
     parentUUID,
     participantUUID,
@@ -80,25 +89,29 @@ export default function ParticipantScreen({
 
   if (!roundId) {
     return (
-      <Waiting
+      <WaitingScreen
         headline="No round running yet"
         lede="Your host hasn't started breakout rooms yet. When they do, this page will show your room and task."
       >
         {earlier}
-      </Waiting>
+      </WaitingScreen>
     );
   }
+
+  // Moved since "not placed" was read (the host just placed them): keep the one spinner
+  // until the new answer arrives, rather than showing a "staying in main" that is out of date.
+  if (!room && round.rechecking) return <LoadingScreen message="Finding your room…" />;
 
   if (!room) {
     // The room page belongs to a placement, so losing one closes it.
     if (showWorkspace) setShowWorkspace(false);
     return (
-      <Waiting
+      <WaitingScreen
         headline="You are staying in the main room"
         lede="Your host didn't place you in a breakout room this round."
       >
         {earlier}
-      </Waiting>
+      </WaitingScreen>
     );
   }
 
@@ -106,12 +119,12 @@ export default function ParticipantScreen({
     // Placed, but not inside the room: just launched and not joined yet, or stepped back out.
     if (showWorkspace) setShowWorkspace(false);
     return (
-      <Waiting
+      <WaitingScreen
         headline="You are in the main room"
         lede={`Your room for this round is ${room.name}. Open Zoom's Breakout Rooms button to join it.`}
       >
         {earlier}
-      </Waiting>
+      </WaitingScreen>
     );
   }
 
@@ -134,7 +147,9 @@ export default function ParticipantScreen({
           <SectionLabel>You are in a breakout room</SectionLabel>
           <h2 className="bw-landing-title">Welcome to {room.name}</h2>
           <p className="bw-landing-lede">
-            {task ? task.goal : "No task yet. The host can add one while the round runs."}
+            {task
+              ? task.goal || "Your host left steps for this room."
+              : "No task yet. The host can add one while the round runs."}
           </p>
 
           <div className="bw-landing-cards">
@@ -180,21 +195,6 @@ export default function ParticipantScreen({
 }
 
 /** The states before a room: no round, not placed, or placed but still in the main room. */
-function Waiting({ headline, lede, children }: { headline: string; lede: string; children: React.ReactNode }) {
-  return (
-    <div className="bw-shell">
-      <div className="bw-body">
-        <main className="bw-main bw-participant-main">
-          <SectionLabel>Breakout Workspace</SectionLabel>
-          <h2 className="bw-landing-title">{headline}</h2>
-          <p className="bw-landing-lede">{lede}</p>
-          {children}
-        </main>
-      </div>
-    </div>
-  );
-}
-
 function TimeCard({ endsAt }: { endsAt: number }) {
   const remainingSec = useRemainingSec(endsAt);
 

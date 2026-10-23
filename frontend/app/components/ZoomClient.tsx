@@ -44,7 +44,7 @@ export default function ZoomClient() {
 
 /** One of the four gate states: checking, host, participant, unsupported. */
 function GateScreen() {
-  const { state, role, meetingUUID, participantUUID, meetingTopic, sdkError } =
+  const { state, role, meetingUUID, participantUUID, meetingTopic, sdkError, recheckRole } =
     useHostGate();
 
   switch (state) {
@@ -59,7 +59,11 @@ function GateScreen() {
 
     case "participant":
       return (
-        <ParticipantScreen parentUUID={meetingUUID} participantUUID={participantUUID} />
+        <ParticipantScreen
+          parentUUID={meetingUUID}
+          participantUUID={participantUUID}
+          onPromoted={recheckRole}
+        />
       );
 
     case "unsupported":

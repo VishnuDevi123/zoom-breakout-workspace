@@ -1,4 +1,5 @@
 import {
+  MAX_ROOMS,
   ROOM_DOTS,
   type PlannedRoom,
   type RoomDot,
@@ -9,8 +10,6 @@ import {
 //storage survives browser reloads, but not a backend restart.
 const plans = new Map<string, RoundPlan>();
 
-// Match the current editor's limit. Apply must still check the Zoom client.
-const MAX_PLANNED_ROOMS = 50;
 
 export class RoundPlanError extends Error {
   constructor(
@@ -53,10 +52,10 @@ function validateDraft(input: unknown): RoundPlanDraft {
   if (
     !Array.isArray(input.rooms) ||
     input.rooms.length < 1 ||
-    input.rooms.length > MAX_PLANNED_ROOMS
+    input.rooms.length > MAX_ROOMS
   ) {
     throw new RoundPlanError(
-      `rooms must contain 1 to ${MAX_PLANNED_ROOMS} rooms.`,
+      `rooms must contain 1 to ${MAX_ROOMS} rooms.`,
       400,
     );
   }

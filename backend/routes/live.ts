@@ -142,7 +142,7 @@ function isRosterEntry(value: unknown): value is RosterEntry {
     typeof entry?.participantUUID === "string" &&
     entry.participantUUID.length > 0 &&
     typeof entry.name === "string" &&
-    typeof entry.isHost === "boolean" &&
+    (entry.role === "host" || entry.role === "coHost" || entry.role === "attendee") &&
     (entry.roomId === null || typeof entry.roomId === "string")
   );
 }

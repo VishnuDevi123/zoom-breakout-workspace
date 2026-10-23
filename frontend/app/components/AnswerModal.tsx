@@ -36,6 +36,9 @@ export default function AnswerModal({
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The autosave that has already been sent. A later save waits for it: the server keeps the
+  // last write it receives, so a draft landing after Submit would turn "submitted" back into "working".
+  const inFlight = useRef<Promise<unknown>>(Promise.resolve());
   const text = draft ?? saved?.text ?? "";
   const changed = text.trim() !== (saved?.text ?? "");
 
@@ -44,6 +47,7 @@ export default function AnswerModal({
   async function send(status: "working" | "submitted") {
     clearTimeout(timer.current);
     setSaving(true);
+    await inFlight.current;
     const ok = await saveAnswer(activity.id, text, status);
     setSaving(false);
     return ok;
@@ -52,7 +56,9 @@ export default function AnswerModal({
   function edit(next: string) {
     setDraft(next);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => void saveAnswer(activity.id, next, "working"), AUTOSAVE_DELAY_MS);
+    timer.current = setTimeout(() => {
+      inFlight.current = saveAnswer(activity.id, next, "working");
+    }, AUTOSAVE_DELAY_MS);
   }
 
   async function submit(close: () => void) {

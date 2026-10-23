@@ -279,7 +279,7 @@ export function setTick(room: RoomRef, itemId: string, request: unknown): RoomRe
 
   const record = recordFor(room);
   if (done) {
-    record.ticks[itemId] = { participantUUID, authorName: authorName(room.parentUUID, participantUUID) };
+    record.ticks[itemId] = true;
   } else {
     delete record.ticks[itemId];
   }

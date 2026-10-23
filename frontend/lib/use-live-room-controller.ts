@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { markRoundClosed, markRoundLaunched, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
-import { canManageRooms } from "@/lib/host-gate";
+import { ApiError, markRoundClosed, markRoundLaunched, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
+import { canManageRooms, canRunRounds } from "@/lib/host-gate";
 import {
   assignToOpenRooms,
   breakoutRoomsAreOpen,
@@ -21,6 +21,14 @@ import type { RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
  * the SDK work starts after this pause.
  */
 const LAUNCH_DELAY_MS = 1_500;
+
+/**
+ * Once Zoom has opened the rooms the launch has happened, so the backend must hear
+ * about it. A sleeping Render instance, a restart or a dropped tunnel can fail the
+ * first report; it is repeated for about a minute (user-approved retry, 2026-10-22).
+ */
+const REPORT_WAIT_MS = 2_000;
+const REPORT_ATTEMPTS = 30;
 
 export type LiveOperationState =
   | { kind: "idle" }
@@ -86,6 +94,10 @@ export function useLiveRoomController(input: ControllerInput) {
   /** Resolves true when the task succeeded; failures are reported here, not thrown. */
   async function run(kind: "launch" | "close", task: (step: (s: string) => void) => Promise<string>): Promise<boolean> {
     if (operation.kind === "running") return false;
+    if (!canRunRounds(roleRef.current)) {
+      toast.error("Only the meeting host can launch or end rounds.");
+      return false;
+    }
     let lastStep = "Checking Zoom…";
     // Progress shows on the full-screen overlay; only the outcome is a toast.
     const step = (s: string) => {
@@ -106,6 +118,23 @@ export function useLiveRoomController(input: ControllerInput) {
     }
   }
 
+  /** Tells the backend a round is open in Zoom. Repeats on network and server errors, never on a refusal (4xx). */
+  async function reportLaunch(roundId: string, step: (s: string) => void) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await markRoundLaunched(input.parentUUID, roundId);
+      } catch (error) {
+        const refused = error instanceof ApiError && error.status < 500;
+        if (refused || attempt >= REPORT_ATTEMPTS) {
+          const reason = error instanceof Error ? error.message : "The server did not answer.";
+          throw new Error(`The rooms are open in Zoom, but the server did not record it. Reopen the app to fix this. (${reason})`);
+        }
+        step("Telling the server the round started…");
+        await new Promise((resolve) => setTimeout(resolve, REPORT_WAIT_MS));
+      }
+    }
+  }
+
   /** Defaults to the round the caller is showing; pass an id to start a different one. */
   function launch(roundId: string = input.round.roundId) {
     void run("launch", async (step) => {
@@ -118,7 +147,7 @@ export function useLiveRoomController(input: ControllerInput) {
       const plan = await readSavedRoundPlan(input.parentUUID, roundId);
       const { sdk, hostUUID } = await hostSdk();
       await launchRoundInZoom(sdk, plan, hostUUID, step);
-      const launched = await markRoundLaunched(input.parentUUID, plan.roundId);
+      const launched = await reportLaunch(plan.roundId, step);
       input.onLaunched?.(plan.roundId, launched.workspace);
       return `${plan.title} launched.`;
     });
@@ -156,6 +185,24 @@ export function useLiveRoomController(input: ControllerInput) {
   }
 
   /**
+   * Rooms are open in Zoom but the backend has no round running: the launch report
+   * never arrived. Records the round the host names as running, without touching Zoom.
+   */
+  function recordLaunch(roundId: string): Promise<boolean> {
+    return run("launch", async (step) => {
+      const launched = await reportLaunch(roundId, step);
+      input.onLaunched?.(roundId, launched.workspace);
+      return "The round is running again.";
+    });
+  }
+
+  /** True when Zoom has breakout rooms open. Read once when the host opens the app. */
+  async function roomsOpenInZoom(): Promise<boolean> {
+    const { sdk } = await hostSdk();
+    return breakoutRoomsAreOpen(sdk);
+  }
+
+  /**
    * One shot when the host opens the app. Webhooks never replay, so anyone who
    * joined before a backend restart is invisible until Zoom is asked directly.
    */
@@ -182,5 +229,5 @@ export function useLiveRoomController(input: ControllerInput) {
     await assignToOpenRooms(sdk, placements);
   }
 
-  return { operation, launch, close, reconcile, syncRoster, placeInOpenRooms };
+  return { operation, launch, close, recordLaunch, roomsOpenInZoom, reconcile, syncRoster, placeInOpenRooms };
 }

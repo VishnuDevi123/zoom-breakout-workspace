@@ -31,6 +31,7 @@ type ReadyDraft = Extract<RoomPlan["state"], { kind: "ready" }>;
 export default function RoundSetup({
   title,
   placeholder,
+  subtitle,
   tab,
   plan,
   draft,
@@ -47,6 +48,8 @@ export default function RoundSetup({
   title: string | null;
   /** "Round N" by position, shown when the round has no name of its own. */
   placeholder: string;
+  /** "Round 1 of 3 · 10:00" under the name, like the workflow page's summary line. */
+  subtitle: string;
   tab: SetupTab;
   plan: RoomPlan;
   draft: ReadyDraft;
@@ -82,14 +85,17 @@ export default function RoundSetup({
       <button type="button" className="bw-back" aria-label="Back to the workflow" onClick={() => void leave(onBack)}>
         ←
       </button>
-      <div className="bw-round-heading">
+      <div className="bw-round-heading bw-setup-heading">
         <EditableName value={title} placeholder={placeholder} className="bw-setup-title" onSave={onRename} />
+        <span className="bw-header-subtitle">{subtitle}</span>
       </div>
-      <div className="bw-header-spacer" />
-      {tab === "rooms" ? <RoomControls plan={plan} round={round} roster={roster} rosterKnown={rosterKnown} /> : null}
-      <Button size="sm" onClick={() => void leave(onNext)}>
-        {nextLabel}
-      </Button>
+      {/* One group, so on a narrow panel it moves to a second row together, right-aligned. */}
+      <div className="bw-setup-actions">
+        {tab === "rooms" ? <RoomControls plan={plan} round={round} roster={roster} rosterKnown={rosterKnown} /> : null}
+        <Button size="sm" onClick={() => void leave(onNext)}>
+          {nextLabel}
+        </Button>
+      </div>
     </>
   );
 
@@ -130,6 +136,7 @@ export default function RoundSetup({
 export function RoundSetupPending({
   heading,
   tab,
+  subtitle,
   message,
   failed,
   onRetry,
@@ -137,6 +144,7 @@ export function RoundSetupPending({
   onTabChange,
 }: {
   heading: string;
+  subtitle: string;
   tab: SetupTab;
   message: string;
   failed: boolean;
@@ -149,7 +157,10 @@ export function RoundSetupPending({
       <button type="button" className="bw-back" aria-label="Back to the workflow" onClick={onBack}>
         ←
       </button>
-      <span className="bw-header-title">{heading}</span>
+      <div className="bw-round-heading bw-setup-heading">
+        <span className="bw-header-title">{heading}</span>
+        <span className="bw-header-subtitle">{subtitle}</span>
+      </div>
     </>
   );
 
@@ -175,9 +186,9 @@ export function RoundSetupPending({
   );
 }
 
-/** Everyone Zoom still reports, minus the host, who is never placed. */
+/** Everyone Zoom still reports, minus the host and co-hosts, who are never placed. */
 function placeable(roster: Participant[]): Participant[] {
-  return roster.filter((person) => person.assignmentEligible && !person.isHost);
+  return roster.filter((person) => person.assignmentEligible && person.role === "attendee");
 }
 
 function RoomControls({
@@ -344,6 +355,6 @@ function unavailable(participantUUID: string): Participant {
     initials: initialsFrom("?"),
     status: "left",
     roomId: null,
-    isHost: false,
+    role: "attendee",
   };
 }

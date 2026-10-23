@@ -2,22 +2,23 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 
-import type {
-  AiChatMessage,
-  DraftWorkflowRequest,
-  DraftWorkflowResponse,
-  WorkflowSnapshot,
+import {
+  MAX_ROOMS,
+  type AiChatMessage,
+  type DraftWorkflowRequest,
+  type DraftWorkflowResponse,
+  type WorkflowSnapshot,
 } from "../types/breakout.ts";
 
 // From the OpenAI structured outputs docs; change here to try another model.
 const MODEL = "gpt-6-luna";
 const MAX_REQUEST_LENGTH = 2000;
 
-/** 400: bad request body. 422: the model refused or returned nothing. 502: the OpenAI call failed. */
+/** 400: bad request body. 422: the model refused or returned nothing. 502: the OpenAI call failed. 503: no API key configured. */
 export class AiError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 422 | 502,
+    readonly status: 400 | 422 | 502 | 503,
   ) {
     super(message);
     this.name = "AiError";
@@ -28,6 +29,7 @@ export class AiError extends Error {
 // its imports have run, so the client is built on the first request.
 let openai: OpenAI | null = null;
 function client(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) throw new AiError("The AI builder is not set up on this server.", 503);
   openai ??= new OpenAI();
   return openai;
 }
@@ -50,7 +52,7 @@ const TaskDraft = z.object({
 const RoundDraft = z.object({
   title: z.string().nullable(),
   durationMinutes: z.number().int().min(1).max(120),
-  roomNames: z.array(z.string().min(1)).min(1).max(50),
+  roomNames: z.array(z.string().min(1)).min(1).max(MAX_ROOMS),
   task: TaskDraft.nullable(),
   activities: z.array(ActivityDraft).max(6),
 });

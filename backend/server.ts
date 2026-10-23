@@ -18,6 +18,8 @@ const app = express();
 
 const PORT = process.env.PORT || 4000;
 
+// Webhooks need the raw bytes to check Zoom's signature, so they parse before express.json().
+app.use("/api/webhooks", express.raw({ type: "application/json" }), webhookRoutes);
 app.use(express.json());
 
 app.use(
@@ -34,7 +36,6 @@ app.use(
 
 // The router adds /:roundId/rooms. Draft saves never change actual Zoom rooms.
 app.use("/api/rounds", roundPlanRoutes);
-app.use("/api/webhooks", webhookRoutes);
 app.use("/api/live", liveRoutes);
 app.use("/api/workspace", workSpaceRoutes);
 app.use("/api/tasks", taskRoutes);

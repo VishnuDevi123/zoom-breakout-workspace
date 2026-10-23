@@ -56,8 +56,10 @@ function stringLines(value: unknown, field: string): string[] {
 
 function validateRoomTask(value: unknown, field: string): RoomTask {
   if (!isRecord(value)) throw new TaskError(`${field} must be an object.`, 400);
+  if (typeof value.goal !== "string") throw new TaskError(`${field}.goal must be a string.`, 400);
   return {
-    goal: requiredString(value.goal, `${field}.goal`).trim(),
+    // May be empty: a host can write steps or a checklist before the goal.
+    goal: value.goal.trim(),
     instructions: stringLines(value.instructions, `${field}.instructions`),
     resources: stringLines(value.resources, `${field}.resources`),
     // Undefined until the frontend sends the field.

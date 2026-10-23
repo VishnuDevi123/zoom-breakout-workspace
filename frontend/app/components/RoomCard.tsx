@@ -1,6 +1,6 @@
 "use client";
 
-import { DRAFT_MEMBER_STATUS_LABEL, type Participant } from "@/lib/participant-status";
+import { DRAFT_MEMBER_STATUS_LABEL, roleSuffix, type Participant } from "@/lib/participant-status";
 import type { PlannedRoom } from "@/types/breakout";
 
 import { Card, EditableName, StatusDot } from "./ui";
@@ -74,7 +74,7 @@ export default function RoomCard({
             >
               <span className="bw-avatar">{participant.initials}</span>
               <span className="bw-member-name" title={participant.displayName}>
-                {participant.displayName}{participant.isHost ? " · host" : ""}
+                {participant.displayName}{roleSuffix(participant.role)}
               </span>
               <span className="bw-member-status" title={status}>{status}</span>
               <MemberMenu
@@ -113,7 +113,7 @@ export default function RoomCard({
                 }
               >
                 <span className="bw-avatar">{participant.initials}</span>
-                <span>{participant.displayName}{participant.isHost ? " · host" : ""}</span>
+                <span>{participant.displayName}{roleSuffix(participant.role)}</span>
               </button>
             ))}
           </div>

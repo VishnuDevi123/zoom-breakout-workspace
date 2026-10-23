@@ -22,8 +22,6 @@ import type { PastWorkflow, SavedTemplate } from "@/types/breakout";
 export function useWorkflowLibrary(parentUUID: string) {
   const [past, setPast] = useState<PastWorkflow[]>([]);
   const [templates, setTemplates] = useState<SavedTemplate[]>([]);
-  // Past workflows saved in this app session, so Save Workflow is not pressed twice.
-  const [savedPastIds, setSavedPastIds] = useState<string[]>([]);
 
   useEffect(() => {
     readPastWorkflows(parentUUID)
@@ -45,7 +43,6 @@ export function useWorkflowLibrary(parentUUID: string) {
   async function savePast(pastWorkflowId: string): Promise<void> {
     const saved = await saveTemplate(await readAppContextToken(), { parentUUID, pastWorkflowId });
     setTemplates((current) => [saved, ...current]);
-    setSavedPastIds((current) => [...current, pastWorkflowId]);
   }
 
   /** The workflow being built, as the server holds it now. */
@@ -57,6 +54,9 @@ export function useWorkflowLibrary(parentUUID: string) {
   async function removeTemplate(templateId: string): Promise<void> {
     setTemplates(await deleteTemplate(await readAppContextToken(), templateId));
   }
+
+  // Past workflows this host already saved; deleting the template frees it again.
+  const savedPastIds = templates.flatMap((template) => template.sourcePastWorkflowId ?? []);
 
   return { past, templates, savedPastIds, showPast: setPast, savePast, saveCurrent, removeTemplate };
 }

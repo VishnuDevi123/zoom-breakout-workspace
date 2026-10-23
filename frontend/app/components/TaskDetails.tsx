@@ -15,13 +15,11 @@ export default function TaskDetails({
   return (
     <>
       <SectionLabel>{heading}</SectionLabel>
-      <Card className="bw-room-task">
-        {task ? (
-          <h2 className="bw-task-goal">{task.goal}</h2>
-        ) : (
-          <p className="bw-task-empty">{emptyText}</p>
-        )}
-      </Card>
+      {task?.goal || !task ? (
+        <Card className="bw-room-task">
+          {task ? <h2 className="bw-task-goal">{task.goal}</h2> : <p className="bw-task-empty">{emptyText}</p>}
+        </Card>
+      ) : null}
 
       {task && task.instructions.length > 0 ? (
         <>

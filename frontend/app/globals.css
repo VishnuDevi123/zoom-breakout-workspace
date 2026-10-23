@@ -79,6 +79,7 @@
   --bw-fs-display: 26px; /* round clocks */
 
   /* Radii */
+  --bw-bar-h: 74px; /* every top bar: an editable title plus its subtitle line, so bars match with or without them */
   --bw-radius-sm: 6px;
   --bw-radius-md: 10px;
   --bw-radius-lg: 14px;
@@ -418,14 +419,22 @@ input[type="checkbox"] {
   background: var(--bw-surface);
 }
 
+/* Every top bar (landing, workflow page, round setup, live, participant) shares one height, padding and gap. */
 .bw-header {
-  min-height: 56px;
+  min-height: var(--bw-bar-h);
   flex: none;
   display: flex;
   align-items: center;
-  gap:13px;
-  padding: 0 16px;
+  gap: 8px 12px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--bw-border);
+}
+
+/* The logo fills the same 30px lead slot as the back button, so titles start at one x. */
+.bw-header .bw-brand-mark,
+.bw-frame__bar .bw-brand-mark {
+  width: 30px;
+  height: 30px;
 }
 
 .bw-brand-mark {
@@ -539,7 +548,7 @@ input[type="checkbox"] {
 
 /* Every landing state fades in, including the return after End Workflow. */
 .bw-landing {
-  animation: bwPageIn 200ms ease-out both;
+  animation: bwPageIn 200ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1542,7 +1551,6 @@ input[type="checkbox"] {
 /* Side panel up to 900px: the header may wrap; actions stay right-aligned. */
 @media (max-width: 900px) {
   .bw-header {
-    padding: 10px 14px;
     flex-wrap: wrap;
   }
 
@@ -1579,7 +1587,7 @@ input[type="checkbox"] {
   justify-content: center;
   padding: 40px;
   gap: 18px;
-  animation: bwPageIn 200ms ease-out both;
+  animation: bwPageIn 200ms ease-out;
 }
 
 /* A past round's board as plain lines: "Name: idea". */
@@ -1758,6 +1766,37 @@ input[type="checkbox"] {
   line-height: 1.35;
   color: var(--bw-ink);
 }
+/*
+ * Task fields: one line with a fade at the edge, growing downwards while
+ * edited (TaskFields' ExpandingField sets the open height). The closed height
+ * is one line plus the field's padding and border, so both ends animate.
+ */
+.bw-expanding {
+  display: block;
+  width: 100%;
+  height: var(--bw-expanding-closed);
+  overflow: hidden;
+  resize: none;
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.bw-expanding[data-open] {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.bw-goal-input.bw-expanding {
+  --bw-expanding-closed: calc(1lh + 24px);
+}
+.bw-line-row__input.bw-expanding {
+  --bw-expanding-closed: calc(1lh + 10px);
+  line-height: 1.4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-expanding {
+    transition: none;
+  }
+}
 .bw-goal-input:focus-visible {
   outline: 2px solid var(--bw-accent);
   outline-offset: 1px;
@@ -1767,17 +1806,22 @@ input[type="checkbox"] {
   border-radius: var(--bw-radius-md);
   overflow: hidden;
 }
+/* Rows top-aligned: an open field grows downwards, its number and ✕ stay on the first line. */
 .bw-line-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   padding: 4px 11px;
   border-bottom: 1px solid var(--bw-border-faint);
 }
 .bw-line-row__number {
+  padding-top: 6px; /* level with the field's first line */
   font-size: var(--bw-fs-meta);
   font-weight: 600;
   color: var(--bw-accent);
+}
+.bw-line-row > .bw-icon-button {
+  margin-top: 4px;
 }
 .bw-line-row__input {
   flex: 1;
@@ -2038,15 +2082,17 @@ a.bw-resource-row:hover {
 .bw-frame {
   height: 100dvh;
   display: grid;
-  grid-template-rows: 56px minmax(0, 1fr) 70px;
+  /* The bar is at least --bw-bar-h and grows when its controls wrap to a second row. */
+  grid-template-rows: minmax(var(--bw-bar-h), auto) minmax(0, 1fr) 70px;
   background: var(--bw-bg);
 }
 .bw-frame__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   min-width: 0;
-  padding: 0 16px;
+  padding: 10px 16px;
   background: var(--bw-frame-bar-bg);
   color: #fff;
 }
@@ -2075,6 +2121,11 @@ a.bw-resource-row:hover {
   color: var(--bw-ink);
   border-bottom: 1px solid var(--bw-border);
 }
+/*
+ * No fill mode on purpose: a finished animation that still "fills" keeps the
+ * page on its own compositing layer, and Zoom's WebKit view then repaints it
+ * late while scrolling (ghost bands above and below the cards).
+ */
 @keyframes bwPageIn {
   from {
     opacity: 0;
@@ -2092,6 +2143,28 @@ a.bw-resource-row:hover {
 }
 .bw-setup-title .bw-room-name {
   font-size: var(--bw-fs-header);
+}
+/*
+ * Round setup bar: the name takes the free space but keeps at least 140px; when
+ * the controls no longer fit beside it, they wrap as one group to a second row,
+ * right-aligned. Labels never break inside a button.
+ */
+.bw-setup-heading {
+  flex: 1 1 140px;
+}
+.bw-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+.bw-setup-actions > * {
+  flex: none;
+}
+.bw-frame__bar .bw-button {
+  white-space: nowrap;
 }
 .bw-sheet__subtitle {
   flex: none;
@@ -2124,7 +2197,7 @@ a.bw-resource-row:hover {
 /* The sheet covers the bottom of the page, so the last rooms can scroll above it. */
 /* Every new page, tab or round fades in rather than appearing at once. */
 .bw-frame__content {
-  animation: bwPageIn 200ms ease-out both;
+  animation: bwPageIn 200ms ease-out;
   padding: 20px 20px calc(20px + var(--bw-sheet-h, 0px));
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2457,9 +2530,10 @@ a.bw-resource-row:hover {
     align-items: center;
   }
 }
+/* Kind, then progress pushed right, then the chevron. Titles are left out on purpose. */
 .bw-results__activity {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
@@ -2475,13 +2549,8 @@ a.bw-resource-row:hover {
 .bw-results__activity:focus-visible {
   border-color: var(--bw-accent);
 }
-.bw-results__activity-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--bw-fs-body);
-  font-weight: 600;
+.bw-results__activity .bw-results__meta {
+  justify-self: end;
 }
 .bw-results__chevron {
   font-size: var(--bw-fs-meta);
@@ -2805,7 +2874,7 @@ a.bw-resource-row:hover {
 
 /* ── Participant room frame: the host's live bar, lighter, with no navbar ── */
 .bw-frame--no-nav {
-  grid-template-rows: 56px minmax(0, 1fr);
+  grid-template-rows: minmax(var(--bw-bar-h), auto) minmax(0, 1fr);
 }
 .bw-frame--participant .bw-frame__bar {
   background: #e8f9ff;

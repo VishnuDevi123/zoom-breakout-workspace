@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { formatClock } from "@/lib/round-clock";
-import type { useRoundTasks } from "@/lib/use-round-tasks";
+import { taskHasContent, type useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
 import type { RoundMeta, RoundPlan, Workspace } from "@/types/breakout";
 
@@ -23,6 +23,7 @@ export default function SessionPage({
   plans,
   tasks,
   open,
+  canEditRounds,
   onEditTask,
   onAddRound,
   onUpdateRound,
@@ -34,6 +35,8 @@ export default function SessionPage({
   tasks: ReturnType<typeof useRoundTasks>;
   /** Whether the round is still running; activities can only change while it is. */
   open: boolean;
+  /** Host only. A co-host edits the running round's task and activities, not the rounds. */
+  canEditRounds: boolean;
   onEditTask: () => void;
   onAddRound: () => Promise<void>;
   onUpdateRound: (roundId: string, patch: RoundPatch) => Promise<void>;
@@ -45,6 +48,7 @@ export default function SessionPage({
   const [adding, setAdding] = useState(false);
   const positionOf = (roundId: string) => workspace.rounds.findIndex((round) => round.roundId === roundId) + 1;
   const settingsRound = workspace.rounds.find((round) => round.roundId === settingsFor) ?? null;
+  const hasTask = taskHasContent(tasks.task);
 
   async function addRound() {
     setAdding(true);
@@ -61,17 +65,20 @@ export default function SessionPage({
             key={round.roundId}
             round={round}
             label={roundLabel(workspace, round.roundId)}
+            editable={canEditRounds}
             onSettings={() => setSettingsFor(round.roundId)}
             onDelete={() => setDeletingId(round.roundId)}
           />
         ))}
-        <Button
-          variant="secondary"
-          busy={adding}
-          onClick={() => void addRound()}
-        >
-          + Add round
-        </Button>
+        {canEditRounds ? (
+          <Button
+            variant="secondary"
+            busy={adding}
+            onClick={() => void addRound()}
+          >
+            + Add round
+          </Button>
+        ) : null}
       </section>
 
       <section className="bw-session__column">
@@ -82,10 +89,10 @@ export default function SessionPage({
           onClick={onEditTask}
         >
           <span className="bw-task-summary__goal">
-            {tasks.task.goal || "No task set for this round"}
+            {tasks.task.goal || (hasTask ? "Task without a goal" : "No task set for this round")}
           </span>
           <span className="bw-task-summary__action">
-            {tasks.task.goal ? "Edit task" : "Add a task"}
+            {hasTask ? "Edit task" : "Add a task"}
           </span>
         </button>
         {open ? (
@@ -132,11 +139,13 @@ const STATUS_PILL: Record<RoundMeta["status"], { label: string; tone: "neutral" 
 function RoundCard({
   round,
   label,
+  editable,
   onSettings,
   onDelete,
 }: {
   round: RoundMeta;
   label: string;
+  editable: boolean;
   onSettings: () => void;
   onDelete: () => void;
 }) {
@@ -150,7 +159,7 @@ function RoundCard({
         {status ? <Pill tone={status.tone}>{status.label}</Pill> : null}
         <span className="bw-mono bw-round-card__time">{formatClock(round.durationSec)}</span>
       </div>
-      {upcoming ? (
+      {upcoming && editable ? (
         <div className="bw-round-card__actions">
           <Button variant="secondary" size="sm" onClick={onSettings}>
             Settings

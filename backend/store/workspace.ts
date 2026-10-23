@@ -81,7 +81,7 @@ function validateSaveRequest(input: unknown): Omit<SaveWorkspaceRequest, "expect
     throw new WorkspaceError("samePeopleEveryRound must be a boolean.", 400);
   }
   if (typeof input.autoStartNextRound !== "boolean") {
-    throw new WorkspaceError("autoSaveNextRound must be a boolean.", 400);
+    throw new WorkspaceError("autoStartNextRound must be a boolean.", 400);
   }
 
   if (!Array.isArray(input.rounds) || input.rounds.length > MAX_ROUNDS) {

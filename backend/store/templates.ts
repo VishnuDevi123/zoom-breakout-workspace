@@ -12,7 +12,7 @@ const pastWorkflows = new Map<string, PastWorkflow[]>();
 export class TemplateError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 404,
+    readonly status: 400 | 404 | 409,
   ) {
     super(message);
     this.name = "TemplateError";
@@ -59,12 +59,26 @@ export async function saveTemplate(ownerUid: string, input: unknown): Promise<Sa
 
   const past = pastWorkflows.get(parentUUID)?.find((workflow) => workflow.id === pastWorkflowId);
   if (!past) throw new TemplateError("No past workflow with this ID in this meeting.", 404);
-  return addTemplate(ownerUid, snapshotOf(past));
+  const templates = await getTemplates(ownerUid);
+  if (templates.some((template) => template.sourcePastWorkflowId === pastWorkflowId)) {
+    throw new TemplateError("This past workflow is already saved.", 409);
+  }
+  return addTemplate(ownerUid, snapshotOf(past), pastWorkflowId);
 }
 
 /** Add a workflow without people to the owner's templates. */
-export async function addTemplate(ownerUid: string, snapshot: WorkflowSnapshot): Promise<SavedTemplate> {
-  const saved: SavedTemplate = { ...structuredClone(snapshot), id: crypto.randomUUID(), ownerUid, savedAt: new Date().toISOString() };
+export async function addTemplate(
+  ownerUid: string,
+  snapshot: WorkflowSnapshot,
+  sourcePastWorkflowId?: string,
+): Promise<SavedTemplate> {
+  const saved: SavedTemplate = {
+    ...structuredClone(snapshot),
+    id: crypto.randomUUID(),
+    ownerUid,
+    savedAt: new Date().toISOString(),
+    sourcePastWorkflowId,
+  };
   await documentClient().send(new PutCommand({ TableName: templatesTable(), Item: saved }));
   return saved;
 }

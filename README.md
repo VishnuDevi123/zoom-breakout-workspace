@@ -86,7 +86,7 @@ On the [Zoom App Marketplace](https://marketplace.zoom.us/), create a **General 
 3. **Features → Zoom App SDK:** tick every API the app uses, or `config()` fails with `reason:app_not_support`:
    `getMeetingUUID`, `getUserContext`, `getMeetingContext`, `onMyUserContextChange`, `configureBreakoutRooms`, `createBreakoutRooms`, `assignParticipantToBreakoutRoom`, `openBreakoutRooms`, `closeBreakoutRooms`, `getBreakoutRoomList`, `getMeetingParticipants`, `getAppContext`.
 4. **Features → Event Subscriptions:** set the endpoint to `https://<your-ngrok-domain>/api/webhooks/zoom` and subscribe to:
-   `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`.
+   `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`, `meeting.participant_role_changed`.
    Zoom validates the endpoint when you save, so the backend, Caddy and ngrok must be running.
 5. Copy the **Client Secret** and the **Secret Token** into `backend/.env`, then restart the backend.
 6. **Local test:** add the app to your account, start a Zoom meeting, and open it from **Apps** in the meeting toolbar.

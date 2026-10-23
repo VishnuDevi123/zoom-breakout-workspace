@@ -2,6 +2,8 @@
 
 Zoom App for planning and running breakout rounds. A Next.js frontend runs inside the Zoom client and is the only thing that calls the Zoom Apps SDK. An Express backend stores the plans, records launches, receives Zoom webhooks and pushes live state to the frontend over SSE. The backend never calls Zoom. It calls OpenAI only to draft workflows the host asks for.
 
+Each feature's detail (flows, invariants, decisions, limits) lives in `docs/features/`, indexed in `docs/README.md`. Verified Zoom behaviour lives in `docs/zoom/verified-behaviour.md`.
+
 ## Boundaries
 
 Field lists live in `backend/types/breakout.ts`.
@@ -71,6 +73,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 
 ## Principles
 
+- Roles: the meeting host runs the session (plan, launch, close, skip, end). A co-host only places people mid-round, edits the running round's task and activities, and adjusts its time. Zoom's app context carries no role, so this is a frontend rule.
 - The frontend only interacts with Zoom to lauch breakout rooms, and also from three places: Launch workflow, End round / Launch next, and the live "Not yet placed" sheet.
 - Webhooks are the source of live state after host joins. The SDK is read once at a time for:
   1. `getBreakoutRoomList()` when the app opens on a round the backend still calls live.
@@ -102,8 +105,8 @@ Launch, close and skip reply with the workspace as well, because all three chang
 
 ## Active scope
 
-AI layer for the Agentic AI Summit demo. Done: AI workflow builder (backend `/api/ai/workflow`, landing redesign with prompt, generating state and chat panel). Next to decide: AI help during a live round (propose an activity or a task through the existing task save), then a demo page.
+No feature in progress. Next candidates (2026-10-19): different tasks per room in the same round (the backend already stores per-room overrides in `RoundTasks.rooms`), and more participant activities (poll or vote first, then ranking and a room status).
 
 ## Infra
 
-ngrok -> Caddy `:8080` (`/api/*` -> Express `:4000` with `flush_interval -1` for SSE; everything else -> Next `:3000`). `ZOOM_WEBHOOK_SECRET` and `OPENAI_API_KEY` in `backend/.env` (and on Render); the model name is `MODEL` in `backend/services/ai.ts`. Marketplace event subscription: `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`.
+ngrok -> Caddy `:8080` (`/api/*` -> Express `:4000` with `flush_interval -1` for SSE; everything else -> Next `:3000`). `ZOOM_WEBHOOK_SECRET` and `OPENAI_API_KEY` in `backend/.env` (and on Render); the model name is `MODEL` in `backend/services/ai.ts`. Marketplace event subscription: `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`, `meeting.participant_role_changed`.

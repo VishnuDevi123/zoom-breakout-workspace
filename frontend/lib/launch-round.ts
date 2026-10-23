@@ -1,6 +1,6 @@
 import { withZoomTimeout } from "@/lib/zoom-call";
 import type { ZoomSdk } from "@/lib/zoom-sdk";
-import type { RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
+import type { MeetingRole, RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
 
 /**
  * Zoom is not ready the instant its previous call resolves: the room set stays
@@ -130,6 +130,11 @@ export async function assignToOpenRooms(
   }
 }
 
+/** The SDK's role string as a meeting role; anything unknown is an attendee. */
+function meetingRole(role: string): MeetingRole {
+  return role === "host" || role === "coHost" ? role : "attendee";
+}
+
 /**
  * Everyone Zoom reports in the meeting, or null when this caller cannot see them all.
  * With rooms open only the room list covers every room, and only the meeting
@@ -148,11 +153,13 @@ export async function readMeetingRoster(
     return participants.map((person) => ({
       participantUUID: person.participantUUID,
       name: person.screenName,
-      isHost: person.role === "host",
+      role: meetingRole(person.role),
       roomId: null,
     }));
   }
   if (!rooms.unassigned) return null;
+  // The room list carries no roles; only the reader's own seat is known.
+  const roleOf = (participantUUID: string): MeetingRole => (participantUUID === hostUUID ? "host" : "attendee");
 
   // Rooms were created with the plan's names, so names map back to planned room ids.
   const roomIdByName = new Map(plan.rooms.map((room) => [room.name, room.id]));
@@ -160,7 +167,7 @@ export async function readMeetingRoster(
     (room.participants ?? []).map((person) => ({
       participantUUID: person.participantUUID,
       name: person.displayName,
-      isHost: person.participantUUID === hostUUID,
+      role: roleOf(person.participantUUID),
       // Assigned but not yet entered still means the main room.
       roomId: person.participantStatus === "joined" ? (roomIdByName.get(room.name) ?? null) : null,
     })),
@@ -168,7 +175,7 @@ export async function readMeetingRoster(
   const inMain = rooms.unassigned.map((person) => ({
     participantUUID: person.participantUUID,
     name: person.displayName,
-    isHost: person.participantUUID === hostUUID,
+    role: roleOf(person.participantUUID),
     roomId: null,
   }));
   return [...inRooms, ...inMain];

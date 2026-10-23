@@ -82,7 +82,6 @@ export default function RoomResultsPage({
               <span className="bw-activity-badge" style={{ background: kind.tint, color: kind.ink }}>
                 {kind.label}
               </span>
-              <span className="bw-results__activity-title">{}</span>
               <span className="bw-results__meta">{progressText(activity, people.length, results)}</span>
               <span className="bw-results__chevron" aria-hidden>›</span>
             </button>

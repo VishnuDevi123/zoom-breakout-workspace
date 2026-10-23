@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execution-api";
+import { canRunRounds } from "@/lib/host-gate";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
 import { assignParticipantToRoom, newPlacements } from "@/lib/room-plan-assignments";
+import { formatClock } from "@/lib/round-clock";
 import { copyRooms, groupsForLaunch } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
@@ -18,11 +20,12 @@ import type { LiveState, RoundMeta, RoundPlanDraft, WorkflowSnapshot, Workspace,
 
 import LiveRound from "../LiveRound";
 import WorkflowLibrary from "../WorkflowLibrary";
-import { BrandMark, Button, Card, SectionLabel } from "../ui";
+import { BrandMark, Button, Card, ConfirmModal, SectionLabel } from "../ui";
 import LandingScreen from "./LandingScreen";
 import LoadingScreen from "./LoadingScreen";
 import RoundsOverview from "./RoundsOverview";
 import RoundSetup, { RoundSetupPending, type SetupTab } from "./RoundSetup";
+import WaitingScreen from "./WaitingScreen";
 
 /** Shortest time the round setup spinner shows, so quick loads read as a transition, not a flash. */
 const SETUP_MIN_LOADING_MS = 500;
@@ -50,7 +53,7 @@ function rosterFrom(live: LiveState | null): Participant[] {
     initials: initialsFrom(p.name),
     status: p.location === "main" ? "unassigned" : p.location === "left" ? "left" : "in-room",
     roomId: null,
-    isHost: p.isHost,
+    role: p.role,
   }));
 }
 
@@ -81,6 +84,8 @@ export default function HostWorkspace({
   meetingTopic: string;
   role: ZoomRole | null;
 }) {
+  // The meeting host runs the session; a co-host's app only places people and edits tasks.
+  const runsRounds = canRunRounds(role);
   const workspace = useWorkspace(meetingUUID);
   const library = useWorkflowLibrary(meetingUUID);
   const live = useLiveState(meetingUUID);
@@ -91,6 +96,9 @@ export default function HostWorkspace({
   const [launchedRoundId, setLaunchedRoundId] = useState<string | null>(null);
   const closedByTimer = useRef(false);
   const reconciled = useRef(false);
+  // Zoom has rooms open that the backend never heard about (a lost launch report).
+  const [strandedRooms, setStrandedRooms] = useState(false);
+  const liveKnown = live.liveState !== null;
 
   // SSE is the authority on which round is running: a reopened app must find its
   // way back to the live view, not to the landing screen with a round still open.
@@ -101,7 +109,14 @@ export default function HostWorkspace({
   const lastRunRoundId =
     rounds.findLast((round) => round.status === "launched" || round.status === "closed")?.roundId ?? null;
   const liveRoundId = runningRoundId ?? launchedRoundId ?? lastRunRoundId;
-  const currentView: HostView = view === "opening" ? (runningRoundId ? "live" : "landing") : view;
+  // A co-host never plans: once the host has launched, they always see the live page.
+  const currentView: HostView = !runsRounds
+    ? "live"
+    : view === "opening"
+      ? runningRoundId
+        ? "live"
+        : "landing"
+      : view;
 
   const { plans, reload: reloadPlans } = useRoundSummaries(
     meetingUUID,
@@ -110,11 +125,13 @@ export default function HostWorkspace({
   );
   const livePlan = liveRoundId ? (plans[liveRoundId] ?? null) : null;
   // The next round to run, not simply the next in the list: the host can skip
-  // rounds mid-session, and a closed one has already had its turn.
+  // rounds mid-session, and a closed one has already had its turn. A skipped
+  // round earlier in the list that was put back still counts, after the later ones.
+  const isPlanned = (round: RoundMeta) => round.status === "planned";
   const nextRound =
-    rounds
-      .slice(rounds.findIndex((round) => round.roundId === liveRoundId) + 1)
-      .find((round) => round.status === "planned") ?? null;
+    rounds.slice(rounds.findIndex((round) => round.roundId === liveRoundId) + 1).find(isPlanned) ??
+    rounds.find(isPlanned) ??
+    null;
 
   const controller = useLiveRoomController({
     parentUUID: meetingUUID,
@@ -144,29 +161,50 @@ export default function HostWorkspace({
     },
   });
 
+  // A co-host's app never edits the workflow, so it learns of the host's changes
+  // only here: every launch and close reloads the workflow and its plans.
+  useEffect(() => {
+    if (runsRounds) return;
+    workspace.reload();
+    reloadPlans();
+  }, [runsRounds, runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // A round the backend still calls live may already be over in Zoom. Check once.
   useEffect(() => {
-    if (!runningRoundId || reconciled.current) return;
+    if (!runsRounds || !runningRoundId || reconciled.current) return;
     reconciled.current = true;
     controller.reconcile();
-  }, [runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [runsRounds, runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The opposite case, once per app open: Zoom has rooms open but the backend has
+  // no round running, because the launch report never arrived. Ask the host.
+  const strandedChecked = useRef(false);
+  // Also with no workflow left (a backend restart): then the host can only close the rooms.
+  const workspaceLoaded = workspace.state.kind === "ready" || workspace.state.kind === "missing";
+  useEffect(() => {
+    if (!runsRounds || strandedChecked.current || !liveKnown || !workspaceLoaded || runningRoundId) return;
+    strandedChecked.current = true;
+    controller
+      .roomsOpenInZoom()
+      .then(setStrandedRooms)
+      .catch(() => undefined); // Meetings that never had rooms fail this read; nothing is stranded then.
+  }, [runsRounds, liveKnown, workspaceLoaded, runningRoundId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Once per app open: fill in people webhooks missed. With a round running, wait
   // for its plan, because Zoom's room names map back to planned rooms through it.
   const rosterSynced = useRef(false);
-  const liveKnown = live.liveState !== null;
   useEffect(() => {
-    if (rosterSynced.current || !liveKnown) return;
+    if (!runsRounds || rosterSynced.current || !liveKnown) return;
     if (runningRoundId && !livePlan) return;
     rosterSynced.current = true;
     controller.syncRoster();
-  }, [liveKnown, runningRoundId, livePlan]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [runsRounds, liveKnown, runningRoundId, livePlan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The backend owns the clock: it flips timerEnded and pushes it over SSE.
   const timerEnded = live.liveState?.round?.timerEnded ?? false;
   const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;
   useEffect(() => {
-    if (!timerEnded) return;
+    if (!timerEnded || !runsRounds) return;
     closedByTimer.current = autoStart;
     controller.close();
   }, [timerEnded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -302,8 +340,38 @@ export default function HostWorkspace({
       </HostShell>
     );
   }
-  if (currentView === "landing" || workspace.state.kind === "missing") {
+  if (!runsRounds && (workspace.state.kind !== "ready" || !liveRoundId)) {
     return (
+      <WaitingScreen
+        label="You are a co-host"
+        headline="The host is planning this session"
+        lede="When the first round starts, this page shows the rooms. You can place people who are waiting and edit the round's task and activities."
+      />
+    );
+  }
+  if (currentView === "landing" || workspace.state.kind === "missing") {
+    const strandedLabel =
+      nextRound && workspace.state.kind === "ready" ? roundLabel(workspace.state.workspace, nextRound.roundId) : null;
+    const stranded = strandedRooms ? (
+      <ConfirmModal
+        title="Breakout rooms are open in Zoom"
+        message={
+          strandedLabel
+            ? `The app did not record a round starting. Mark ${strandedLabel} as running to follow and end it here.`
+            : "No round is running here and none is left to run. Close the rooms to bring everyone back."
+        }
+        confirmLabel={strandedLabel ? "Mark as running" : "Close the rooms"}
+        confirmVariant={strandedLabel ? "primary" : "danger"}
+        onConfirm={async () => {
+          if (nextRound && strandedLabel) await controller.recordLaunch(nextRound.roundId);
+          else await controller.close();
+        }}
+        onClose={() => setStrandedRooms(false)}
+      />
+    ) : null;
+    return (
+      <>
+      {stranded}
       <LandingScreen
         meetingTopic={meetingTopic}
         participantCount={presentCount(live.liveState)}
@@ -346,6 +414,7 @@ export default function HostWorkspace({
         onBuildRounds={buildRounds}
         onUse={startFrom}
       />
+      </>
     );
   }
   if (currentView === "live" && liveRoundId) {
@@ -357,8 +426,9 @@ export default function HostWorkspace({
         live={live.liveState}
         operation={controller.operation}
         nextRound={nextRound}
+        canRunRounds={runsRounds}
         // The logo goes home; the landing page offers the way back to this round.
-        onHome={() => setView("landing")}
+        onHome={runsRounds ? () => setView("landing") : undefined}
         onSkipRound={(roundId, skipped) =>
           reportFailure("Could not change that round.", async () =>
             workspace.applyWorkspace(await setRoundSkipped(meetingUUID, roundId, skipped)),
@@ -457,6 +527,7 @@ function RoundEditor({
 }) {
   const label = roundLabel(workspace, selectedRound.roundId);
   const position = workspace.rounds.findIndex((r) => r.roundId === selectedRound.roundId) + 1;
+  const subtitle = `Round ${position} of ${workspace.rounds.length} · ${formatClock(selectedRound.durationSec)}`;
   const firstRound = workspace.rounds[0];
   const carry = workspace.sameRoomsEveryRound || workspace.samePeopleEveryRound;
   const seedSource = carry && firstRound.roundId !== selectedRound.roundId ? firstRound : null;
@@ -495,6 +566,7 @@ function RoundEditor({
     return (
       <RoundSetupPending
         heading={selectedRound.title ?? `Round ${position}`}
+        subtitle={subtitle}
         tab={shownTab}
         failed={failed}
         message={
@@ -515,6 +587,7 @@ function RoundEditor({
     <RoundSetup
       title={selectedRound.title}
       placeholder={`Round ${position}`}
+      subtitle={subtitle}
       tab={shownTab}
       roomsLocked={roomsLocked}
       plan={plan}
