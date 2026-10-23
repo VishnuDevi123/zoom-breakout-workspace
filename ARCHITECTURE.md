@@ -103,6 +103,10 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - An AI reply takes 4–12 s. The landing progress bar is timed, not real. Cancel only stops the browser waiting; the backend still finishes the OpenAI call.
 - The AI chat lives only in the open landing page: closing the panel keeps it ("Continue your AI chat" reopens it), pressing Generate starts a new one, and leaving the landing page loses it.
 
+## Active scope
+
+No feature in progress. Next candidates (2026-10-19): different tasks per room in the same round (the backend already stores per-room overrides in `RoundTasks.rooms`), and more participant activities (poll or vote first, then ranking and a room status).
+
 ## Infra
 
 ngrok -> Caddy `:8080` (`/api/*` -> Express `:4000` with `flush_interval -1` for SSE; everything else -> Next `:3000`). `ZOOM_WEBHOOK_SECRET` and `OPENAI_API_KEY` in `backend/.env` (and on Render); the model name is `MODEL` in `backend/services/ai.ts`. Marketplace event subscription: `meeting.participant_joined`, `meeting.participant_left`, `meeting.participant_joined_breakout_room`, `meeting.participant_left_breakout_room`, `meeting.participant_role_changed`.
