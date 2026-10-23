@@ -2,8 +2,6 @@
 
 Zoom App for planning and running breakout rounds. A Next.js frontend runs inside the Zoom client and is the only thing that calls the Zoom Apps SDK. An Express backend stores the plans, records launches, receives Zoom webhooks and pushes live state to the frontend over SSE. The backend never calls Zoom. It calls OpenAI only to draft workflows the host asks for.
 
-Each feature's detail (flows, invariants, decisions, limits) lives in `docs/features/`, indexed in `docs/README.md`. Verified Zoom behaviour lives in `docs/zoom/verified-behaviour.md`.
-
 ## Boundaries
 
 Field lists live in `backend/types/breakout.ts`.
