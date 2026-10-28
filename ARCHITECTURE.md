@@ -15,7 +15,7 @@ Field lists live in `backend/types/breakout.ts`.
 | Round plan (`RoundPlan`: rooms and who is in them) | `backend/store/round-plans.ts`, keyed `(parentUUID, roundId)` | `backend/routes/round-plans.ts`, `frontend/lib/use-room-plan.ts`, `room-plan-assignments.ts`, `room-plan-copy.ts`, `use-round-summaries.ts` |
 | Round task (`RoundTasks`, `RoomTask` incl. `checklist`, plus `activities`) | `backend/store/tasks.ts`, keyed `(parentUUID, roundId)` | `backend/routes/tasks.ts`, `frontend/lib/use-round-tasks.ts` (host), `use-participant-round.ts` (participant), `TaskFields.tsx`, `ActivityList.tsx` |
 | Activity responses (`RoomResponses`: answers, idea notes, checklist ticks) | `backend/store/activity_responses.ts`, keyed `(parentUUID, roundId, roomId)` | `backend/routes/activity_responses.ts` at `/api/responses`, `frontend/lib/use-room-responses.ts` (participant), `use-room-results.ts` (host) |
-| Live state (`LiveState`: who is where, which round is live, room mapping, timer) | `backend/store/live.ts`, one record per meeting, fed by webhooks | `backend/routes/webhooks.ts`, `backend/routes/live.ts`, `frontend/lib/use-live-state.ts`, `LiveRound.tsx` |
+| Live state (`LiveState`: who is where, which round is live, room mapping, timer, each room's status) | `backend/store/live.ts`, one record per meeting, fed by webhooks | `backend/routes/webhooks.ts`, `backend/routes/live.ts`, `frontend/lib/use-live-state.ts`, `LiveRound.tsx` |
 | Launch / close / mid-round placement | Frontend SDK calls, then reported to the backend | `frontend/lib/launch-round.ts`, `use-live-room-controller.ts`, `execution-api.ts` |
 | Participant view (landing, room page, answer modal, board page) | `LiveState` + the round's plan + its task + the room's responses; no SDK reads | `screens/ParticipantScreen.tsx`, `ParticipantWorkspace.tsx` (room page), `AnswerModal.tsx` (individual answer), `ActivityPage.tsx` (shared board); bar `RoomBar.tsx`, people `RoomPeople.tsx`, both in `PageFrame` tone "participant" |
 | Host gate and start-up | `getUserContext().role`; one `LoadingScreen` until the first page's data is in | `frontend/lib/host-gate.ts`, `ZoomClient.tsx`, `screens/LoadingScreen.tsx` |
@@ -38,7 +38,8 @@ read results      host     -> GET /api/responses/:roundId/rooms/:roomId/all   ev
 launch round N    frontend -> (Same groups) copy the last round's plan into round N
                   frontend -> SDK createBreakoutRooms, assign, configureBreakoutRooms, open
                   frontend -> POST /api/live/launch                      round live, timer armed, workspace status launched
-+/- 1 min         frontend -> POST /api/live/extend                      new endsAt, timer re-armed
++/- 1 min         frontend -> POST /api/live/extend                      new endsAt, timer re-armed (also the host's "Add 2 minutes" prompt)
+room status       participant -> POST /api/live/room-status            round.roomStatus[roomId]; pushed with the live state
 timer ends        backend  -> SSE  round.timerEnded = true              frontend closes, then launches the next if auto-start is on
 place mid-round   host     -> SDK getBreakoutRoomList, assignParticipantToBreakoutRoom; PUT the running round's plan
 participant moves Zoom     -> POST /api/webhooks/zoom                    participant location, room mapping learned
@@ -79,7 +80,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
   3. The roster read when the host opens the app: `getBreakoutRoomList()`, or `getMeetingParticipants()` when no rooms are open.
   4. `getBreakoutRoomList()` once per placement from the "Not yet placed" sheet, to learn Zoom's room ids.
 - The backend records what the frontend reports and what Zoom sends; it never verifies against Zoom.
-- The SSE stream carries counters (`taskRevision`, `roomRevisions`), never content; clients refetch what changed.
+- The SSE stream carries counters (`taskRevision`, `roomRevisions`), never content; clients refetch what changed. The one exception is `round.roomStatus`, one status word per room, which is not room content and is safe for every client to see.
 - Writes replace whole records under a revision check, so a stale write gets 409 instead of overwriting someone else's edit.
 - A participant reads no Zoom state. Their room comes from the host's saved plan; their own webhook location only chooses which screen to show.
 - Grouping is one choice stored as two workspace flags. In "Same groups" a round copies the last round that ran at launch time, so plans never go stale.

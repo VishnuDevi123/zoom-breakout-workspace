@@ -563,6 +563,27 @@ input[type="checkbox"] {
   gap: 10px;
 }
 
+/* The landing column is a container so the Ongoing Workflow card can react to its own width. */
+.bw-landing {
+  container: landing / inline-size;
+}
+
+/* Narrow card: the two buttons stack on the right, centred against the text, instead of wrapping below it. */
+@container landing (max-width: 484px) {
+  .bw-landing-card--live {
+    flex-wrap: nowrap;
+  }
+  .bw-landing-card--live .bw-landing-card__text {
+    flex: 1;
+  }
+  .bw-landing-card--live .bw-landing-card__actions {
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+}
+
 /* Library tabs under the landing column: Templates | Saved | Past, one list of rows. */
 .bw-library {
   width: 100%;
@@ -1735,12 +1756,14 @@ input[type="checkbox"] {
   color: var(--bw-accent);
   padding-top: 2px;
 }
-.bw-participant-note {
-  margin-top: auto;
-  padding: 11px;
-  font-size: var(--bw-fs-meta);
-  line-height: 1.5;
-  color: var(--bw-muted-2);
+/* Room landing: "How this works" sits under the button, in the same single column. */
+.bw-participant-how {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 640px;
+  text-align: left;
 }
 
 /* ── Task editor ───────────────────────────────────────────────────── */
@@ -2100,6 +2123,10 @@ a.bw-resource-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The live title keeps a readable width; the controls wrap to a second row before it collapses. */
+.bw-live-heading {
+  min-width: min(120px, 100%);
 }
 .bw-frame__bar .bw-live-badge__label {
   color: var(--bw-red);
@@ -2975,6 +3002,94 @@ a.bw-resource-row:hover {
 .bw-checklist__row--done .bw-checklist__label {
   text-decoration: line-through;
   color: var(--bw-muted);
+}
+
+/* A footer with a single action keeps it on the right. */
+.bw-overlay__footer--end {
+  justify-content: flex-end;
+}
+/* Room page: the status strip above the 70/30 body. */
+.bw-room-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  container: room-page / inline-size;
+}
+/* "Tell your host": text on the left, two toggles on the right; stacks when narrow. */
+.bw-room-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+}
+.bw-room-status__text {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bw-room-status__title {
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-room-status__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-room-status__options {
+  display: flex;
+  gap: 8px;
+}
+.bw-room-status__option {
+  flex: 1 0 auto;
+  padding: 6px 14px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-button-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--bw-ink);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+.bw-room-status__option:hover:not([aria-pressed="true"]) {
+  border-color: var(--bw-accent);
+}
+/* A pressed toggle takes the same colour the host's room card chip uses. */
+.bw-room-status__option--moreTime[aria-pressed="true"] {
+  background: var(--bw-amber-tint);
+  border-color: var(--bw-amber-deep);
+  color: var(--bw-amber-deep);
+}
+.bw-room-status__option--done[aria-pressed="true"] {
+  background: var(--bw-teal-tint);
+  border-color: var(--bw-teal-deep);
+  color: var(--bw-teal-deep);
+}
+@container room-page (max-width: 480px) {
+  .bw-room-status__options {
+    flex: 1 1 100%;
+  }
+}
+
+/* A long room name ellipsizes; the count pill keeps its one line. */
+.bw-room-card__header .bw-pill {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Host room card: the room's signal sits in the bottom right corner. */
+.bw-room-card__status {
+  margin-top: auto;
+  align-self: flex-end;
 }
 
 /* Activity card adapts to its own width. Narrow: type on line one, status on

@@ -5,8 +5,10 @@ import { toast } from "sonner";
 
 import { memberStatus } from "@/lib/activity-kinds";
 import { roomMembers } from "@/lib/participant-status";
+import { useRemainingSec } from "@/lib/round-clock";
 import type { ParticipantRound } from "@/lib/use-participant-round";
 import { useRoomResponses } from "@/lib/use-room-responses";
+import { useRoomStatus } from "@/lib/use-room-status";
 import type { LiveState, PlannedRoom } from "@/types/breakout";
 
 import ActivityCards from "../ActivityCards";
@@ -14,15 +16,21 @@ import AnswerModal from "../AnswerModal";
 import PageFrame from "../PageFrame";
 import RoomBar from "../RoomBar";
 import RoomPeople from "../RoomPeople";
+import RoomStatusPicker from "../RoomStatusPicker";
+import RoomStatusReminder from "../RoomStatusReminder";
 import SharedChecklist from "../SharedChecklist";
 import TaskDetails from "../TaskDetails";
 import ActivityPage from "./ActivityPage";
 
+/** In the round's last minute the room is reminded to tell the host if it needs more time. */
+const REMINDER_SEC = 60;
+
 /**
  * The room a participant works in for one round, in the host's live frame with
- * a lighter bar: the task, instructions, resources and activities on the left
- * (70%), the room's people and the shared checklist on the right (30%). Opening
- * an activity swaps the whole page for that activity until the participant goes back.
+ * a lighter bar: the "Tell your host" status strip across the top, then the task,
+ * instructions, resources and activities on the left (70%), and the shared
+ * checklist and the room's people on the right (30%). Opening an activity swaps the whole page for that activity until
+ * the participant goes back.
  */
 export default function ParticipantWorkspace({
   round,
@@ -63,19 +71,45 @@ export default function ParticipantWorkspace({
 
   const openActivity = openIndex === -1 ? null : activities[openIndex];
 
+  const roomStatus = useRoomStatus({ live, roomId: room.id, participantUUID });
+  const endsAt = live?.round?.endsAt ?? 0;
+  const remainingSec = useRemainingSec(endsAt);
+  // Once per end time, so time the host adds and a second last minute remind again.
+  // A room already done needs no reminder; an open answer is never covered by a second modal.
+  const reminderKey = `${roundId}:${endsAt}`;
+  const reminderDue =
+    remainingSec !== null && remainingSec > 0 && remainingSec <= REMINDER_SEC && roomStatus.current !== "done";
+  const [reminding, setReminding] = useState(false);
+  const [remindedKey, setRemindedKey] = useState<string | null>(null);
+  if (reminderDue && remindedKey !== reminderKey && openActivity?.kind !== "individual" && !reminding) {
+    setRemindedKey(reminderKey);
+    setReminding(true);
+  }
+  if (reminding && !live?.round) setReminding(false);
+  const reminder = reminding ? (
+    <RoomStatusReminder
+      current={roomStatus.current}
+      onChoose={(status) => void roomStatus.choose(status)}
+      onClose={() => setReminding(false)}
+    />
+  ) : null;
+
   // The shared board is a page of its own; an individual answer opens as a modal over this page.
   if (openActivity?.kind === "ideaBoard") {
     return (
-      <ActivityPage
-        activity={openActivity}
-        room={room}
-        live={live}
-        participantUUID={participantUUID}
-        checklist={task?.checklist ?? []}
-        responses={responses}
-        onBack={() => setOpenActivityId(null)}
-        onHome={onBack}
-      />
+      <>
+        <ActivityPage
+          activity={openActivity}
+          room={room}
+          live={live}
+          participantUUID={participantUUID}
+          checklist={task?.checklist ?? []}
+          responses={responses}
+          onBack={() => setOpenActivityId(null)}
+          onHome={onBack}
+        />
+        {reminder}
+      </>
     );
   }
 
@@ -85,33 +119,39 @@ export default function ParticipantWorkspace({
         tone="participant"
         bar={<RoomBar room={room} live={live} onHome={onBack} />}
       >
-        <div className="bw-room-layout">
-          <section className="bw-session__column">
-            <TaskDetails
-              heading="Your task this round"
-              task={task}
-              emptyText="Your host has not written a task for this round. It appears here as soon as they do."
-            />
+        <div className="bw-room-page">
+          {live?.round ? (
+            <RoomStatusPicker current={roomStatus.current} onChoose={(status) => void roomStatus.choose(status)} />
+          ) : null}
+          <div className="bw-room-layout">
+            <section className="bw-session__column">
+              <TaskDetails
+                heading="Your task this round"
+                task={task}
+                emptyText="Your host has not written a task for this round. It appears here as soon as they do."
+              />
 
-            <ActivityCards
-              activities={activities}
-              view={view}
-              participantUUID={participantUUID}
-              onOpen={(activity) => setOpenActivityId(activity.id)}
-            />
-          </section>
+              <ActivityCards
+                activities={activities}
+                view={view}
+                participantUUID={participantUUID}
+                onOpen={(activity) => setOpenActivityId(activity.id)}
+              />
+            </section>
 
-          <div className="bw-session__column">
-            <RoomPeople heading="In this room" people={people} />
-            {task && task.checklist.length > 0 ? (
-              <SharedChecklist items={task.checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
-            ) : null}
+            <div className="bw-session__column">
+              {task && task.checklist.length > 0 ? (
+                <SharedChecklist items={task.checklist} view={view} onTick={(itemId, done) => void setTick(itemId, done)} />
+              ) : null}
+              <RoomPeople heading="In this room" people={people} />
+            </div>
           </div>
         </div>
       </PageFrame>
       {openActivity?.kind === "individual" ? (
         <AnswerModal activity={openActivity} responses={responses} onClose={() => setOpenActivityId(null)} />
       ) : null}
+      {reminder}
     </>
   );
 }

@@ -10,7 +10,7 @@ import type { LiveOperationState } from "@/lib/use-live-room-controller";
 import { useRoomResults } from "@/lib/use-room-results";
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
-import type { LiveParticipant, LiveState, RoundMeta, RoundPlan, RoundPlanDraft, Workspace } from "@/types/breakout";
+import type { LiveParticipant, LiveState, RoomStatus, RoundMeta, RoundPlan, RoundPlanDraft, Workspace } from "@/types/breakout";
 
 import { toast } from "sonner";
 
@@ -30,6 +30,13 @@ import ZoomActionOverlay from "./ZoomActionOverlay";
  */
 /** One press of the timer stepper. */
 const ADJUST_STEP_SEC = 60;
+/** The one-tap answer when a room asks for more time. */
+const MORE_TIME_SEC = 120;
+/** With this little time left, the host is asked whether rooms that need more time should get it. */
+const MORE_TIME_PROMPT_SEC = 60;
+
+/** A prompt the host's app raises by itself: rooms asking for time near the end, or every room done. */
+type RoomPrompt = { kind: "moreTime"; roomNames: string[] } | { kind: "allDone" };
 
 type LivePage = "rooms" | "session";
 
@@ -114,6 +121,28 @@ export default function LiveRound({
   const open = live.round !== null;
   const remainingSec = useRemainingSec(live.round?.endsAt ?? 0);
   const participants = live.participants;
+  const roomStatus = live.round?.roomStatus ?? {};
+  const roomsNeedingTime = round.rooms.filter((room) => roomStatus[room.id] === "moreTime");
+  // Rooms nobody is planned into can never answer, so they do not hold up "all done".
+  const answeringRooms = round.rooms.filter((room) => room.participantUUIDs.length > 0);
+  const allDone = open && answeringRooms.length > 0 && answeringRooms.every((room) => roomStatus[room.id] === "done");
+  const moreTimeDue =
+    open && roomsNeedingTime.length > 0 && remainingSec !== null && remainingSec > 0 && remainingSec <= MORE_TIME_PROMPT_SEC;
+
+  // Each prompt shows once per situation: "all done" once per round until a room changes its mind,
+  // "more time" once per end time, so adding time and running low again asks again.
+  const promptKey = allDone ? `done:${round.roundId}` : moreTimeDue ? `time:${round.roundId}:${live.round?.endsAt}` : null;
+  const [prompt, setPrompt] = useState<RoomPrompt | null>(null);
+  const [shownPromptKey, setShownPromptKey] = useState<string | null>(null);
+  // Only the host's app asks, and never over another modal or a Zoom step.
+  const canPrompt = canRunRounds && !busy && !confirmingEnd && !confirmingEndWorkflow && !editingTask;
+  if (promptKey && promptKey !== shownPromptKey && canPrompt && !prompt) {
+    setShownPromptKey(promptKey);
+    setPrompt(allDone ? { kind: "allDone" } : { kind: "moreTime", roomNames: roomsNeedingTime.map((room) => room.name) });
+  }
+  if (!allDone && shownPromptKey?.startsWith("done:")) setShownPromptKey(null);
+  // The question no longer holds: the round closed, or a room is no longer done.
+  if (prompt && (!open || (prompt.kind === "allDone" && !allDone))) setPrompt(null);
 
   // Waiting: in the main room, not the host, and in no room or main-room choice of this round's plan.
   const planned = new Set([
@@ -177,7 +206,7 @@ export default function LiveRound({
   const header = (
     <>
       <BrandMark onHome={onHome} />
-      <div className="bw-round-heading">
+      <div className="bw-round-heading bw-live-heading">
         <span className="bw-header-title">{round.title}</span>
         <div className="bw-live-badge">
           <StatusDot color={open ? "var(--bw-red)" : "var(--bw-muted-4)"} round pulse={open} />
@@ -271,6 +300,7 @@ export default function LiveRound({
                 members={membersOf(room.id)}
                 plannedCount={room.participantUUIDs.length}
                 open={open}
+                status={open ? (roomStatus[room.id] ?? "onTrack") : "onTrack"}
                 onOpen={() => goTo({ kind: "room", roomId: room.id })}
               />
             ))}
@@ -301,6 +331,27 @@ export default function LiveRound({
         />
       ) : null}
 
+      {prompt?.kind === "allDone" ? (
+        <ConfirmModal
+          title="Every room is done"
+          message={`${remainingSec === null ? "" : `${formatClock(remainingSec)} left. `}End ${round.title} early? Everyone returns to the main room.`}
+          confirmLabel="End round early"
+          onConfirm={async () => onEndRound()}
+          onClose={() => setPrompt(null)}
+        />
+      ) : null}
+
+      {prompt?.kind === "moreTime" ? (
+        <ConfirmModal
+          title={prompt.roomNames.length === 1 ? "A room needs more time" : "Rooms need more time"}
+          message={`${listNames(prompt.roomNames)} ${prompt.roomNames.length === 1 ? "is" : "are"} still asking for more time, and the round ends soon. Give every room 2 more minutes?`}
+          confirmLabel="Add 2 minutes"
+          confirmVariant="primary"
+          onConfirm={() => adjustTime(MORE_TIME_SEC)}
+          onClose={() => setPrompt(null)}
+        />
+      ) : null}
+
       {confirmingEndWorkflow ? (
         <ConfirmModal
           title="End this workflow?"
@@ -320,13 +371,14 @@ export default function LiveRound({
   );
 }
 
-/** One room as the host sees it live: who has entered so far, as initials. Opens the room's work. */
+/** One room as the host sees it live: who has entered so far, as initials, and the room's own status. Opens the room's work. */
 function LiveRoomCard({
   name,
   dot,
   members,
   plannedCount,
   open,
+  status,
   onOpen,
 }: {
   name: string;
@@ -334,6 +386,8 @@ function LiveRoomCard({
   members: LiveParticipant[];
   plannedCount: number;
   open: boolean;
+  /** What the room last told the host; "onTrack" shows nothing. */
+  status: RoomStatus;
   /** Opens this room's work: checklist and activities. */
   onOpen: () => void;
 }) {
@@ -373,6 +427,30 @@ function LiveRoomCard({
       ) : (
         <span className="bw-live-room-empty">{open ? "Nobody here yet" : "Round closed"}</span>
       )}
+      <RoomStatusChip status={status} />
     </Card>
+  );
+}
+
+/** "Room 1", "Room 1 and Room 2", "Room 1, Room 2 and Room 3". */
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** Chip text and colour for each signal a room can send; on track has none. */
+const STATUS_CHIPS: Record<Exclude<RoomStatus, "onTrack">, { tone: "amber" | "teal"; label: string }> = {
+  moreTime: { tone: "amber", label: "Needs more time" },
+  done: { tone: "teal", label: "Done" },
+};
+
+/** The room's signal on its card. On track is the default and shows nothing. */
+function RoomStatusChip({ status }: { status: RoomStatus }) {
+  if (status === "onTrack") return null;
+  const chip = STATUS_CHIPS[status];
+  return (
+    <Pill key={status} className="bw-room-card__status bw-swap-in" tone={chip.tone}>
+      {chip.label}
+    </Pill>
   );
 }

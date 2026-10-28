@@ -83,11 +83,16 @@ export interface LiveParticipant {
   location: "main" | "left" | string;
 }
 
+/** How a room tells the host it is doing. "onTrack" is the default and is never stored. */
+export type RoomStatus = "onTrack" | "moreTime" | "done";
+
 export interface LiveRound {
   roundId: string;
   roomUUIDs: Record<string, string | null>;
   endsAt: number;
   timerEnded: boolean;
+  /** Planned room id -> the room's latest signal. A missing room is on track. Starts empty every launch. */
+  roomStatus: Record<string, Exclude<RoomStatus, "onTrack">>;
 }
 
 export interface LiveState {
@@ -107,6 +112,15 @@ export interface RosterEntry {
   role: MeetingRole;
   /** Planned room id when Zoom reports the person inside a room; null for the main room. */
   roomId: string | null;
+}
+
+/** POST /api/live/room-status. Anyone the plan places in the room; the latest tap wins. */
+export interface SetRoomStatusRequest {
+  parentUUID: string;
+  roundId: string;
+  roomId: string;
+  participantUUID: string;
+  status: RoomStatus;
 }
 
 /** Everyone in the meeting right now. Webhooks never replay, so this fills what they missed. */

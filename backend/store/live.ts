@@ -3,6 +3,7 @@ import {
   type LiveRound,
   type LiveState,
   type RosterEntry,
+  type SetRoomStatusRequest,
 } from "../types/breakout.ts";
 import {getRoundPlan } from "./round-plans.ts";
 
@@ -105,6 +106,34 @@ export function extendRound(parentUUID: string, seconds: number): LiveState | nu
     return getLive(parentUUID)
 }
 
+/** Why a room status tap was refused, or the new state. */
+export type RoomStatusResult =
+    | { kind: "saved"; state: LiveState }
+    | { kind: "notRunning" }
+    | { kind: "notInRoom" }
+
+/**
+ * One tap on a room's status buttons. Anyone the plan places in the room may set
+ * it, the latest tap wins, and "onTrack" clears the entry. Only the running round
+ * takes a tap, so a late one cannot mark the next round's room.
+ */
+export function setRoomStatus(request: SetRoomStatusRequest): RoomStatusResult {
+    const { parentUUID, roundId, roomId, participantUUID, status } = request
+    const meeting = meetingFor(parentUUID)
+    if (!meeting.round || meeting.round.roundId !== roundId) return { kind: "notRunning" }
+    // Same rule as response writes: the host's plan is the only record of who is in which room.
+    const room = getRoundPlan(parentUUID, roundId)?.rooms.find((candidate) => candidate.id === roomId)
+    if (!room || !room.participantUUIDs.includes(participantUUID)) return { kind: "notInRoom" }
+
+    if (status === "onTrack") {
+        delete meeting.round.roomStatus[roomId]
+    } else {
+        meeting.round.roomStatus[roomId] = status
+    }
+    notify(parentUUID)
+    return { kind: "saved", state: getLive(parentUUID) }
+}
+
 export function markLaunchedRound(parentUUID: string, roundId: string, durationSec: number): LiveState | null {
     const plan = getRoundPlan(parentUUID, roundId)
     // if getRoundPlan returns undefined, it means the round plan does not exist for the given parentUUID and roundId. In that case return null to indicate that there is no live round to mark as lauched
@@ -118,7 +147,7 @@ export function markLaunchedRound(parentUUID: string, roundId: string, durationS
     const meeting = meetingFor(parentUUID)
     // endsAt 0 means no timer: the round runs until the host closes it.
     const endsAt = durationSec > 0 ? Date.now() + durationSec * 1000 : 0
-    meeting.round = { roundId, roomUUIDs, endsAt, timerEnded: false }
+    meeting.round = { roundId, roomUUIDs, endsAt, timerEnded: false, roomStatus: {} }
     // People Zoom moved before this report arrived (or before a lost report was
     // recovered) are already in a room; learn those rooms from them now.
     for (const p of meeting.participants.values()) {

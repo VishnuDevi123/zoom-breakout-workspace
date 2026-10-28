@@ -1727,13 +1727,6 @@ input[type="checkbox"] {
   color: var(--bw-accent);
   padding-top: 2px;
 }
-.bw-participant-note {
-  margin-top: auto;
-  padding: 11px;
-  font-size: var(--bw-fs-meta);
-  line-height: 1.5;
-  color: var(--bw-muted-2);
-}
 
 /* ── Task editor ───────────────────────────────────────────────────── */
 .bw-field {

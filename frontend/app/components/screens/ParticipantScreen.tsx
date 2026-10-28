@@ -174,21 +174,19 @@ export default function ParticipantScreen({
             Open your room&apos;s tasks
           </Button>
 
+          <section className="bw-participant-how" aria-label="How this works">
+            <SectionLabel>How this works</SectionLabel>
+            {HOW_IT_WORKS.map((line, index) => (
+              <div className="bw-participant-step" key={line}>
+                <span className="bw-mono bw-participant-step__number">{index + 1}</span>
+                <span>{line}</span>
+              </div>
+            ))}
+          </section>
+
           {earlier}
         </main>
 
-        <aside className="bw-rail">
-          <SectionLabel>How this works</SectionLabel>
-          {HOW_IT_WORKS.map((line, index) => (
-            <div className="bw-participant-step" key={line}>
-              <span className="bw-mono bw-participant-step__number">{index + 1}</span>
-              <span>{line}</span>
-            </div>
-          ))}
-          <Card tone="sunken" className="bw-participant-note">
-            Your room and your task follow you. Nothing here is visible to the other rooms.
-          </Card>
-        </aside>
       </div>
     </div>
   );

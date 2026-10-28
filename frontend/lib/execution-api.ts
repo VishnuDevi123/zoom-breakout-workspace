@@ -19,6 +19,7 @@ import type {
   SaveRoundTasksRequest,
   SavedTemplate,
   SaveCurrentTemplateRequest,
+  SetRoomStatusRequest,
   SaveTemplateRequest,
   TickRequest,
   Workspace,
@@ -138,6 +139,17 @@ export async function adjustRoundTime(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID, seconds }),
+    }),
+  );
+}
+
+/** A participant's tap on their room's status. The new state also arrives over SSE. */
+export async function setRoomStatus(request: SetRoomStatusRequest): Promise<LiveState> {
+  return apiResult(
+    await fetch("/api/live/room-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
     }),
   );
 }

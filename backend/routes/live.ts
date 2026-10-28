@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
-import { applyRoster, extendRound, getLive, markClosedRound, markLaunchedRound, subscribe } from "../store/live.ts";
-import type { ApiResponse, LiveActionResponse, LiveState, RosterEntry, Workspace } from "../types/breakout.ts";
+import { applyRoster, extendRound, getLive, markClosedRound, markLaunchedRound, setRoomStatus, subscribe } from "../store/live.ts";
+import type { ApiResponse, LiveActionResponse, LiveState, RoomStatus, RosterEntry, Workspace } from "../types/breakout.ts";
 
 const router = Router();
 
@@ -83,6 +83,44 @@ router.post("/extend", (req, res) => {
     return;
   }
   const body: ApiResponse<LiveState> = { success: true, data: state };
+  res.json(body);
+});
+
+function isRoomStatus(value: unknown): value is RoomStatus {
+  return value === "onTrack" || value === "moreTime" || value === "done";
+}
+
+/**
+ * A participant tells the host how their room is doing. Refused when the round is
+ * not the running one (409) or the plan does not place the caller in the room (403).
+ */
+router.post("/room-status", (req, res) => {
+  const parentUUID = parentUUIDFrom(req.body?.parentUUID);
+  const roundId = parentUUIDFrom(req.body?.roundId);
+  const roomId = parentUUIDFrom(req.body?.roomId);
+  const participantUUID = parentUUIDFrom(req.body?.participantUUID);
+  const status: unknown = req.body?.status;
+  if (!parentUUID || !roundId || !roomId || !participantUUID || !isRoomStatus(status)) {
+    const body: ApiResponse<never> = {
+      success: false,
+      error: 'parentUUID, roundId, roomId, participantUUID and a status of "onTrack", "moreTime" or "done" are required.',
+    };
+    res.status(400).json(body);
+    return;
+  }
+
+  const result = setRoomStatus({ parentUUID, roundId, roomId, participantUUID, status });
+  if (result.kind === "notRunning") {
+    const body: ApiResponse<never> = { success: false, error: "This round is not running." };
+    res.status(409).json(body);
+    return;
+  }
+  if (result.kind === "notInRoom") {
+    const body: ApiResponse<never> = { success: false, error: "You are not in this room." };
+    res.status(403).json(body);
+    return;
+  }
+  const body: ApiResponse<LiveState> = { success: true, data: result.state };
   res.json(body);
 });
 
