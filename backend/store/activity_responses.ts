@@ -25,7 +25,7 @@ const MAX_NOTES_PER_BOARD = 50;
 export class ResponseError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 403 | 404,
+    readonly status: 400 | 403 | 404 | 409,
   ) {
     super(message);
     this.name = "ResponseError";
@@ -47,7 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function requiredString(value: unknown, field: string): string {
+export function requiredString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new ResponseError(`${field} must be a non-empty string.`, 400);
   }
@@ -82,7 +82,7 @@ export function parseRoom(input: { parentUUID: unknown; roundId: unknown; roomId
  * The host's draft is the only record of who belongs in which room. The ids are
  * the planned room ids (PlannedRoom.id), not Zoom's breakout room uuids.
  */
-function assertInRoom(room: RoomRef, participantUUID: string): void {
+export function assertInRoom(room: RoomRef, participantUUID: string): void {
   const plannedRoom = getRoundPlan(room.parentUUID, room.roundId)?.rooms.find(
     (candidate) => candidate.id === room.roomId,
   );

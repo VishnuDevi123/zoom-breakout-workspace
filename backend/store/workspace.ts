@@ -9,6 +9,7 @@ import {
   type WorkflowRoundSnapshot,
 } from "../types/breakout.ts";
 import { deleteRoundResponses } from "./activity_responses.ts";
+import { deleteRoundChallenges } from "./challenges.ts";
 import { deleteRoundPlan, getRoundPlan, saveRoundPlan } from "./round-plans.ts";
 import { deleteRoundTasks, getRoundTasks, saveRoundTasks } from "./tasks.ts";
 import { addPastWorkflow } from "./templates.ts";
@@ -210,11 +211,12 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
   return structuredClone(stored);
 }
 
-/** A round's draft, task and submissions, which every removal takes along. */
+/** A round's draft, task, submissions and polls or quizzes, which every removal takes along. */
 function deleteRoundData(parentUUID: string, roundId: string): void {
   deleteRoundPlan(parentUUID, roundId);
   deleteRoundTasks(parentUUID, roundId);
   deleteRoundResponses(parentUUID, roundId);
+  deleteRoundChallenges(parentUUID, roundId);
 }
 
 /** One round without people: room names from its draft, task and activities from its tasks. */

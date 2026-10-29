@@ -16,6 +16,7 @@ interface LiveMeeting {
   timer?: ReturnType<typeof setTimeout>;
   taskRevision: number;
   roomRevisions: Record<string, number>;
+  challengeRevision: number;
 }
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
@@ -30,6 +31,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
             participants: new Map(),
             taskRevision: 0,
             roomRevisions: {},
+            challengeRevision: 0,
         });
     }
     return live.get(parentUUID)!;
@@ -44,6 +46,7 @@ export function getLive(parentUUID: string): LiveState{
         participants: [...liveMeeting.participants.values()],
         taskRevision: liveMeeting.taskRevision,
         roomRevisions: { ...liveMeeting.roomRevisions },
+        challengeRevision: liveMeeting.challengeRevision,
     }
 }
 
@@ -73,6 +76,12 @@ export function bumpTaskRevision(parentUUID: string): void {
 export function bumpRoomRevision(parentUUID: string, roomId: string): void {
     const meeting = meetingFor(parentUUID)
     meeting.roomRevisions[roomId] = (meeting.roomRevisions[roomId] ?? 0) + 1
+    notify(parentUUID)
+}
+
+/** Called when the host launches or reveals a poll or quiz; every client refetches it. */
+export function bumpChallengeRevision(parentUUID: string): void {
+    meetingFor(parentUUID).challengeRevision += 1
     notify(parentUUID)
 }
 
