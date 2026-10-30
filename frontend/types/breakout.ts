@@ -103,6 +103,8 @@ export interface LiveState {
   taskRevision: number;
   /** roomId -> counter, bumped on every response write in that room. Clients refetch their own room only. */
   roomRevisions: Record<string, number>;
+  /** Bumped when the host launches or reveals a poll or quiz; every client refetches /api/challenges. */
+  challengeRevision: number;
 }
 
 /** One person the Zoom SDK reports present when the host opens the app. */
@@ -392,4 +394,98 @@ export type RemoveIdeaRequest = ResponseCaller;
 /** PUT .../ticks/:itemId */
 export interface TickRequest extends ResponseCaller {
   done: boolean;
+}
+
+// ---- Live polls and quizzes: the host launches one during a running round; each room answers as one ----
+
+/** Most questions one quiz holds. A poll always has exactly one. */
+export const MAX_QUIZ_QUESTIONS = 10;
+/** Each question offers 2 to this many options. */
+export const MAX_CHALLENGE_OPTIONS = 4;
+
+export interface ChallengeQuestion {
+  text: string;
+  options: string[];
+}
+
+interface ChallengeFields {
+  title: string;
+  questions: ChallengeQuestion[];
+  durationSec: number;
+}
+
+/** What the host writes before launching. A poll has one question and no right answer. */
+export type ChallengeDraft =
+  | (ChallengeFields & { kind: "poll" })
+  | (ChallengeFields & {
+      kind: "quiz";
+      /** The right option index for each question, by position. */
+      answerKey: number[];
+    });
+
+/** One room's work on a challenge. Arrays run by question position. */
+export interface RoomChallengeAnswers {
+  /** participantUUID -> the option they lean to. Shared with the room as suggestions, never final. */
+  picks: Record<string, number>[];
+  /** The room's final answer per question; null until someone in the room locks one in. */
+  locks: (RoomLock | null)[];
+}
+
+export interface RoomLock {
+  option: number;
+  participantUUID: string;
+  /** Server time of the lock. */
+  at: number;
+}
+
+/** How one room did, for the host and, once revealed, for every room. */
+export interface RoomChallengeResult {
+  roomId: string;
+  name: string;
+  dot: RoomDot;
+  /** The locked option per question; null when the room left it open. */
+  answers: (number | null)[];
+  /** Quiz: questions answered right. Poll: 0. */
+  correct: number;
+  /** Server time the room locked its last question; null while any is open. */
+  finishedAt: number | null;
+}
+
+export interface ChallengeResults {
+  /** Quiz only; null for a poll. */
+  answerKey: number[] | null;
+  /** Every planned room. A quiz ranks most right first, then the earliest finish; a poll keeps plan order. */
+  rooms: RoomChallengeResult[];
+}
+
+/** One launched poll or quiz, as a client sees it. */
+export interface ChallengeView {
+  id: string;
+  kind: ChallengeDraft["kind"];
+  title: string;
+  questions: ChallengeQuestion[];
+  /** Server times. Locks after endsAt are refused. */
+  launchedAt: number;
+  endsAt: number;
+  revealed: boolean;
+  /** The caller's room: picks and locks. Null in the host's view. */
+  room: RoomChallengeAnswers | null;
+  /** The host always gets these; a participant only after the host reveals. */
+  results: ChallengeResults | null;
+}
+
+/** POST /api/challenges/:roundId. Only while the round runs, and only when no earlier one waits for its reveal. */
+export interface LaunchChallengeRequest {
+  parentUUID: string;
+  draft: ChallengeDraft;
+}
+
+/** PUT .../picks/:question (a suggestion) and POST .../locks/:question (the room's answer). */
+export interface ChallengeAnswerRequest extends ResponseCaller {
+  option: number;
+}
+
+/** POST /api/challenges/:roundId/:challengeId/reveal */
+export interface RevealChallengeRequest {
+  parentUUID: string;
 }

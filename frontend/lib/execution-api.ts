@@ -3,6 +3,9 @@ import type {
   DraftWorkflowRequest,
   DraftWorkflowResponse,
   ApiResponse,
+  ChallengeAnswerRequest,
+  ChallengeDraft,
+  ChallengeView,
   EditIdeaRequest,
   LiveActionResponse,
   LiveState,
@@ -329,4 +332,72 @@ export function removeIdea(roundId: string, roomId: string, activityId: string, 
     `${roomResponsesUrl(roundId, roomId)}/ideas/${encodeURIComponent(activityId)}/${encodeURIComponent(noteId)}`,
     request,
   );
+}
+
+function challengesUrl(roundId: string): string {
+  return `/api/challenges/${encodeURIComponent(roundId)}`;
+}
+
+async function postJson<T>(method: "POST" | "PUT", url: string, request: object): Promise<T> {
+  return apiResult(
+    await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }),
+  );
+}
+
+/** The host's polls and quizzes for one round, oldest first, each with live results. */
+export async function readChallengesForHost(parentUUID: string, roundId: string): Promise<ChallengeView[]> {
+  const query = `parentUUID=${encodeURIComponent(parentUUID)}`;
+  return apiResult(await fetch(`${challengesUrl(roundId)}?${query}`, { cache: "no-store" }));
+}
+
+/** 409 when the round is not running or the last one has not been revealed. */
+export function launchChallenge(parentUUID: string, roundId: string, draft: ChallengeDraft): Promise<ChallengeView[]> {
+  return postJson("POST", challengesUrl(roundId), { parentUUID, draft });
+}
+
+export function revealChallenge(parentUUID: string, roundId: string, challengeId: string): Promise<ChallengeView[]> {
+  return postJson("POST", `${challengesUrl(roundId)}/${encodeURIComponent(challengeId)}/reveal`, { parentUUID });
+}
+
+/** The round's latest poll or quiz as the caller's room sees it; null when none was launched. */
+export async function readRoomChallenge(
+  parentUUID: string,
+  roundId: string,
+  roomId: string,
+  participantUUID: string,
+): Promise<ChallengeView | null> {
+  const query = `parentUUID=${encodeURIComponent(parentUUID)}&participantUUID=${encodeURIComponent(participantUUID)}`;
+  return apiResult(
+    await fetch(`${challengesUrl(roundId)}/rooms/${encodeURIComponent(roomId)}?${query}`, { cache: "no-store" }),
+  );
+}
+
+function roomAnswerUrl(roundId: string, challengeId: string, roomId: string, part: "picks" | "locks", question: number) {
+  return `${challengesUrl(roundId)}/${encodeURIComponent(challengeId)}/rooms/${encodeURIComponent(roomId)}/${part}/${question}`;
+}
+
+/** One person's suggestion for a question; the room sees it. */
+export function pickChallengeOption(
+  roundId: string,
+  challengeId: string,
+  roomId: string,
+  question: number,
+  request: ChallengeAnswerRequest,
+): Promise<ChallengeView | null> {
+  return postJson("PUT", roomAnswerUrl(roundId, challengeId, roomId, "picks", question), request);
+}
+
+/** The room's final answer to a question. 409 when someone in the room locked it first. */
+export function lockChallengeAnswer(
+  roundId: string,
+  challengeId: string,
+  roomId: string,
+  question: number,
+  request: ChallengeAnswerRequest,
+): Promise<ChallengeView | null> {
+  return postJson("POST", roomAnswerUrl(roundId, challengeId, roomId, "locks", question), request);
 }

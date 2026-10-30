@@ -2,19 +2,34 @@
 
 import { useState } from "react";
 
+import { emptyDraft, listNames, type ChallengeKind } from "@/lib/challenges";
 import { adjustRoundTime } from "@/lib/execution-api";
 import { initialsFrom } from "@/lib/participant-status";
 import { assignParticipantToRoom, autoAssignParticipantsEvenly } from "@/lib/room-plan-assignments";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
+import { useRoundChallenges } from "@/lib/use-challenges";
 import type { LiveOperationState } from "@/lib/use-live-room-controller";
 import { useRoomResults } from "@/lib/use-room-results";
 import { useRoundTasks } from "@/lib/use-round-tasks";
 import { roundLabel } from "@/lib/use-workspace";
-import type { LiveParticipant, LiveState, RoomStatus, RoundMeta, RoundPlan, RoundPlanDraft, Workspace } from "@/types/breakout";
+import type {
+  ChallengeDraft,
+  ChallengeView,
+  LiveParticipant,
+  LiveState,
+  RoomStatus,
+  RoundMeta,
+  RoundPlan,
+  RoundPlanDraft,
+  Workspace,
+} from "@/types/breakout";
 
 import { toast } from "sonner";
 
 import ActivityResultsPage from "./ActivityResultsPage";
+import ChallengeEditor from "./ChallengeEditor";
+import ChallengeResultsModal from "./ChallengeResultsModal";
+import ChallengeCards from "./ChallengeCards";
 import EditTaskModal from "./EditTaskModal";
 import NotPlacedSheet from "./NotPlacedSheet";
 import PageFrame, { type FrameTab } from "./PageFrame";
@@ -104,6 +119,20 @@ export default function LiveRound({
   // The shown round, not the live one: after a close its task and results stay readable until the next launch.
   const tasks = useRoundTasks(live.parentUUID, round.roundId);
   const busy = operation.kind === "running";
+  // Polls and quizzes: a launch, reveal, pick or lock bumps one of these counters.
+  const challenges = useRoundChallenges({
+    parentUUID: live.parentUUID,
+    roundId: round.roundId,
+    refreshKey: `${live.challengeRevision}:${round.rooms.map((room) => live.roomRevisions[room.id] ?? 0).join(",")}`,
+  });
+  // Drafts outlive the editor, so closing it keeps what the host wrote until it launches.
+  const [drafts, setDrafts] = useState<Record<ChallengeKind, ChallengeDraft>>(() => ({
+    poll: emptyDraft("poll"),
+    quiz: emptyDraft("quiz"),
+  }));
+  const [editingKind, setEditingKind] = useState<ChallengeKind | null>(null);
+  const [viewingResults, setViewingResults] = useState(false);
+  const runningChallenge = challenges.latest && !challenges.latest.revealed ? challenges.latest : null;
 
   // The backend re-arms the timer and pushes the new endsAt over SSE, so there
   // is nothing to set here: the countdown above follows the pushed state.
@@ -135,7 +164,8 @@ export default function LiveRound({
   const [prompt, setPrompt] = useState<RoomPrompt | null>(null);
   const [shownPromptKey, setShownPromptKey] = useState<string | null>(null);
   // Only the host's app asks, and never over another modal or a Zoom step.
-  const canPrompt = canRunRounds && !busy && !confirmingEnd && !confirmingEndWorkflow && !editingTask;
+  const canPrompt =
+    canRunRounds && !busy && !confirmingEnd && !confirmingEndWorkflow && !editingTask && !editingKind && !viewingResults;
   if (promptKey && promptKey !== shownPromptKey && canPrompt && !prompt) {
     setShownPromptKey(promptKey);
     setPrompt(allDone ? { kind: "allDone" } : { kind: "moreTime", roomNames: roomsNeedingTime.map((room) => room.name) });
@@ -152,6 +182,16 @@ export default function LiveRound({
   const waiting = participants.filter(
     (p) => p.location === "main" && p.role === "attendee" && !planned.has(p.participantUUID),
   );
+
+  async function revealLatest() {
+    if (challenges.latest) await challenges.reveal(challenges.latest.id);
+  }
+
+  async function launchChallenge(draft: ChallengeDraft): Promise<boolean> {
+    const launched = await challenges.launch(draft);
+    if (launched) setDrafts((current) => ({ ...current, [draft.kind]: emptyDraft(draft.kind) }));
+    return launched;
+  }
 
   async function place(key: string, next: RoundPlanDraft) {
     setPlacing(key);
@@ -301,6 +341,7 @@ export default function LiveRound({
                 plannedCount={room.participantUUIDs.length}
                 open={open}
                 status={open ? (roomStatus[room.id] ?? "onTrack") : "onTrack"}
+                challenge={runningChallenge ? challengeProgress(runningChallenge, room.id) : null}
                 onOpen={() => goTo({ kind: "room", roomId: room.id })}
               />
             ))}
@@ -317,6 +358,18 @@ export default function LiveRound({
             onUpdateRound={onUpdateRound}
             onDeleteRound={onDeleteRound}
             onSkipRound={onSkipRound}
+            challenges={
+              open || challenges.latest ? (
+                <ChallengeCards
+                  latest={challenges.latest}
+                  open={open}
+                  answeringRoomIds={answeringRooms.map((room) => room.id)}
+                  onNew={setEditingKind}
+                  onResults={() => setViewingResults(true)}
+                  onReveal={revealLatest}
+                />
+              ) : null
+            }
           />
         )}
       </PageFrame>
@@ -364,6 +417,24 @@ export default function LiveRound({
 
       <ZoomActionOverlay operation={operation} />
 
+      {editingKind ? (
+        <ChallengeEditor
+          draft={drafts[editingKind]}
+          roomCount={answeringRooms.length}
+          onChange={(draft) => setDrafts((current) => ({ ...current, [draft.kind]: draft }))}
+          onLaunch={launchChallenge}
+          onClose={() => setEditingKind(null)}
+        />
+      ) : null}
+
+      {viewingResults && challenges.latest ? (
+        <ChallengeResultsModal
+          challenge={challenges.latest}
+          onReveal={revealLatest}
+          onClose={() => setViewingResults(false)}
+        />
+      ) : null}
+
       {editingTask ? (
         <EditTaskModal roundTitle={round.title} tasks={tasks} onClose={() => setEditingTask(false)} />
       ) : null}
@@ -379,6 +450,7 @@ function LiveRoomCard({
   plannedCount,
   open,
   status,
+  challenge,
   onOpen,
 }: {
   name: string;
@@ -388,6 +460,8 @@ function LiveRoomCard({
   open: boolean;
   /** What the room last told the host; "onTrack" shows nothing. */
   status: RoomStatus;
+  /** The running poll or quiz in this room; null when none runs or the room has not started. */
+  challenge: { answered: number; total: number } | null;
   /** Opens this room's work: checklist and activities. */
   onOpen: () => void;
 }) {
@@ -427,15 +501,23 @@ function LiveRoomCard({
       ) : (
         <span className="bw-live-room-empty">{open ? "Nobody here yet" : "Round closed"}</span>
       )}
-      <RoomStatusChip status={status} />
+      <div className="bw-room-card__chips">
+        {challenge ? (
+          <Pill tone={challenge.answered === challenge.total ? "teal" : "outline"}>
+            {challenge.answered === challenge.total ? "Answered" : `${challenge.answered}/${challenge.total} answered`}
+          </Pill>
+        ) : null}
+        <RoomStatusChip status={status} />
+      </div>
     </Card>
   );
 }
 
-/** "Room 1", "Room 1 and Room 2", "Room 1, Room 2 and Room 3". */
-function listNames(names: string[]): string {
-  if (names.length <= 1) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+/** How far one room is through the running poll or quiz; null until it locks something in. */
+function challengeProgress(challenge: ChallengeView, roomId: string): { answered: number; total: number } | null {
+  const answers = challenge.results?.rooms.find((room) => room.roomId === roomId)?.answers ?? [];
+  const answered = answers.filter((option) => option !== null).length;
+  return answered > 0 ? { answered, total: challenge.questions.length } : null;
 }
 
 /** Chip text and colour for each signal a room can send; on track has none. */
@@ -449,7 +531,7 @@ function RoomStatusChip({ status }: { status: RoomStatus }) {
   if (status === "onTrack") return null;
   const chip = STATUS_CHIPS[status];
   return (
-    <Pill key={status} className="bw-room-card__status bw-swap-in" tone={chip.tone}>
+    <Pill key={status} className="bw-swap-in" tone={chip.tone}>
       {chip.label}
     </Pill>
   );

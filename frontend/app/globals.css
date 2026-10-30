@@ -56,6 +56,14 @@
   --bw-red: #ff9999;
   --bw-red-tint: #ffc6c6;
   --bw-red-deep: #600000;
+  /* Right answers in poll and quiz results. */
+  --bw-green: #2e9d4f;
+  --bw-green-tint: #e3f7d4;
+  --bw-green-deep: #1f6f37;
+  /* A room's wrong quiz answer: the same strength as the green, in red. */
+  --bw-wrong: #c94b4b;
+  --bw-wrong-tint: #fbe1e1;
+  --bw-wrong-deep: #8f2a2a;
 
   /* Room dots */
   --bw-dot-1: #fcb900;
@@ -2460,7 +2468,6 @@ a.bw-resource-row:hover {
   cursor: pointer;
   position: relative;
   top: -6px;
-  left: -6px;
 }
 .bw-results__back:hover {
   color: var(--bw-accent-deep);
@@ -3087,9 +3094,16 @@ a.bw-resource-row:hover {
 }
 
 /* Host room card: the room's signal sits in the bottom right corner. */
-.bw-room-card__status {
+/* The room's poll or quiz progress and its status signal, bottom right. */
+.bw-room-card__chips {
   margin-top: auto;
-  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.bw-room-card__chips:empty {
+  display: none;
 }
 
 /* Activity card adapts to its own width. Narrow: type on line one, status on
@@ -3266,4 +3280,1002 @@ a.bw-resource-row:hover {
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid var(--bw-border);
+}
+/* ── Live polls and quizzes ─────────────────────────────────────────── */
+.bw-challenge-badge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--bw-radius-sm);
+  font-family: var(--bw-font-mono);
+  font-size: calc(var(--bw-fs-label));
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bw-challenge-badge--poll {
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent-deep);
+}
+
+.bw-challenge-badge--quiz {
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent-deep);
+}
+/* Poll and quiz modal header: the kind as a small label over the title, the clock on the right. */
+.bw-challenge-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bw-challenge-head__kind {
+  font-size: calc(var(--bw-fs-label)+1px);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bw-ink-muted);
+}
+.bw-challenge-head__title {
+  overflow: hidden;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  color: var(--bw-ink-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bw-challenge-head__clock {
+  flex: none;
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-body);
+  color: var(--bw-muted);
+}
+.bw-challenge-head__clock--low {
+  color: var(--bw-danger-text);
+}
+/* The scrollbar keeps its space but shows only while the body scrolls. */
+.bw-challenge-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.bw-challenge-scroll[data-scrolling] {
+  scrollbar-color: var(--bw-border-strong) transparent;
+}
+.bw-challenge-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.bw-challenge-scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: transparent;
+}
+.bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb {
+  background: var(--bw-border-strong);
+}
+.bw-challenge-scroll--capped {
+  max-height: min(380px, 60dvh);
+}
+/* Session page: Poll and Quiz side by side, stacking when narrow. */
+.bw-challenge-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+.bw-challenge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 168px;
+  padding: 14px;
+}
+.bw-challenge-card--running {
+  border-color: var(--bw-accent);
+  box-shadow: 0 0 0 1px var(--bw-accent);
+}
+.bw-challenge-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.bw-challenge-card__title {
+  overflow: hidden;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  color: var(--bw-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bw-challenge-card__text {
+  margin: 0;
+  font-size: var(--bw-fs-meta);
+  line-height: 1.5;
+  color: var(--bw-muted);
+}
+.bw-challenge-card__clock {
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+}
+.bw-challenge-card__meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface-muted);
+}
+.bw-challenge-card__meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--bw-accent);
+  transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.bw-challenge-card__action {
+  margin-top: auto;
+  align-self: flex-start;
+}
+.bw-challenge-card__actions {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* Participant room page: reopens a running poll or quiz. Same shape as the room status strip. */
+.bw-challenge-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  background: var(--bw-surface);
+  border: 1px solid var(--bw-accent);
+  border-radius: var(--bw-radius-md);
+}
+.bw-challenge-strip__text {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bw-challenge-strip__title {
+  overflow: hidden;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  color: var(--bw-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bw-challenge-strip__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-challenge-strip__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Editor: one card per question, options as rows with their letter. */
+.bw-challenge-question {
+  scroll-margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bw-surface-sunken);
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+}
+.bw-challenge-question__head {
+  display: flex;
+  align-items: center;
+}
+.bw-challenge-question__add,
+.bw-challenge-add {
+  align-self: flex-start;
+}
+.bw-challenge-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bw-challenge-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bw-challenge-option__letter,
+.bw-challenge-option__right {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+}
+.bw-challenge-option__right {
+  cursor: pointer;
+  border-color: var(--bw-border-strong);
+  background: var(--bw-surface);
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+.bw-challenge-option__right:hover:not([aria-checked="true"]) {
+  border-color: var(--bw-green);
+}
+.bw-challenge-option__right[aria-checked="true"] {
+  background: var(--bw-green-deep);
+  border-color: var(--bw-green-deep);
+  color: #fff;
+}
+.bw-challenge-option__input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+}
+.bw-challenge-option__input:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: 1px;
+}
+.bw-time-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bw-time-choice {
+  padding: 6px 14px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-surface);
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-button-sm);
+  color: var(--bw-ink);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+.bw-time-choice:hover:not([aria-checked="true"]) {
+  border-color: var(--bw-accent);
+}
+.bw-time-choice[aria-checked="true"] {
+  background: var(--bw-accent-tint);
+  border-color: var(--bw-accent);
+  color: var(--bw-accent-deep);
+}
+.bw-challenge-results__title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Results: each option's bar fills to its share of rooms. */
+.bw-tally {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bw-tally__question {
+  margin: 0;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-tally__options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bw-tally__option {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 10px;
+  overflow: hidden;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  isolation: isolate;
+}
+.bw-tally__option::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: var(--bw-share, 0%);
+  background: var(--bw-accent-tint);
+  transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.bw-tally__option--right {
+  border-color: var(--bw-green);
+}
+.bw-tally__option--right::before {
+  background: var(--bw-green-tint);
+}
+/* A room's own quiz results: whole-row colour, no bars. */
+.bw-tally__option--right-solid {
+  border-color: var(--bw-green);
+  background: var(--bw-green-tint);
+}
+.bw-tally__option--wrong {
+  border-color: var(--bw-wrong);
+  background: var(--bw-wrong-tint);
+}
+.bw-tally__mark {
+  flex: none;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  color: var(--bw-muted);
+}
+.bw-tally__option--right-solid .bw-tally__mark,
+.bw-tally__option--right-solid .bw-tally__letter {
+  color: var(--bw-green-deep);
+}
+.bw-tally__option--wrong .bw-tally__mark,
+.bw-tally__option--wrong .bw-tally__letter {
+  color: var(--bw-wrong-deep);
+}
+.bw-tally__letter {
+  flex: none;
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  color: var(--bw-muted);
+}
+.bw-tally__text {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-tally__right {
+  margin-left: 8px;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  color: var(--bw-green-deep);
+}
+.bw-tally__rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.bw-tally__room {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 160px;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-tally__room--own {
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-tally__room-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bw-leaderboard {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  overflow: hidden;
+}
+.bw-leaderboard__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--bw-border-faint);
+  background: var(--bw-surface);
+}
+.bw-leaderboard__row:last-child {
+  border-bottom: 0;
+}
+.bw-leaderboard__row--winner {
+  background: var(--bw-accent-tint);
+}
+.bw-leaderboard__row--winner .bw-leaderboard__place,
+.bw-leaderboard__row--winner .bw-leaderboard__score {
+  color: var(--bw-accent-deep);
+}
+.bw-leaderboard__place {
+  width: 34px;
+  flex: none;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-leaderboard__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--bw-fs-body);
+  color: var(--bw-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bw-leaderboard__you,
+.bw-leaderboard__meta {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-leaderboard__score {
+  flex: none;
+  font-size: var(--bw-fs-body);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+
+/* Participant overlay: a short "Incoming" card, then the question. */
+.bw-incoming {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 24px 36px;
+  text-align: center;
+}
+.bw-incoming > * {
+  animation: bwIncomingUp 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.bw-incoming__label {
+  padding: 3px 10px;
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-amber-tint);
+  color: var(--bw-amber-deep);
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.bw-incoming__kind {
+  font-size: var(--bw-fs-main-heading);
+  font-weight: 600;
+  color: var(--bw-ink);
+  animation-delay: 80ms;
+}
+.bw-incoming__title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: var(--bw-fs-section);
+  color: var(--bw-muted);
+  animation-delay: 160ms;
+}
+.bw-incoming__bar {
+  width: 160px;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: var(--bw-radius-pill);
+  background: linear-gradient(var(--bw-amber), var(--bw-amber)) left / 0% 100% no-repeat, var(--bw-surface-muted);
+  animation: bwIncomingUp 320ms 160ms both, bwIncomingFill 1400ms 200ms linear both;
+}
+@keyframes bwIncomingUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes bwIncomingFill {
+  to {
+    background-size: 100% 100%, auto;
+  }
+}
+.bw-challenge-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: bwFadeIn 200ms ease-out both;
+}
+.bw-challenge-answer__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-challenge-answer__hint--center {
+  text-align: center;
+}
+.bw-challenge-answer__question {
+  margin: 0;
+  font-size: var(--bw-fs-section);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
+}
+.bw-challenge-answer__lock {
+  width: 100%;
+}
+.bw-challenge-progress {
+  display: flex;
+  gap: 4px;
+}
+.bw-challenge-progress__step {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bw-surface-muted);
+  transition: background-color 200ms ease-out;
+}
+.bw-challenge-progress__step--done {
+  background: var(--bw-accent);
+}
+.bw-challenge-progress__step--now {
+  background: var(--bw-accent-tint);
+  box-shadow: inset 0 0 0 1px var(--bw-accent);
+}
+.bw-challenge-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bw-challenge-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  text-align: left;
+  color: var(--bw-ink);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.bw-challenge-choice:hover:not([aria-pressed="true"]) {
+  border-color: var(--bw-accent);
+}
+.bw-challenge-choice[aria-pressed="true"] {
+  border-color: var(--bw-accent);
+  background: var(--bw-accent-tint);
+}
+.bw-challenge-choice__letter {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface-muted);
+  color: var(--bw-muted);
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+.bw-challenge-choice[aria-pressed="true"] .bw-challenge-choice__letter {
+  background: var(--bw-accent);
+  color: #fff;
+}
+.bw-challenge-choice__text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bw-fs-body);
+  overflow-wrap: anywhere;
+}
+.bw-challenge-choice__who {
+  display: flex;
+  flex: none;
+}
+.bw-challenge-choice__initials {
+  width: 24px;
+  height: 24px;
+  margin-left: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bw-surface);
+  border-radius: var(--bw-radius-pill);
+  background: var(--bw-amber-tint);
+  color: var(--bw-amber-deep);
+  font-size: 10px;
+  font-weight: 600;
+  animation: bwIncomingUp 200ms ease-out both;
+}
+.bw-challenge-wait,
+.bw-challenge-winner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 8px;
+  text-align: center;
+}
+.bw-challenge-winner {
+  padding: 14px 8px;
+  border: 1px solid var(--bw-accent);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-accent-tint);
+}
+.bw-challenge-wait__title,
+.bw-challenge-winner__title {
+  font-size: var(--bw-fs-header);
+  font-weight: 600;
+  color: var(--bw-ink);
+}
+.bw-challenge-wait__hint,
+.bw-challenge-winner__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+.bw-challenge-winner__hint {
+  color: var(--bw-accent-deep);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-incoming > *,
+  .bw-challenge-choice__initials {
+    animation-name: bwFadeIn;
+  }
+  .bw-incoming__bar {
+    animation: bwFadeIn 200ms both;
+    background-size: 100% 100%, auto;
+  }
+  .bw-tally__option::before,
+  .bw-challenge-card__meter > span {
+    transition: none;
+  }
+}
+
+/* ── Poll and quiz: thin bars and the participant's card ────────────── */
+.bw-back-button {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--bw-radius-pill);
+  background: transparent;
+  color: var(--bw-ink);
+  font: 600 16px var(--bw-font-ui);
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+.bw-back-button:hover,
+.bw-back-button:focus-visible {
+  background: var(--bw-surface-muted);
+}
+/* Host modals: a thin header. */
+.bw-challenge-bar {
+  gap: 10px;
+  padding: 9px 14px;
+}
+/* Host editor: Launch in a small bar at the bottom. */
+.bw-challenge-actionbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--bw-border);
+}
+.bw-challenge-actionbar__hint {
+  min-width: 0;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
+
+/* Participant: the poll or quiz as one indigo card, white text. */
+.bw-play {
+  max-width: 520px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #5b54ec 0%, var(--bw-accent-deep) 100%);
+  color: #fff;
+}
+.bw-play .bw-back-button {
+  color: #fff;
+}
+.bw-play .bw-back-button:hover,
+.bw-play .bw-back-button:focus-visible {
+  background: rgb(255 255 255 / 14%);
+}
+.bw-play__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 0 8px;
+}
+.bw-play__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--bw-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 78%);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bw-play__clock {
+  flex: none;
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-body);
+  color: rgb(255 255 255 / 92%);
+}
+.bw-play__clock--low {
+  color: #fecaca;
+}
+.bw-play .bw-overlay__body {
+  padding: 8px 18px 18px;
+}
+.bw-play .bw-challenge-scroll[data-scrolling] {
+  scrollbar-color: rgb(255 255 255 / 40%) transparent;
+}
+.bw-play .bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 40%);
+}
+.bw-play__answer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: bwFadeIn 200ms ease-out both;
+}
+.bw-play__progress {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bw-play__step {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 22%);
+  transition: background-color 200ms ease-out;
+}
+.bw-play__step--done {
+  background: #fff;
+}
+.bw-play__step--now {
+  background: rgb(255 255 255 / 60%);
+}
+.bw-play__step-count {
+  margin-left: 6px;
+  font-family: var(--bw-font-mono);
+  font-size: var(--bw-fs-label);
+  color: rgb(255 255 255 / 78%);
+}
+.bw-play__question {
+  margin: 0;
+  font-size: var(--bw-fs-header);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.bw-play__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* An option fills to the share of the room leaning to it, with their initials. */
+.bw-play__option {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 10%);
+  font: inherit;
+  text-align: left;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.bw-play__option::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: var(--bw-share, 0%);
+  background: rgb(255 255 255 / 16%);
+  transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.bw-play__option:hover {
+  background: rgb(255 255 255 / 15%);
+}
+.bw-play__option[aria-pressed="true"] {
+  border-color: #fff;
+}
+.bw-play__option-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--bw-fs-section);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.bw-play__who {
+  display: flex;
+  flex: none;
+}
+.bw-play__initials {
+  width: 26px;
+  height: 26px;
+  margin-left: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bw-accent);
+  border-radius: var(--bw-radius-pill);
+  background: #fff;
+  color: var(--bw-accent-deep);
+  font-size: 10px;
+  font-weight: 600;
+  animation: bwIncomingUp 200ms ease-out both;
+}
+.bw-play__check {
+  flex: none;
+  font-weight: 600;
+}
+.bw-play__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+}
+.bw-play__hint {
+  min-width: 0;
+  font-size: var(--bw-fs-meta);
+  color: rgb(255 255 255 / 80%);
+}
+.bw-play .bw-play__lock.bw-button--primary {
+  flex: none;
+  background: #fff;
+  color: var(--bw-accent-deep);
+}
+.bw-play .bw-play__lock.bw-button--primary:hover:not(:disabled) {
+  background: var(--bw-accent-tint);
+}
+.bw-play__wait,
+.bw-play__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.bw-play__wait {
+  padding: 28px 8px 20px;
+}
+.bw-play__score {
+  padding: 14px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 14%);
+}
+.bw-play__wait-title,
+.bw-play__score-title {
+  font-size: var(--bw-fs-header);
+  font-weight: 600;
+}
+.bw-play__wait-hint,
+.bw-play__score-hint {
+  font-size: var(--bw-fs-meta);
+  color: rgb(255 255 255 / 82%);
+}
+/* Results inside the card: the shared tally and leaderboard, on indigo. */
+.bw-play .bw-tally__question,
+.bw-play .bw-tally__text {
+  color: #fff;
+}
+.bw-play .bw-tally__option {
+  min-height: 44px;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 10%);
+}
+.bw-play .bw-tally__option::before {
+  background: rgb(255 255 255 / 18%);
+}
+.bw-play .bw-tally__letter {
+  display: none;
+}
+.bw-play .bw-tally__text {
+  font-size: var(--bw-fs-section);
+}
+.bw-play .bw-tally__option--own {
+  border-color: #fff;
+}
+.bw-play .bw-tally__room {
+  color: rgb(255 255 255 / 82%);
+}
+.bw-play .bw-tally__room--own {
+  color: #fff;
+}
+.bw-play .bw-tally__mark {
+  color: rgb(255 255 255 / 82%);
+}
+/* Near-solid so the indigo behind does not muddy them; both at the same strength. */
+.bw-play .bw-tally__option--right-solid {
+  border-color: #86efac;
+  background: rgb(21 128 61 / 92%);
+}
+.bw-play .bw-tally__option--wrong {
+  border-color: #fca5a5;
+  background: rgb(185 28 28 / 92%);
+}
+.bw-play .bw-tally__option--right-solid .bw-tally__mark {
+  color: #dcfce7;
+}
+.bw-play .bw-tally__option--wrong .bw-tally__mark {
+  color: #fee2e2;
+}
+.bw-play .bw-leaderboard {
+  border-color: rgb(255 255 255 / 20%);
+}
+.bw-play .bw-leaderboard__row {
+  border-bottom-color: rgb(255 255 255 / 12%);
+  background: rgb(255 255 255 / 6%);
+}
+.bw-play .bw-leaderboard__row--winner {
+  background: rgb(255 255 255 / 20%);
+}
+.bw-play .bw-leaderboard__name,
+.bw-play .bw-leaderboard__score,
+.bw-play .bw-leaderboard__row--winner .bw-leaderboard__place,
+.bw-play .bw-leaderboard__row--winner .bw-leaderboard__score {
+  color: #fff;
+}
+.bw-play .bw-leaderboard__place,
+.bw-play .bw-leaderboard__you,
+.bw-play .bw-leaderboard__meta {
+  color: rgb(255 255 255 / 75%);
+}
+.bw-play .bw-incoming__label {
+  background: rgb(255 255 255 / 18%);
+  color: #fff;
+}
+.bw-play .bw-incoming__kind {
+  color: #fff;
+}
+.bw-play .bw-incoming__title {
+  color: rgb(255 255 255 / 82%);
+}
+.bw-play .bw-incoming__bar {
+  background: linear-gradient(#fff, #fff) left / 0% 100% no-repeat, rgb(255 255 255 / 22%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-play__option::before {
+    transition: none;
+  }
+  .bw-play__initials {
+    animation-name: bwFadeIn;
+  }
+  .bw-play .bw-incoming__bar {
+    background-size: 100% 100%, auto;
+  }
 }

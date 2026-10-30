@@ -19,6 +19,7 @@ const CLOSE_MS = 140;
 export default function Modal({
   label,
   size = "md",
+  panelClassName,
   locked = false,
   beforeClose,
   onClose,
@@ -26,6 +27,8 @@ export default function Modal({
 }: {
   label: string;
   size?: "sm" | "md" | "lg";
+  /** Extra class on the panel, for a modal with its own look (the participant's poll and quiz card). */
+  panelClassName?: string;
   locked?: boolean;
   beforeClose?: () => Promise<boolean>;
   /** Called once the exit animation has finished; the caller unmounts the modal. */
@@ -65,7 +68,7 @@ export default function Modal({
         if (pressStartedOnBackdrop.current && event.target === event.currentTarget) void close();
       }}
     >
-      <div className={`bw-overlay__panel bw-overlay__panel--${size}`}>{children(() => void close())}</div>
+      <div className={`bw-overlay__panel bw-overlay__panel--${size}${panelClassName ? ` ${panelClassName}` : ""}`}>{children(() => void close())}</div>
     </div>,
     document.body,
   );

@@ -15,6 +15,7 @@ Field lists live in `backend/types/breakout.ts`.
 | Round plan (`RoundPlan`: rooms and who is in them) | `backend/store/round-plans.ts`, keyed `(parentUUID, roundId)` | `backend/routes/round-plans.ts`, `frontend/lib/use-room-plan.ts`, `room-plan-assignments.ts`, `room-plan-copy.ts`, `use-round-summaries.ts` |
 | Round task (`RoundTasks`, `RoomTask` incl. `checklist`, plus `activities`) | `backend/store/tasks.ts`, keyed `(parentUUID, roundId)` | `backend/routes/tasks.ts`, `frontend/lib/use-round-tasks.ts` (host), `use-participant-round.ts` (participant), `TaskFields.tsx`, `ActivityList.tsx` |
 | Activity responses (`RoomResponses`: answers, idea notes, checklist ticks) | `backend/store/activity_responses.ts`, keyed `(parentUUID, roundId, roomId)` | `backend/routes/activity_responses.ts` at `/api/responses`, `frontend/lib/use-room-responses.ts` (participant), `use-room-results.ts` (host) |
+| Polls and quizzes (`ChallengeDraft`, `ChallengeView`) | `backend/store/challenges.ts`, keyed `(parentUUID, roundId)` | `backend/routes/challenges.ts` at `/api/challenges`, `frontend/lib/use-challenges.ts`, `ChallengeCards.tsx` (Session page), `ChallengeEditor.tsx`, `ChallengeResultsModal.tsx` (host), `ChallengeOverlay.tsx` (participant) |
 | Live state (`LiveState`: who is where, which round is live, room mapping, timer, each room's status) | `backend/store/live.ts`, one record per meeting, fed by webhooks | `backend/routes/webhooks.ts`, `backend/routes/live.ts`, `frontend/lib/use-live-state.ts`, `LiveRound.tsx` |
 | Launch / close / mid-round placement | Frontend SDK calls, then reported to the backend | `frontend/lib/launch-round.ts`, `use-live-room-controller.ts`, `execution-api.ts` |
 | Participant view (landing, room page, answer modal, board page) | `LiveState` + the round's plan + its task + the room's responses; no SDK reads | `screens/ParticipantScreen.tsx`, `ParticipantWorkspace.tsx` (room page), `AnswerModal.tsx` (individual answer), `ActivityPage.tsx` (shared board); bar `RoomBar.tsx`, people `RoomPeople.tsx`, both in `PageFrame` tone "participant" |
@@ -35,6 +36,11 @@ write response    participant -> PUT/POST/DELETE /api/responses/:roundId/rooms/:
                   backend  -> SSE  roomRevisions[roomId] + 1           that room refetches; no content on the stream
 read responses    participant -> GET /api/responses/:roundId/rooms/:roomId   own answers, everyone's status, notes, ticks
 read results      host     -> GET /api/responses/:roundId/rooms/:roomId/all   every answer (text once submitted), notes, ticks
+launch poll/quiz  host     -> POST /api/challenges/:roundId              only while the round runs, one at a time
+                  backend  -> SSE  challengeRevision + 1               everyone refetches
+room answer       participant -> PUT .../picks/:q (suggestion), POST .../locks/:q (final, first lock wins)
+                  backend  -> SSE  roomRevisions[roomId] + 1           that room and the host refetch
+reveal            host     -> POST /api/challenges/:roundId/:id/reveal  results and answer key reach every room
 launch round N    frontend -> (Same groups) copy the last round's plan into round N
                   frontend -> SDK createBreakoutRooms, assign, configureBreakoutRooms, open
                   frontend -> POST /api/live/launch                      round live, timer armed, workspace status launched
@@ -72,7 +78,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 
 ## Principles
 
-- Roles: the meeting host runs the session (plan, launch, close, skip, end). A co-host only places people mid-round, edits the running round's task and activities, and adjusts its time. Zoom's app context carries no role, so this is a frontend rule.
+- Roles: the meeting host runs the session (plan, launch, close, skip, end). A co-host only places people mid-round, edits the running round's task and activities, adjusts its time, and launches or reveals polls and quizzes. Zoom's app context carries no role, so this is a frontend rule.
 - The frontend only interacts with Zoom to lauch breakout rooms, and also from three places: Launch workflow, End round / Launch next, and the live "Not yet placed" sheet.
 - Webhooks are the source of live state after host joins. The SDK is read once at a time for:
   1. `getBreakoutRoomList()` when the app opens on a round the backend still calls live.
@@ -80,7 +86,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
   3. The roster read when the host opens the app: `getBreakoutRoomList()`, or `getMeetingParticipants()` when no rooms are open.
   4. `getBreakoutRoomList()` once per placement from the "Not yet placed" sheet, to learn Zoom's room ids.
 - The backend records what the frontend reports and what Zoom sends; it never verifies against Zoom.
-- The SSE stream carries counters (`taskRevision`, `roomRevisions`), never content; clients refetch what changed. The one exception is `round.roomStatus`, one status word per room, which is not room content and is safe for every client to see.
+- The SSE stream carries counters (`taskRevision`, `roomRevisions`, `challengeRevision`), never content; clients refetch what changed. The one exception is `round.roomStatus`, one status word per room, which is not room content and is safe for every client to see.
 - Writes replace whole records under a revision check, so a stale write gets 409 instead of overwriting someone else's edit.
 - A participant reads no Zoom state. Their room comes from the host's saved plan; their own webhook location only chooses which screen to show.
 - Grouping is one choice stored as two workspace flags. In "Same groups" a round copies the last round that ran at launch time, so plans never go stale.
@@ -104,7 +110,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 
 ## Active scope
 
-No feature in progress. Next candidates (2026-10-19): different tasks per room in the same round (the backend already stores per-room overrides in `RoundTasks.rooms`), and more participant activities (poll or vote first, then ranking and a room status).
+No feature in progress. Next candidates (2026-10-19): different tasks per room in the same round (the backend already stores per-room overrides in `RoundTasks.rooms`), and more room activities.
 
 ## Infra
 

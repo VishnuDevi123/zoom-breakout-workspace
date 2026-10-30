@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { formatClock } from "@/lib/round-clock";
 import { taskHasContent, type useRoundTasks } from "@/lib/use-round-tasks";
@@ -29,6 +29,7 @@ export default function SessionPage({
   onUpdateRound,
   onDeleteRound,
   onSkipRound,
+  challenges,
 }: {
   workspace: Workspace;
   plans: Record<string, RoundPlan | null>;
@@ -42,6 +43,8 @@ export default function SessionPage({
   onUpdateRound: (roundId: string, patch: RoundPatch) => Promise<void>;
   onDeleteRound: (roundId: string) => Promise<void>;
   onSkipRound: (roundId: string, skipped: boolean) => Promise<void>;
+  /** The poll and quiz cards; null when the round is closed and none ran. */
+  challenges: ReactNode;
 }) {
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -95,6 +98,12 @@ export default function SessionPage({
             {hasTask ? "Edit task" : "Add a task"}
           </span>
         </button>
+        {challenges ? (
+          <>
+            <SectionLabel>Polls and quizzes</SectionLabel>
+            {challenges}
+          </>
+        ) : null}
         {open ? (
           <ActivityList
             activities={tasks.activities}
