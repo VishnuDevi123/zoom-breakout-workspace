@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { CHALLENGE_KINDS } from "@/lib/challenges";
+import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { ChallengeView } from "@/types/breakout";
 
 import ChallengeLeaderboard from "./ChallengeLeaderboard";
@@ -11,9 +12,9 @@ import ChallengeTally from "./ChallengeTally";
 import { Button, Modal, SectionLabel } from "./ui";
 
 /**
- * The host's live results for one poll or quiz: a quiz's leaderboard, then how
- * every room answered each question. Updates as rooms lock in. Rooms see the
- * same once the host presses Reveal.
+ * The host's results for one poll or quiz, live while it runs and kept after
+ * the reveal. The title leads (a poll's title is its question), then a quiz's
+ * leaderboard, then how every room answered each question.
  */
 export default function ChallengeResultsModal({
   challenge,
@@ -25,24 +26,24 @@ export default function ChallengeResultsModal({
   onClose: () => void;
 }) {
   const [revealing, setRevealing] = useState(false);
+  const remainingSec = useRemainingSec(challenge.revealed ? 0 : challenge.endsAt);
   const results = challenge.results;
+  const isQuiz = challenge.kind === "quiz";
 
   return (
-    <Modal label={`${challenge.title} results`} size="lg" onClose={onClose}>
+    <Modal label={`${challenge.title} results`} size="lg" panelClassName={`bw-challenge-panel bw-challenge-panel--${challenge.kind}`} onClose={onClose}>
       {(close) => (
         <>
           <header className="bw-overlay__header bw-challenge-bar">
-            <button className="bw-back-button" aria-label="Back" onClick={close}>
-              ←
-            </button>
-            <div className="bw-challenge-head">
-              <span className="bw-challenge-head__kind">
-                {CHALLENGE_KINDS[challenge.kind].label} results · {challenge.revealed ? "revealed to rooms" : "rooms see them when time is up"}
-              </span>
-              <span className="bw-challenge-head__title" title={challenge.title}>
-                {challenge.title}
-              </span>
-            </div>
+            <span className={`bw-challenge-badge bw-challenge-badge--${challenge.kind}`}>
+              {CHALLENGE_KINDS[challenge.kind].label}
+            </span>
+            {challenge.revealed ? (
+              <span className="bw-challenge-bar__status">Revealed to rooms</span>
+            ) : remainingSec ? (
+              <span className="bw-challenge-bar__clock bw-mono">{formatClock(remainingSec)} left</span>
+            ) : null}
+            <div className="bw-header-spacer" />
             {challenge.revealed ? null : (
               <Button
                 size="sm"
@@ -56,10 +57,14 @@ export default function ChallengeResultsModal({
                 Reveal now
               </Button>
             )}
+            <button className="bw-back-button" aria-label="Close" title="Close" onClick={close}>
+              ✕
+            </button>
           </header>
 
-          <ChallengeScrollBody capped>
-            {results && challenge.kind === "quiz" ? (
+          <ChallengeScrollBody>
+            <h2 className="bw-challenge-results__title">{challenge.title}</h2>
+            {results && isQuiz ? (
               <div className="bw-field">
                 <SectionLabel>Leaderboard</SectionLabel>
                 <ChallengeLeaderboard results={results} questionCount={challenge.questions.length} />
@@ -67,11 +72,10 @@ export default function ChallengeResultsModal({
             ) : null}
             {results
               ? challenge.questions.map((question, index) => (
-                  <ChallengeTally key={index} question={question} index={index} results={results} />
+                  <ChallengeTally key={index} question={question} index={index} results={results} hideQuestion={!isQuiz} />
                 ))
               : null}
           </ChallengeScrollBody>
-
         </>
       )}
     </Modal>

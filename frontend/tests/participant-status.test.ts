@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { roleSuffix, roomMembers } from "../lib/participant-status.ts";
+import { personColor, PERSON_COLORS, roleSuffix, roomMembers } from "../lib/participant-status.ts";
 import type { LiveParticipant, LiveState, PlannedRoom } from "../types/breakout.ts";
 
 const room: PlannedRoom = { id: "room-a", name: "Room 1", dot: "#fcb900", participantUUIDs: ["me", "ann", "bo"] };
@@ -49,4 +49,9 @@ test("role suffix names host and co-host only", () => {
   assert.equal(roleSuffix("host"), " · host");
   assert.equal(roleSuffix("coHost"), " · co-host");
   assert.equal(roleSuffix("attendee"), "");
+});
+
+test("a person keeps one colour, picked from the palette", () => {
+  assert.equal(personColor("abc-123"), personColor("abc-123"));
+  assert.ok(PERSON_COLORS.includes(personColor("someone-else")));
 });

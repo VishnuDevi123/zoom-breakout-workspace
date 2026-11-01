@@ -40,6 +40,16 @@ export const DRAFT_MEMBER_STATUS_LABEL: Record<ParticipantStatus, string> = {
 /** Avatar backgrounds for room members, by position. */
 export const AVATAR_TINTS = ["#eef1ff", "#c3faf5", "#fff4c4", "#fde0f0", "#e3f7d4"];
 
+/** Strong colours for a person's initials on a light room tint; white text reads on each. */
+export const PERSON_COLORS = ["#4f46e5", "#187574", "#be185d", "#c2410c", "#15803d", "#7e22ce", "#1d4ed8", "#9f1239"];
+
+/** One colour per person, the same on every question and screen: picked from their participantUUID. */
+export function personColor(participantUUID: string): string {
+  let hash = 0;
+  for (const char of participantUUID) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return PERSON_COLORS[hash % PERSON_COLORS.length];
+}
+
 /**
  * The people a participant shares a breakout room with, from the host's draft.
  * Once Zoom has reported which breakout room this is, only members actually in

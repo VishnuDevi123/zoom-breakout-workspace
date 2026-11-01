@@ -1,9 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
-
 import type { CheckListItem, RoomTask } from "@/types/breakout";
 
+import ExpandingField from "./ExpandingField";
 import { SectionLabel } from "./ui";
 
 /**
@@ -172,68 +171,5 @@ function LineList({
         {addLabel}
       </button>
     </div>
-  );
-}
-
-/**
- * A text field that shows one line (fading out at the edge when the text is
- * longer) and grows downwards to show all of it while it is being edited.
- * Both heights are explicit, so the change animates. Enter finishes editing.
- */
-function ExpandingField({
-  className,
-  value,
-  placeholder,
-  autoFocus,
-  onChange,
-  onCommit,
-}: {
-  className: string;
-  value: string;
-  placeholder: string;
-  autoFocus?: boolean;
-  onChange: (value: string) => void;
-  /** Leaving the field: the point worth saving. */
-  onCommit: () => void;
-}) {
-  const field = useRef<HTMLTextAreaElement>(null);
-  const [open, setOpen] = useState(false);
-
-  // Open: the full text's height (it grows as you type). Closed: the one-line height from CSS.
-  useLayoutEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    if (!open) {
-      element.style.height = "";
-      element.scrollLeft = 0;
-      return;
-    }
-    element.style.height = `${element.scrollHeight}px`;
-  }, [open, value]);
-
-  return (
-    <textarea
-      ref={field}
-      className={`${className} bw-expanding`}
-      data-open={open || undefined}
-      rows={1}
-      // Closed it stays on one line; open it wraps.
-      wrap={open ? "soft" : "off"}
-      value={value}
-      placeholder={placeholder}
-      autoFocus={autoFocus}
-      onChange={(event) => onChange(event.target.value)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => {
-        setOpen(false);
-        onCommit();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          event.currentTarget.blur();
-        }
-      }}
-    />
   );
 }

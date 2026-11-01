@@ -64,6 +64,20 @@
   --bw-wrong: #c94b4b;
   --bw-wrong-tint: #fbe1e1;
   --bw-wrong-deep: #8f2a2a;
+  /* Poll and quiz colour coding: a light tint, its line and its text colour. */
+  /* Layers from light to strong: field (inputs, rows), tint (modal), card (question cards), fill (result bars). */
+  --bw-poll-field: #fafcff;
+  --bw-poll-tint: #eef6fd;
+  --bw-poll-card: #e2eefb;
+  --bw-poll-line: #c9def4;
+  --bw-poll-fill: #d3e5f9;
+  --bw-poll-deep: #1f5f96;
+  --bw-quiz-field: #fffbf7;
+  --bw-quiz-tint: #fff4eb;
+  --bw-quiz-card: #ffeadb;
+  --bw-quiz-line: #f5d6bb;
+  --bw-quiz-fill: #fcdcc2;
+  --bw-quiz-deep: #9a4a12;
 
   /* Room dots */
   --bw-dot-1: #fcb900;
@@ -1799,7 +1813,7 @@ input[type="checkbox"] {
 }
 /*
  * Task fields: one line with a fade at the edge, growing downwards while
- * edited (TaskFields' ExpandingField sets the open height). The closed height
+ * edited (ExpandingField sets the open height). The closed height
  * is one line plus the field's padding and border, so both ends animate.
  */
 .bw-expanding {
@@ -2910,9 +2924,10 @@ a.bw-resource-row:hover {
 .bw-frame--no-nav {
   grid-template-rows: minmax(var(--bw-bar-h), auto) minmax(0, 1fr);
 }
+/* The bar takes the room's colour (roomTheme sets the variables); the light blue is the fallback. */
 .bw-frame--participant .bw-frame__bar {
-  background: #e8f9ff;
-  color: #000000;  
+  background: var(--bw-room, #e8f9ff);
+  color: var(--bw-room-ink, #000000);
   border-bottom: 1px solid var(--bw-border);
 }
 /* 70/30 like the host's Session page, with no dividers; one column under 720px. */
@@ -3294,45 +3309,15 @@ a.bw-resource-row:hover {
 }
 
 .bw-challenge-badge--poll {
-  background: var(--bw-accent-tint);
-  color: var(--bw-accent-deep);
+  background: var(--bw-poll-tint);
+  box-shadow: inset 0 0 0 1px var(--bw-poll-line);
+  color: var(--bw-poll-deep);
 }
 
 .bw-challenge-badge--quiz {
-  background: var(--bw-accent-tint);
-  color: var(--bw-accent-deep);
-}
-/* Poll and quiz modal header: the kind as a small label over the title, the clock on the right. */
-.bw-challenge-head {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.bw-challenge-head__kind {
-  font-size: calc(var(--bw-fs-label)+1px);
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--bw-ink-muted);
-}
-.bw-challenge-head__title {
-  overflow: hidden;
-  font-size: var(--bw-fs-section);
-  font-weight: 600;
-  color: var(--bw-ink-muted);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.bw-challenge-head__clock {
-  flex: none;
-  font-family: var(--bw-font-mono);
-  font-size: var(--bw-fs-body);
-  color: var(--bw-muted);
-}
-.bw-challenge-head__clock--low {
-  color: var(--bw-danger-text);
+  background: var(--bw-quiz-tint);
+  box-shadow: inset 0 0 0 1px var(--bw-quiz-line);
+  color: var(--bw-quiz-deep);
 }
 /* The scrollbar keeps its space but shows only while the body scrolls. */
 .bw-challenge-scroll {
@@ -3456,37 +3441,176 @@ a.bw-resource-row:hover {
   gap: 8px;
 }
 
-/* Editor: one card per question, options as rows with their letter. */
+/* Host poll and quiz modals: narrower than the other large modals. */
+.bw-overlay__panel.bw-challenge-panel {
+  max-width: 750px;
+}
+/*
+ * The whole modal takes its kind's colour: the panel, header and footer in the
+ * tint, question cards a step stronger, fields and rows nearly white. Buttons stay
+ * white or solid indigo, so they stand apart from the colour.
+ */
+.bw-challenge-panel--poll {
+  --bw-kind-field: var(--bw-poll-field);
+  --bw-kind-tint: var(--bw-poll-tint);
+  --bw-kind-card: var(--bw-poll-card);
+  --bw-kind-line: var(--bw-poll-line);
+  --bw-kind-fill: var(--bw-poll-fill);
+  --bw-kind-deep: var(--bw-poll-deep);
+}
+.bw-challenge-panel--quiz {
+  --bw-kind-field: var(--bw-quiz-field);
+  --bw-kind-tint: var(--bw-quiz-tint);
+  --bw-kind-card: var(--bw-quiz-card);
+  --bw-kind-line: var(--bw-quiz-line);
+  --bw-kind-fill: var(--bw-quiz-fill);
+  --bw-kind-deep: var(--bw-quiz-deep);
+}
+.bw-overlay__panel.bw-challenge-panel {
+  background: var(--bw-kind-tint);
+  border-color: var(--bw-kind-line);
+}
+.bw-challenge-panel .bw-challenge-bar,
+.bw-challenge-panel .bw-challenge-actionbar {
+  border-color: var(--bw-kind-line);
+}
+.bw-challenge-panel .bw-challenge-option,
+.bw-challenge-panel .bw-challenge-question__text {
+  background: var(--bw-kind-field);
+  border-color: var(--bw-kind-line);
+}
+.bw-challenge-panel .bw-challenge-question__text {
+  border-color: color-mix(in srgb, var(--bw-kind-deep) 35%, transparent);
+}
+.bw-challenge-panel .bw-challenge-option[data-right] {
+  border-color: var(--bw-green);
+  background: var(--bw-green-tint);
+}
+.bw-challenge-panel .bw-challenge-option:focus-within {
+  border-color: var(--bw-accent);
+}
+.bw-challenge-panel .bw-challenge-option__mark {
+  border-color: var(--bw-kind-line);
+  background: var(--bw-kind-tint);
+  color: var(--bw-kind-deep);
+}
+.bw-challenge-panel button.bw-challenge-option__mark {
+  border-color: color-mix(in srgb, var(--bw-kind-deep) 45%, transparent);
+  background: var(--bw-surface);
+}
+.bw-challenge-panel .bw-challenge-editor__name {
+  border-bottom-color: color-mix(in srgb, var(--bw-kind-deep) 35%, transparent);
+}
+.bw-challenge-panel .bw-challenge-question__number,
+.bw-challenge-panel .bw-challenge-editor__hint,
+.bw-challenge-panel .bw-time-choices__label,
+.bw-challenge-panel .bw-challenge-bar__status,
+.bw-challenge-panel .bw-challenge-bar__clock,
+.bw-challenge-panel .bw-section-label {
+  color: var(--bw-kind-deep);
+}
+.bw-challenge-panel .bw-tally__option,
+.bw-challenge-panel .bw-leaderboard__row {
+  background: var(--bw-kind-field);
+}
+.bw-challenge-panel .bw-tally__option,
+.bw-challenge-panel .bw-leaderboard {
+  border-color: var(--bw-kind-line);
+}
+.bw-challenge-panel .bw-leaderboard__row {
+  border-bottom-color: var(--bw-kind-line);
+}
+/* Editor: the quiz title as a plain heading field, then one card per question. */
+.bw-challenge-editor__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bw-challenge-editor__name {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 1px solid var(--bw-border);
+  background: none;
+  font: inherit;
+  font-size: var(--bw-fs-header);
+  font-weight: 600;
+  color: var(--bw-ink);
+  transition: border-color 150ms ease-out;
+}
+.bw-challenge-editor__name:focus-visible {
+  outline: none;
+  border-bottom-color: var(--bw-accent);
+}
+.bw-challenge-editor__hint {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+}
 .bw-challenge-question {
   scroll-margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  background: var(--bw-surface-sunken);
-  border: 1px solid var(--bw-border);
-  border-radius: var(--bw-radius-md);
+  gap: 10px;
+  padding: 14px;
+  background: var(--bw-kind-card);
+  border: 1px solid var(--bw-kind-line);
+  border-radius: var(--bw-radius-lg);
 }
 .bw-challenge-question__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
-.bw-challenge-question__add,
-.bw-challenge-add {
-  align-self: flex-start;
+.bw-challenge-question__number {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
 }
+.bw-challenge-question__text {
+  padding: 10px 12px;
+  border: 1px solid var(--bw-border-strong);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-section);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bw-ink);
+  transition: none;
+}
+.bw-challenge-question__text:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: 1px;
+}
+/* Options stacked as tiles, like the answers rooms see. */
 .bw-challenge-options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .bw-challenge-option {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--bw-border);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
 }
-.bw-challenge-option__letter,
-.bw-challenge-option__right {
+.bw-challenge-option:focus-within {
+  border-color: var(--bw-accent);
+  box-shadow: 0 0 0 1px var(--bw-accent);
+}
+.bw-challenge-option[data-right] {
+  border-color: var(--bw-green);
+  background: var(--bw-green-tint);
+}
+.bw-challenge-option > .bw-icon-button {
+  margin-top: 2px;
+}
+.bw-challenge-option__mark {
   width: 26px;
   height: 26px;
   flex: none;
@@ -3494,49 +3618,94 @@ a.bw-resource-row:hover {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--bw-border);
-  border-radius: var(--bw-radius-sm);
+  border-radius: var(--bw-radius-pill);
   background: var(--bw-surface-muted);
   color: var(--bw-muted);
   font-family: var(--bw-font-mono);
   font-size: var(--bw-fs-label);
   font-weight: 600;
 }
-.bw-challenge-option__right {
+button.bw-challenge-option__mark {
   cursor: pointer;
   border-color: var(--bw-border-strong);
   background: var(--bw-surface);
   transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
 }
-.bw-challenge-option__right:hover:not([aria-checked="true"]) {
+button.bw-challenge-option__mark:hover:not([aria-checked="true"]) {
   border-color: var(--bw-green);
+  color: var(--bw-green-deep);
 }
-.bw-challenge-option__right[aria-checked="true"] {
+button.bw-challenge-option__mark[aria-checked="true"] {
   background: var(--bw-green-deep);
   border-color: var(--bw-green-deep);
   color: #fff;
+  font-family: var(--bw-font-ui);
+  font-size: var(--bw-fs-body);
 }
-.bw-challenge-option__input {
+.bw-challenge-option__body {
   flex: 1;
   min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--bw-border-strong);
-  border-radius: var(--bw-radius-sm);
-  background: var(--bw-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bw-challenge-limit {
+  font-size: var(--bw-fs-label);
+  color: var(--bw-danger-text);
+  animation: bwFadeIn 150ms ease-out both;
+}
+.bw-challenge-option__input {
+  padding: 3px 0;
+  border: 0;
+  background: none;
   font: inherit;
   font-size: var(--bw-fs-body);
+  line-height: 1.4;
   color: var(--bw-ink);
 }
+/* One line until edited; ExpandingField grows it while focused. */
+.bw-challenge-option__input.bw-expanding {
+  --bw-expanding-closed: calc(1lh + 6px);
+}
 .bw-challenge-option__input:focus-visible {
-  outline: 2px solid var(--bw-accent);
-  outline-offset: 1px;
+  outline: none;
+}
+/* Add option and Add question: dashed tiles where the next one goes. */
+.bw-challenge-option-add,
+.bw-challenge-add {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px dashed var(--bw-border-strong);
+  border-radius: var(--bw-radius-md);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-button-sm);
+  color: var(--bw-ink);
+  cursor: pointer;
+  transition: border-color 150ms ease-out, color 150ms ease-out, background-color 150ms ease-out;
+}
+.bw-challenge-add {
+  border-radius: var(--bw-radius-lg);
+}
+.bw-challenge-option-add:hover,
+.bw-challenge-add:hover {
+  border-color: var(--bw-accent);
+  background: var(--bw-accent-tint);
+  color: var(--bw-accent-deep);
 }
 .bw-time-choices {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
+}
+.bw-time-choices__label {
+  margin-right: 4px;
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
 }
 .bw-time-choice {
-  padding: 6px 14px;
+  padding: 5px 12px;
   border: 1px solid var(--bw-border-strong);
   border-radius: var(--bw-radius-pill);
   background: var(--bw-surface);
@@ -3550,16 +3719,53 @@ a.bw-resource-row:hover {
   border-color: var(--bw-accent);
 }
 .bw-time-choice[aria-checked="true"] {
-  background: var(--bw-accent-tint);
+  background: var(--bw-accent);
   border-color: var(--bw-accent);
-  color: var(--bw-accent-deep);
+  color: #fff;
 }
+/* Results: the title leads, as the question does on the room's card. */
 .bw-challenge-results__title {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  margin: 0;
+  font-size: var(--bw-fs-header);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--bw-ink);
+  overflow-wrap: anywhere;
 }
+/* Host results: option rows shaped like the room's card, bars in the kind's colour. */
+.bw-challenge-panel .bw-tally {
+  gap: 10px;
+}
+.bw-challenge-panel .bw-tally__option {
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: var(--bw-radius-md);
+}
+.bw-challenge-panel .bw-tally__option::before {
+  background: var(--bw-kind-fill);
+}
+.bw-challenge-panel .bw-leaderboard__row--winner {
+  background: var(--bw-kind-fill);
+}
+.bw-challenge-panel .bw-leaderboard__row--winner .bw-leaderboard__place,
+.bw-challenge-panel .bw-leaderboard__row--winner .bw-leaderboard__score {
+  color: var(--bw-kind-deep);
+}
+.bw-challenge-panel .bw-tally__option--right {
+  border-color: var(--bw-green);
+  border-width: 2px;
+  padding: 8px 11px;
+}
+.bw-challenge-bar__status,
+.bw-challenge-bar__clock {
+  font-size: var(--bw-fs-meta);
+  color: var(--bw-muted);
+  white-space: nowrap;
+}
+.bw-challenge-bar__status {
+  font-size: var(--bw-fs-body);
+}
+
 
 /* Results: each option's bar fills to its share of rooms. */
 .bw-tally {
@@ -3606,17 +3812,12 @@ a.bw-resource-row:hover {
 .bw-tally__option--right {
   border-color: var(--bw-green);
 }
-.bw-tally__option--right::before {
-  background: var(--bw-green-tint);
-}
-/* A room's own quiz results: whole-row colour, no bars. */
+/* A room's own quiz results: a green or red outline and badge, no bars. */
 .bw-tally__option--right-solid {
   border-color: var(--bw-green);
-  background: var(--bw-green-tint);
 }
 .bw-tally__option--wrong {
   border-color: var(--bw-wrong);
-  background: var(--bw-wrong-tint);
 }
 .bw-tally__mark {
   flex: none;
@@ -3645,12 +3846,6 @@ a.bw-resource-row:hover {
   font-size: var(--bw-fs-body);
   color: var(--bw-ink);
   overflow-wrap: anywhere;
-}
-.bw-tally__right {
-  margin-left: 8px;
-  font-size: var(--bw-fs-label);
-  font-weight: 600;
-  color: var(--bw-green-deep);
 }
 .bw-tally__rooms {
   display: flex;
@@ -3966,43 +4161,52 @@ a.bw-resource-row:hover {
   gap: 10px;
   padding: 9px 14px;
 }
-/* Host editor: Launch in a small bar at the bottom. */
+/* Host editor: "New quiz" / "New poll" title on the left, close (✕) on the right. */
+.bw-challenge-editor__title {
+  font-size: calc(var(--bw-fs-section) + 2px);
+  font-weight: 500;
+  color: var(--bw-ink);
+}
+/* Host editor: time to answer and Launch in a small bar at the bottom. */
+.bw-challenge-actionbar__launch {
+  margin-left: auto;
+}
 .bw-challenge-actionbar {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 12px;
   padding: 10px 16px;
   border-top: 1px solid var(--bw-border);
 }
-.bw-challenge-actionbar__hint {
-  min-width: 0;
-  font-size: var(--bw-fs-meta);
-  color: var(--bw-muted);
-}
 
-/* Participant: the poll or quiz as one indigo card, white text. */
+/* Participant: the poll or quiz as one card in a light tint of the room's colour, dark text (roomTheme). */
 .bw-play {
   max-width: 520px;
   border: 0;
   border-radius: 18px;
-  background: linear-gradient(160deg, #5b54ec 0%, var(--bw-accent-deep) 100%);
-  color: #fff;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--bw-room) 70%, white) 0%,
+    var(--bw-room) 100%
+  );
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-back-button {
-  color: #fff;
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-back-button:hover,
 .bw-play .bw-back-button:focus-visible {
-  background: rgb(255 255 255 / 14%);
+  background: color-mix(in srgb, var(--bw-room-ink) 14%, transparent);
 }
 .bw-play__bar {
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px 0 8px;
+  padding: 10px 8px 0 18px;
 }
 .bw-play__label {
   flex: 1;
@@ -4012,7 +4216,7 @@ a.bw-resource-row:hover {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgb(255 255 255 / 78%);
+  color: color-mix(in srgb, var(--bw-room-ink) 78%, transparent);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -4020,19 +4224,19 @@ a.bw-resource-row:hover {
   flex: none;
   font-family: var(--bw-font-mono);
   font-size: var(--bw-fs-body);
-  color: rgb(255 255 255 / 92%);
+  color: color-mix(in srgb, var(--bw-room-ink) 92%, transparent);
 }
 .bw-play__clock--low {
-  color: #fecaca;
+  font-weight: 700;
 }
 .bw-play .bw-overlay__body {
   padding: 8px 18px 18px;
 }
 .bw-play .bw-challenge-scroll[data-scrolling] {
-  scrollbar-color: rgb(255 255 255 / 40%) transparent;
+  scrollbar-color: color-mix(in srgb, var(--bw-room-ink) 40%, transparent) transparent;
 }
 .bw-play .bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 40%);
+  background: color-mix(in srgb, var(--bw-room-ink) 40%, transparent);
 }
 .bw-play__answer {
   display: flex;
@@ -4049,20 +4253,20 @@ a.bw-resource-row:hover {
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: rgb(255 255 255 / 22%);
+  background: color-mix(in srgb, var(--bw-room-ink) 22%, transparent);
   transition: background-color 200ms ease-out;
 }
 .bw-play__step--done {
-  background: #fff;
+  background: var(--bw-room-ink);
 }
 .bw-play__step--now {
-  background: rgb(255 255 255 / 60%);
+  background: color-mix(in srgb, var(--bw-room-ink) 60%, transparent);
 }
 .bw-play__step-count {
   margin-left: 6px;
   font-family: var(--bw-font-mono);
   font-size: var(--bw-fs-label);
-  color: rgb(255 255 255 / 78%);
+  color: color-mix(in srgb, var(--bw-room-ink) 78%, transparent);
 }
 .bw-play__question {
   margin: 0;
@@ -4089,10 +4293,10 @@ a.bw-resource-row:hover {
   padding: 10px 14px;
   border: 1.5px solid transparent;
   border-radius: 12px;
-  background: rgb(255 255 255 / 10%);
+  background: color-mix(in srgb, var(--bw-room-ink) 10%, transparent);
   font: inherit;
   text-align: left;
-  color: #fff;
+  color: var(--bw-room-ink);
   cursor: pointer;
   transition: background-color 150ms ease-out, border-color 150ms ease-out;
 }
@@ -4102,14 +4306,14 @@ a.bw-resource-row:hover {
   inset: 0 auto 0 0;
   z-index: -1;
   width: var(--bw-share, 0%);
-  background: rgb(255 255 255 / 16%);
+  background: color-mix(in srgb, var(--bw-room-ink) 16%, transparent);
   transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .bw-play__option:hover {
-  background: rgb(255 255 255 / 15%);
+  background: color-mix(in srgb, var(--bw-room-ink) 15%, transparent);
 }
 .bw-play__option[aria-pressed="true"] {
-  border-color: #fff;
+  border-color: var(--bw-room-ink);
 }
 .bw-play__option-text {
   flex: 1;
@@ -4129,10 +4333,10 @@ a.bw-resource-row:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--bw-accent);
+  /* The background is each person's colour (personColor); the border cuts overlapping pills apart. */
+  border: 2px solid var(--bw-room);
   border-radius: var(--bw-radius-pill);
-  background: #fff;
-  color: var(--bw-accent-deep);
+  color: #ffffff;
   font-size: 10px;
   font-weight: 600;
   animation: bwIncomingUp 200ms ease-out both;
@@ -4151,15 +4355,15 @@ a.bw-resource-row:hover {
 .bw-play__hint {
   min-width: 0;
   font-size: var(--bw-fs-meta);
-  color: rgb(255 255 255 / 80%);
+  color: color-mix(in srgb, var(--bw-room-ink) 80%, transparent);
 }
 .bw-play .bw-play__lock.bw-button--primary {
   flex: none;
-  background: #fff;
-  color: var(--bw-accent-deep);
+  background: var(--bw-room-ink);
+  color: var(--bw-room-strong);
 }
 .bw-play .bw-play__lock.bw-button--primary:hover:not(:disabled) {
-  background: var(--bw-accent-tint);
+  background: color-mix(in srgb, var(--bw-room-ink) 88%, var(--bw-room));
 }
 .bw-play__wait,
 .bw-play__score {
@@ -4175,7 +4379,7 @@ a.bw-resource-row:hover {
 .bw-play__score {
   padding: 14px 10px;
   border-radius: 12px;
-  background: rgb(255 255 255 / 14%);
+  background: color-mix(in srgb, var(--bw-room-ink) 14%, transparent);
 }
 .bw-play__wait-title,
 .bw-play__score-title {
@@ -4185,21 +4389,21 @@ a.bw-resource-row:hover {
 .bw-play__wait-hint,
 .bw-play__score-hint {
   font-size: var(--bw-fs-meta);
-  color: rgb(255 255 255 / 82%);
+  color: color-mix(in srgb, var(--bw-room-ink) 82%, transparent);
 }
 /* Results inside the card: the shared tally and leaderboard, on indigo. */
 .bw-play .bw-tally__question,
 .bw-play .bw-tally__text {
-  color: #fff;
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-tally__option {
   min-height: 44px;
   border: 1.5px solid transparent;
   border-radius: 12px;
-  background: rgb(255 255 255 / 10%);
+  background: color-mix(in srgb, var(--bw-room-ink) 10%, transparent);
 }
 .bw-play .bw-tally__option::before {
-  background: rgb(255 255 255 / 18%);
+  background: color-mix(in srgb, var(--bw-room-ink) 18%, transparent);
 }
 .bw-play .bw-tally__letter {
   display: none;
@@ -4208,65 +4412,89 @@ a.bw-resource-row:hover {
   font-size: var(--bw-fs-section);
 }
 .bw-play .bw-tally__option--own {
-  border-color: #fff;
+  border-color: var(--bw-room-ink);
 }
 .bw-play .bw-tally__room {
-  color: rgb(255 255 255 / 82%);
+  color: color-mix(in srgb, var(--bw-room-ink) 82%, transparent);
 }
 .bw-play .bw-tally__room--own {
-  color: #fff;
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-tally__mark {
-  color: rgb(255 255 255 / 82%);
+  color: color-mix(in srgb, var(--bw-room-ink) 82%, transparent);
 }
-/* Near-solid so the indigo behind does not muddy them; both at the same strength. */
+/*
+ * Right and wrong: the host's right-answer design, a 2px outline and a ✓ or ✕
+ * badge on the row's usual fill. The badge carries the meaning too, so a green
+ * or red room tint never hides it.
+ */
+.bw-play .bw-tally__option--right-solid,
+.bw-play .bw-tally__option--wrong {
+  border-width: 2px;
+}
 .bw-play .bw-tally__option--right-solid {
-  border-color: #86efac;
-  background: rgb(21 128 61 / 92%);
+  border-color: var(--bw-green);
 }
 .bw-play .bw-tally__option--wrong {
-  border-color: #fca5a5;
-  background: rgb(185 28 28 / 92%);
+  border-color: var(--bw-wrong);
 }
 .bw-play .bw-tally__option--right-solid .bw-tally__mark {
-  color: #dcfce7;
+  color: var(--bw-green-deep);
 }
 .bw-play .bw-tally__option--wrong .bw-tally__mark {
-  color: #fee2e2;
+  color: var(--bw-wrong-deep);
+}
+.bw-tally__icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bw-radius-pill);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.bw-tally__icon--right {
+  background: var(--bw-green);
+}
+.bw-tally__icon--wrong {
+  background: var(--bw-wrong);
 }
 .bw-play .bw-leaderboard {
-  border-color: rgb(255 255 255 / 20%);
+  border-color: color-mix(in srgb, var(--bw-room-ink) 20%, transparent);
 }
 .bw-play .bw-leaderboard__row {
-  border-bottom-color: rgb(255 255 255 / 12%);
-  background: rgb(255 255 255 / 6%);
+  border-bottom-color: color-mix(in srgb, var(--bw-room-ink) 12%, transparent);
+  background: color-mix(in srgb, var(--bw-room-ink) 6%, transparent);
 }
 .bw-play .bw-leaderboard__row--winner {
-  background: rgb(255 255 255 / 20%);
+  background: color-mix(in srgb, var(--bw-room-ink) 20%, transparent);
 }
 .bw-play .bw-leaderboard__name,
 .bw-play .bw-leaderboard__score,
 .bw-play .bw-leaderboard__row--winner .bw-leaderboard__place,
 .bw-play .bw-leaderboard__row--winner .bw-leaderboard__score {
-  color: #fff;
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-leaderboard__place,
 .bw-play .bw-leaderboard__you,
 .bw-play .bw-leaderboard__meta {
-  color: rgb(255 255 255 / 75%);
+  color: color-mix(in srgb, var(--bw-room-ink) 75%, transparent);
 }
 .bw-play .bw-incoming__label {
-  background: rgb(255 255 255 / 18%);
-  color: #fff;
+  background: color-mix(in srgb, var(--bw-room-ink) 18%, transparent);
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-incoming__kind {
-  color: #fff;
+  color: var(--bw-room-ink);
 }
 .bw-play .bw-incoming__title {
-  color: rgb(255 255 255 / 82%);
+  color: color-mix(in srgb, var(--bw-room-ink) 82%, transparent);
 }
 .bw-play .bw-incoming__bar {
-  background: linear-gradient(#fff, #fff) left / 0% 100% no-repeat, rgb(255 255 255 / 22%);
+  background: linear-gradient(var(--bw-room-ink), var(--bw-room-ink)) left / 0% 100% no-repeat, color-mix(in srgb, var(--bw-room-ink) 22%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .bw-play__option::before {

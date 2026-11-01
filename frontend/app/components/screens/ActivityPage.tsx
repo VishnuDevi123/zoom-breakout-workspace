@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { roomMembers } from "@/lib/participant-status";
 import type { useRoomResponses } from "@/lib/use-room-responses";
+import { roomTheme } from "@/lib/room-theme";
 import type { CheckListItem, IdeaBoardActivity, LiveState, PlannedRoom } from "@/types/breakout";
 
 import IdeaBoardPanel from "../IdeaBoardPanel";
@@ -46,7 +47,7 @@ export default function ActivityPage({
   }, []);
 
   return (
-    <PageFrame tone="participant" bar={<RoomBar room={room} live={live} onHome={onHome} />} contentKey={settled ? "open" : "loading"}>
+    <PageFrame tone="participant" style={roomTheme(room.dot)} bar={<RoomBar room={room} live={live} onHome={onHome} />} contentKey={settled ? "open" : "loading"}>
       {settled ? (
         <div className="bw-room-layout">
           <IdeaBoardPanel

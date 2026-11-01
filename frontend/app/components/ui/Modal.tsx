@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /** Matches the closing animation in globals.css. */
@@ -20,6 +20,7 @@ export default function Modal({
   label,
   size = "md",
   panelClassName,
+  panelStyle,
   locked = false,
   beforeClose,
   onClose,
@@ -29,6 +30,8 @@ export default function Modal({
   size?: "sm" | "md" | "lg";
   /** Extra class on the panel, for a modal with its own look (the participant's poll and quiz card). */
   panelClassName?: string;
+  /** CSS variables for the panel, e.g. a room's colour. The panel is portalled, so it inherits none from the page. */
+  panelStyle?: CSSProperties;
   locked?: boolean;
   beforeClose?: () => Promise<boolean>;
   /** Called once the exit animation has finished; the caller unmounts the modal. */
@@ -68,7 +71,7 @@ export default function Modal({
         if (pressStartedOnBackdrop.current && event.target === event.currentTarget) void close();
       }}
     >
-      <div className={`bw-overlay__panel bw-overlay__panel--${size}${panelClassName ? ` ${panelClassName}` : ""}`}>{children(() => void close())}</div>
+      <div className={`bw-overlay__panel bw-overlay__panel--${size}${panelClassName ? ` ${panelClassName}` : ""}`} style={panelStyle}>{children(() => void close())}</div>
     </div>,
     document.body,
   );

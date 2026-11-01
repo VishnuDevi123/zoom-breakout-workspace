@@ -3,7 +3,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { CHALLENGE_KINDS, currentQuestion, placeLabel, placeOf, winnerHeadline } from "@/lib/challenges";
-import { initialsFrom } from "@/lib/participant-status";
+import { initialsFrom, personColor } from "@/lib/participant-status";
+import { roomTheme } from "@/lib/room-theme";
 import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import type { ChallengeView, LiveParticipant, RoomChallengeAnswers } from "@/types/breakout";
 
@@ -27,6 +28,7 @@ export default function ChallengeOverlay({
   answers,
   roomId,
   roomName,
+  roomDot,
   participants,
   participantUUID,
   intro,
@@ -38,6 +40,8 @@ export default function ChallengeOverlay({
   answers: RoomChallengeAnswers;
   roomId: string;
   roomName: string;
+  /** The card takes the room's colour, like the room bar. */
+  roomDot: string;
   /** For the names behind each suggestion's initials. */
   participants: LiveParticipant[];
   participantUUID: string;
@@ -58,7 +62,7 @@ export default function ChallengeOverlay({
   }, [intro, onIntroDone, challenge.id]);
 
   return (
-    <Modal label={`${kind.label}: ${challenge.title}`} panelClassName="bw-play" onClose={onClose}>
+    <Modal label={`${kind.label}: ${challenge.title}`} panelClassName="bw-play" panelStyle={roomTheme(roomDot)} onClose={onClose}>
       {(close) =>
         intro ? (
           <div className="bw-incoming" aria-live="polite">
@@ -70,9 +74,6 @@ export default function ChallengeOverlay({
         ) : (
           <>
             <header className="bw-play__bar">
-              <button className="bw-back-button" aria-label="Back to the room" onClick={close}>
-                ←
-              </button>
               {/* A poll's title is its question, shown large below; a quiz names itself here once. */}
               <span className="bw-play__label" title={challenge.title}>
                 {kind.label}
@@ -80,6 +81,9 @@ export default function ChallengeOverlay({
                 {isQuiz ? ` · ${challenge.title}` : ""}
               </span>
               {challenge.revealed ? null : <TimeLeft endsAt={challenge.endsAt} />}
+              <button className="bw-back-button" aria-label="Back to the room" title="Back to the room" onClick={close}>
+                ✕
+              </button>
             </header>
             <ChallengeScrollBody capped={challenge.revealed}>
               {challenge.revealed && challenge.results ? (
@@ -193,7 +197,7 @@ function Answering({
               <span className="bw-play__option-text">{option}</span>
               <span className="bw-play__who">
                 {leaning.map((uuid) => (
-                  <span key={uuid} className="bw-play__initials" title={nameOf(uuid)}>
+                  <span key={uuid} className="bw-play__initials" style={{ background: personColor(uuid) }} title={nameOf(uuid)}>
                     {initialsFrom(nameOf(uuid))}
                   </span>
                 ))}

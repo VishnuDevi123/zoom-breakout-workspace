@@ -7,6 +7,7 @@ import { memberStatus } from "@/lib/activity-kinds";
 import { roomMembers } from "@/lib/participant-status";
 import { CHALLENGE_KINDS } from "@/lib/challenges";
 import { useRemainingSec } from "@/lib/round-clock";
+import { roomTheme } from "@/lib/room-theme";
 import { useRoomChallenge } from "@/lib/use-challenges";
 import type { ParticipantRound } from "@/lib/use-participant-round";
 import { useRoomResponses } from "@/lib/use-room-responses";
@@ -99,6 +100,7 @@ export default function ParticipantWorkspace({
         answers={challenge.room}
         roomId={room.id}
         roomName={room.name}
+        roomDot={room.dot}
         participants={live?.participants ?? []}
         participantUUID={participantUUID}
         intro={!challenge.revealed && introDoneFor !== challenge.id}
@@ -155,6 +157,7 @@ export default function ParticipantWorkspace({
     <>
       <PageFrame
         tone="participant"
+        style={roomTheme(room.dot)}
         bar={<RoomBar room={room} live={live} onHome={onBack} />}
       >
         <div className="bw-room-page">

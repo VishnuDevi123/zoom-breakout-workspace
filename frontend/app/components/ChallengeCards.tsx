@@ -115,7 +115,7 @@ function RunningCard({
         <span style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
       </div>
       <span className="bw-challenge-card__text">
-        {done} of {total} {total === 1 ? "room" : "rooms"} done · results show when time is up
+        {done} of {total} {total === 1 ? "room" : "rooms"} done
       </span>
       <div className="bw-challenge-card__actions">
         <Button variant="secondary" size="sm" onClick={onResults}>

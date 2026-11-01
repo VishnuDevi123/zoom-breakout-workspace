@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export interface FrameTab<T extends string> {
   id: T;
@@ -23,6 +23,7 @@ export default function PageFrame<T extends string>({
   tabsLabel,
   sheet,
   contentKey,
+  style,
   children,
 }: {
   /**
@@ -42,10 +43,12 @@ export default function PageFrame<T extends string>({
   sheet?: ReactNode;
   /** A new value fades the page in again, e.g. on a tab or round change. */
   contentKey?: string;
+  /** CSS variables for the frame, e.g. a participant room's colour from `roomTheme`. */
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
-    <div className={`bw-frame bw-frame--${tone}${tabs.length > 0 ? "" : " bw-frame--no-nav"}`}>
+    <div className={`bw-frame bw-frame--${tone}${tabs.length > 0 ? "" : " bw-frame--no-nav"}`} style={style}>
       <header className="bw-frame__bar">{bar}</header>
 
       <div className="bw-frame__main">

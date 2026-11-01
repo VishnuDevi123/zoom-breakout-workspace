@@ -48,6 +48,9 @@ export default function ChallengeTally({
             const tone = isRight ? " bw-tally__option--right-solid" : isOwn ? " bw-tally__option--wrong" : "";
             return (
               <li key={optionIndex} className={`bw-tally__option${tone}`}>
+                {/* A shape as well as a colour, so a green or red room still tells right from wrong. */}
+                {isRight ? <span className="bw-tally__icon bw-tally__icon--right" aria-label="Right">✓</span> : null}
+                {isOwn && !isRight ? <span className="bw-tally__icon bw-tally__icon--wrong" aria-label="Wrong">✕</span> : null}
                 <span className="bw-tally__letter">{optionLetter(optionIndex)}</span>
                 <span className="bw-tally__text">{option}</span>
                 {isOwn ? <span className="bw-tally__mark">Your room&apos;s answer</span> : null}
@@ -62,11 +65,9 @@ export default function ChallengeTally({
               className={`bw-tally__option${isRight ? " bw-tally__option--right" : ""}${ownPick ? " bw-tally__option--own" : ""}`}
               style={{ "--bw-share": `${(rooms.length / roomCount) * 100}%` } as CSSProperties}
             >
+              {isRight ? <span className="bw-tally__icon bw-tally__icon--right" aria-label="Right answer" title="Right answer">✓</span> : null}
               <span className="bw-tally__letter">{optionLetter(optionIndex)}</span>
-              <span className="bw-tally__text">
-                {option}
-                {isRight ? <span className="bw-tally__right">Right answer</span> : null}
-              </span>
+              <span className="bw-tally__text">{option}</span>
               {ownRoomId === undefined ? (
                 <span className="bw-tally__rooms">
                   {rooms.map((room) => (
