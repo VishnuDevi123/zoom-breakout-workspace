@@ -9,6 +9,7 @@ import { initialsFrom, type Participant } from "@/lib/participant-status";
 import { assignParticipantToRoom, newPlacements } from "@/lib/room-plan-assignments";
 import { formatClock } from "@/lib/round-clock";
 import { copyRooms, groupsForLaunch } from "@/lib/room-plan-copy";
+import { settleForLaunch } from "@/lib/room-plan-assignments";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
 import { useRoomPlan } from "@/lib/use-room-plan";
@@ -145,10 +146,10 @@ export default function HostWorkspace({
     },
     // Launching happens from saved drafts; the live view has no pending edits.
     flushSave: () => Promise.resolve(true),
-    prepareLaunch: copyGroupsForLaunch,
+    prepareLaunch: prepareGroupsForLaunch,
     onLaunched: (roundId, saved) => {
       if (saved) workspace.applyWorkspace(saved);
-      // "Same groups" wrote this round's plan just before launch; show what launched.
+      // "Same" and "New groups" wrote this round's plan just before launch; show what launched.
       reloadPlans();
       setLaunchedRoundId(roundId);
       setView("live");
@@ -233,14 +234,26 @@ export default function HostWorkspace({
   }
 
   /**
-   * "Same groups": a round takes its rooms and people from the round that ran
-   * last, at launch time, so room changes and mid-round placements carry
-   * forward and a copy never goes stale. Other modes launch their own plans.
+   * Writes a round's plan just before launch, from who Zoom lists right now.
+   * "Same groups", Round 2 and later: rooms and people come from the round that
+   * ran last, so a copy never goes stale. "New groups": the round's own groups,
+   * with leavers dropped and latecomers placed. "Each round" launches as planned.
    */
-  async function copyGroupsForLaunch(roundId: string) {
+  async function prepareGroupsForLaunch(roundId: string) {
     if (workspace.state.kind !== "ready") return;
     const current = workspace.state.workspace;
-    if (!current.sameRoomsEveryRound || !current.samePeopleEveryRound) return;
+    if (!current.sameRoomsEveryRound) return;
+    const inMeeting = live.liveState?.participants.filter((p) => p.location !== "left") ?? null;
+
+    if (!current.samePeopleEveryRound) {
+      if (!inMeeting) return;
+      const own = await readSavedRoundPlan(meetingUUID, roundId);
+      // The host and co-hosts are never placed in a room.
+      const attendees = inMeeting.filter((p) => p.role === "attendee").map((p) => p.participantUUID);
+      await saveRoundPlan(meetingUUID, settleForLaunch(own, attendees), own.revision);
+      return;
+    }
+
     const index = current.rounds.findIndex((round) => round.roundId === roundId);
     if (index <= 0) return;
     const ran = current.rounds
@@ -248,9 +261,7 @@ export default function HostWorkspace({
       .reverse()
       .find((round) => round.status === "closed" || round.status === "launched");
     const source = await readSavedRoundPlan(meetingUUID, (ran ?? current.rounds[0]).roundId);
-    const present = live.liveState
-      ? new Set(live.liveState.participants.filter((p) => p.location !== "left").map((p) => p.participantUUID))
-      : null;
+    const present = inMeeting && new Set(inMeeting.map((p) => p.participantUUID));
     const target = { parentUUID: meetingUUID, roundId, title: roundLabel(current, roundId) };
     const existing = await readSavedRoundPlan(meetingUUID, roundId).catch(() => null);
     await saveRoundPlan(meetingUUID, groupsForLaunch(source, target, present), existing?.revision ?? 0);
@@ -467,7 +478,7 @@ export default function HostWorkspace({
         onDeleteRound={workspace.deleteRound}
         onUpdateRound={workspace.updateRound}
         onUpdateWorkspace={workspace.updateWorkspace}
-        prepareLaunch={copyGroupsForLaunch}
+        prepareLaunch={prepareGroupsForLaunch}
         onSaveTemplate={() =>
           reportFailure("Could not save the template.", async () => {
             await library.saveCurrent();

@@ -5,7 +5,10 @@ import { useState } from "react";
 import Button from "./Button";
 import Modal from "./Modal";
 
-/** Small yes/no before a step that matters. `onConfirm` reports its own errors; the modal closes after it. */
+/**
+ * Small yes/no before a step that matters, closed by Cancel, ✕, Escape or a click
+ * on the dimmed area. `onConfirm` reports its own errors; the modal closes after it.
+ */
 export default function ConfirmModal({
   title,
   message,
@@ -36,7 +39,12 @@ export default function ConfirmModal({
       {(close) => (
         <>
           <div className="bw-overlay__body">
-            <span className="bw-modal-title">{title}</span>
+            <div className="bw-confirm-head">
+              <span className="bw-modal-title">{title}</span>
+              <button type="button" className="bw-back-button" aria-label="Close" title="Close" disabled={busy} onClick={close}>
+                ✕
+              </button>
+            </div>
             <p className="bw-confirm-message">{message}</p>
           </div>
           <footer className="bw-overlay__footer">
