@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
+import { revealRoundChallenges } from "../store/challenges.ts";
 import { applyRoster, extendRound, getLive, markClosedRound, markLaunchedRound, setRoomStatus, subscribe } from "../store/live.ts";
 import type { ApiResponse, LiveActionResponse, LiveState, RoomStatus, RosterEntry, Workspace } from "../types/breakout.ts";
 
@@ -133,6 +134,7 @@ router.post("/close", (req, res) => {
     return;
   }
   const roundId = getLive(parentUUID).round?.roundId;
+  if (roundId) revealRoundChallenges(parentUUID, roundId);
   const state = markClosedRound(parentUUID);
   if (roundId) markRoundStatus(parentUUID, roundId, "closed");
   const body: ApiResponse<LiveActionResponse> = {
@@ -145,8 +147,8 @@ router.post("/close", (req, res) => {
 
 /**
  * Skip a round the host does not want to run, or put a skipped one back.
- * The panel decides which rounds may be skipped; an unknown round is a no-op,
- * so this only ever reports the workspace as it now stands.
+ * A round that has run is refused; an unknown round is a no-op, so this only
+ * ever reports the workspace as it now stands.
  */
 router.post("/skip", (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
@@ -162,6 +164,13 @@ router.post("/skip", (req, res) => {
     return;
   }
 
+  // Only a round that has not run moves between planned and skipped.
+  const status = getWorkspace(parentUUID)?.rounds.find((round) => round.roundId === roundId)?.status;
+  if (status === "launched" || status === "closed") {
+    const body: ApiResponse<never> = { success: false, error: "A round that has run cannot be skipped." };
+    res.status(409).json(body);
+    return;
+  }
   markRoundStatus(parentUUID, roundId, skipped ? "skipped" : "planned");
 
   const workspace = getWorkspace(parentUUID);

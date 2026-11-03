@@ -3,7 +3,9 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 
 import {
+  MAX_AI_MESSAGES,
   MAX_ROOMS,
+  MAX_TASK_TEXT_LENGTH,
   type AiChatMessage,
   type DraftWorkflowRequest,
   type DraftWorkflowResponse,
@@ -43,10 +45,10 @@ const ActivityDraft = z.object({
 });
 
 const TaskDraft = z.object({
-  goal: z.string().min(1).max(500),
-  instructions: z.array(z.string().max(500)).max(20),
-  resources: z.array(z.string().max(500)).max(20),
-  checklist: z.array(z.string().min(1).max(500)).max(6),
+  goal: z.string().min(1).max(MAX_TASK_TEXT_LENGTH),
+  instructions: z.array(z.string().max(MAX_TASK_TEXT_LENGTH)).max(20),
+  resources: z.array(z.string().max(MAX_TASK_TEXT_LENGTH)).max(20),
+  checklist: z.array(z.string().min(1).max(MAX_TASK_TEXT_LENGTH)).max(6),
 });
 
 const RoundDraft = z.object({
@@ -90,7 +92,7 @@ const SYSTEM_PROMPT = `You design breakout-room workflows for a Zoom meeting hos
 
 A workflow is a list of rounds. In each round the participants split into breakout rooms for a set time.
 - title: a round's title, or null. A null title shows as "Round 1", "Round 2" and so on, so use null instead of a title that only repeats the round number.
-- roomNames: one name per room. The number of names is the room count. Use short names that fit the activity, or "Room 1", "Room 2" and so on.
+- roomNames: one name per room. The number of names is the room count. Use short names that fit the activity, or "Room 1", "Room 2" and so on. Names within a round must all differ: when the host wants one name for every room, number them ("Team 1", "Team 2").
 - task: what every room works on. goal is one sentence; instructions are short steps; checklist items are things the room ticks off together. Use null for a round with no task.
 - activities: questions for participants. "individual" = each person writes a private answer to the host. "ideaBoard" = the room posts shared sticky notes. title is the question; description adds a clue or context, or is empty.
 - grouping: how people are grouped across rounds.
@@ -111,16 +113,14 @@ Rules:
 - Leave the autoStartNextRound flag false unless the host says to start automatically.
 `;
 
-const MAX_MESSAGES = 20;
-
 /** The request body: the chat so far, ending with the host's turn, and the last proposal when refining. */
 function validateRequest(input: unknown): DraftWorkflowRequest {
   if (typeof input !== "object" || input === null) {
     throw new AiError("The request body must be an object.", 400);
   }
   const { messages, draft } = input as Record<string, unknown>;
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
-    throw new AiError(`messages must contain 1 to ${MAX_MESSAGES} messages.`, 400);
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_AI_MESSAGES) {
+    throw new AiError(`messages must contain 1 to ${MAX_AI_MESSAGES} messages.`, 400);
   }
   const chat = messages.map((message: unknown, index: number): AiChatMessage => {
     const { role, text } = (message ?? {}) as Record<string, unknown>;
@@ -161,13 +161,34 @@ function refusalText(response: OpenAI.Responses.Response): string | null {
   return null;
 }
 
+/**
+ * The store refuses repeated room names in a round, so a name the model repeats
+ * is numbered: ["Team", "Team", "Lab"] becomes ["Team 1", "Team 2", "Lab"].
+ */
+function distinctRoomNames(names: string[]): string[] {
+  const trimmed = names.map((name) => name.trim());
+  const counts = new Map<string, number>();
+  for (const name of trimmed) counts.set(name.toLowerCase(), (counts.get(name.toLowerCase()) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return trimmed.map((name) => {
+    const key = name.toLowerCase();
+    if (counts.get(key) === 1) return name;
+    const number = (seen.get(key) ?? 0) + 1;
+    seen.set(key, number);
+    return `${name} ${number}`;
+  });
+}
+
 /** Maps the grouping to the workspace flags, adds the ids the stores need and converts minutes to seconds. */
 export function toSnapshot({ grouping, ...draft }: WorkflowDraft): WorkflowSnapshot {
   return {
     ...draft,
     ...GROUPING_FLAGS[grouping],
-    rounds: draft.rounds.map(({ durationMinutes, task, activities, ...round }) => ({
+    rounds: draft.rounds.map(({ durationMinutes, task, activities, title, roomNames, ...round }) => ({
       ...round,
+      // The store refuses a blank title; null shows as "Round N".
+      title: title?.trim() || null,
+      roomNames: distinctRoomNames(roomNames),
       durationSec: durationMinutes * 60,
       task: task
         ? { ...task, checklist: task.checklist.map((label) => ({ id: crypto.randomUUID(), label })) }

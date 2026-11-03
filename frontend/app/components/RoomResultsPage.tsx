@@ -6,9 +6,21 @@ import type { Activity, CheckListItem, PlannedRoom, RoomResponsesHostView } from
 
 import { Card, SectionLabel, StatusDot } from "./ui";
 
+/** Where a planned person is while rooms are open. */
+export type RoomPresence = "room" | "main" | "elsewhere" | "left";
+
+const PRESENCE_LABELS: Record<RoomPresence, string> = {
+  room: "In room",
+  main: "In main room",
+  elsewhere: "In another room",
+  left: "Not in meeting",
+};
+
 export interface RoomPerson {
   participantUUID: string;
   name: string;
+  /** Null once the rooms are closed: everyone is back in the main room. */
+  presence: RoomPresence | null;
 }
 
 /**
@@ -59,6 +71,11 @@ export default function RoomResultsPage({
                 {initialsFrom(person.name)}
               </span>
               <span className="bw-results__person-name" title={person.name}>{person.name}</span>
+              {person.presence ? (
+                <span className={`bw-room-member__status bw-room-member__status--${person.presence === "room" ? "done" : "open"}`}>
+                  {PRESENCE_LABELS[person.presence]}
+                </span>
+              ) : null}
             </div>
           ))}
         </section>

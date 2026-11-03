@@ -1,4 +1,11 @@
-import type { Activity, CheckListItem, RoomTask, RoundTasks, SaveRoundTasksRequest } from "../types/breakout.ts";
+import {
+  MAX_TASK_TEXT_LENGTH,
+  type Activity,
+  type CheckListItem,
+  type RoomTask,
+  type RoundTasks,
+  type SaveRoundTasksRequest,
+} from "../types/breakout.ts";
 import { pruneResponses } from "./activity_responses.ts";
 import { bumpTaskRevision } from "./live.ts";
 
@@ -8,7 +15,6 @@ const tasks = new Map<string, RoundTasks>();
 const MAX_ACTIVITIES = 6;
 const CHECKLIST_ITEMS = 6;
 const MAX_LINES = 20;
-const MAX_LINE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 2000;
 
 export class TaskError extends Error {
@@ -43,9 +49,9 @@ function stringLines(value: unknown, field: string): string[] {
   }
   return value
     .map((line: unknown, index: number) => {
-      if (typeof line !== "string" || line.length > MAX_LINE_LENGTH) {
+      if (typeof line !== "string" || line.length > MAX_TASK_TEXT_LENGTH) {
         throw new TaskError(
-          `${field}[${index}] must be a string of at most ${MAX_LINE_LENGTH} characters.`,
+          `${field}[${index}] must be a string of at most ${MAX_TASK_TEXT_LENGTH} characters.`,
           400,
         );
       }
@@ -56,7 +62,9 @@ function stringLines(value: unknown, field: string): string[] {
 
 function validateRoomTask(value: unknown, field: string): RoomTask {
   if (!isRecord(value)) throw new TaskError(`${field} must be an object.`, 400);
-  if (typeof value.goal !== "string") throw new TaskError(`${field}.goal must be a string.`, 400);
+  if (typeof value.goal !== "string" || value.goal.length > MAX_TASK_TEXT_LENGTH) {
+    throw new TaskError(`${field}.goal must be a string of at most ${MAX_TASK_TEXT_LENGTH} characters.`, 400);
+  }
   return {
     // May be empty: a host can write steps or a checklist before the goal.
     goal: value.goal.trim(),
@@ -67,11 +75,11 @@ function validateRoomTask(value: unknown, field: string): RoomTask {
   };
 }
 
-/** Non-empty, trimmed, at most MAX_LINE_LENGTH characters. for activities */
+/** Non-empty, trimmed, at most MAX_TASK_TEXT_LENGTH characters. for activities */
 function title(value: unknown, field: string): string {
   const text = requiredString(value, field).trim();
-  if (text.length > MAX_LINE_LENGTH) {
-    throw new TaskError(`${field} must be at most ${MAX_LINE_LENGTH} characters.`, 400);
+  if (text.length > MAX_TASK_TEXT_LENGTH) {
+    throw new TaskError(`${field} must be at most ${MAX_TASK_TEXT_LENGTH} characters.`, 400);
   }
   return text;
 }
@@ -138,7 +146,8 @@ function validateActivities(value: unknown): Activity[] {
   return activities;
 }
 
-function validateSaveRequest(input: unknown): Omit<SaveRoundTasksRequest, "expectedRevision"> {
+/** Checks and copies a task record without saving it. Replace calls it before it deletes anything. */
+export function validateRoundTasks(input: unknown): Omit<SaveRoundTasksRequest, "expectedRevision"> {
   if (!isRecord(input)) throw new TaskError("The tasks must be an object.", 400);
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const roundId = requiredString(input.roundId, "roundId");
@@ -182,7 +191,7 @@ export function getRoundTasks(parentUUID: unknown, roundId: unknown): RoundTasks
 
 /** Create (expectedRevision 0) or replace. Whole record each time; no partial merge. */
 export function saveRoundTasks(input: unknown, expectedRevision: unknown): RoundTasks {
-  const draft = validateSaveRequest(input);
+  const draft = validateRoundTasks(input);
   const stored = tasks.get(key(draft.parentUUID, draft.roundId));
   const currentRevision = checkRevision(stored, expectedRevision);
 

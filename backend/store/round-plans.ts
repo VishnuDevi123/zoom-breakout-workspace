@@ -41,7 +41,8 @@ function planKey(parentUUID: unknown, roundId: unknown): string {
   ]);
 }
 
-function validateDraft(input: unknown): RoundPlanDraft {
+/** Checks and copies a draft without saving it. Replace calls it before it deletes anything. */
+export function validateRoundPlan(input: unknown): RoundPlanDraft {
   if (!isRecord(input)) {
     throw new RoundPlanError("The round plan must be an object.", 400);
   }
@@ -172,7 +173,7 @@ export function saveRoundPlan(
   input: unknown,
   expectedRevision: unknown,
 ): RoundPlan {
-  const draft = validateDraft(input);
+  const draft = validateRoundPlan(input);
   if (
     typeof expectedRevision !== "number" ||
     !Number.isSafeInteger(expectedRevision) ||
@@ -203,3 +204,4 @@ export function saveRoundPlan(
 export function deleteRoundPlan(parentUUID: string, roundId: string) {
   plans.delete(planKey(parentUUID, roundId));
 }
+

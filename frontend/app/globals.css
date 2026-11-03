@@ -1786,6 +1786,9 @@ input[type="checkbox"] {
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 .bw-expanding[data-open] {
+  /* Four lines at most; longer text scrolls inside the field. */
+  max-height: calc(var(--bw-expanding-closed) + 3lh);
+  overflow-y: auto;
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -1800,6 +1803,12 @@ input[type="checkbox"] {
   .bw-expanding {
     transition: none;
   }
+}
+.bw-field__count {
+  align-self: flex-end;
+  font-size: var(--bw-fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--bw-muted-2);
 }
 .bw-goal-input:focus-visible {
   outline: 2px solid var(--bw-accent);
@@ -3326,22 +3335,27 @@ a.bw-resource-row:hover {
   box-shadow: inset 0 0 0 1px var(--bw-quiz-line);
   color: var(--bw-quiz-deep);
 }
-/* The scrollbar keeps its space but shows only while the body scrolls. */
-.bw-challenge-scroll {
+/* The scrollbar keeps its space but shows only while the body scrolls (useScrollReveal). */
+.bw-challenge-scroll,
+.bw-expanding {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-.bw-challenge-scroll[data-scrolling] {
+.bw-challenge-scroll[data-scrolling],
+.bw-expanding[data-scrolling] {
   scrollbar-color: var(--bw-border-strong) transparent;
 }
-.bw-challenge-scroll::-webkit-scrollbar {
+.bw-challenge-scroll::-webkit-scrollbar,
+.bw-expanding::-webkit-scrollbar {
   width: 6px;
 }
-.bw-challenge-scroll::-webkit-scrollbar-thumb {
+.bw-challenge-scroll::-webkit-scrollbar-thumb,
+.bw-expanding::-webkit-scrollbar-thumb {
   border-radius: 3px;
   background: transparent;
 }
-.bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb {
+.bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb,
+.bw-expanding[data-scrolling]::-webkit-scrollbar-thumb {
   background: var(--bw-border-strong);
 }
 .bw-challenge-scroll--capped {

@@ -9,6 +9,9 @@
 /** Most rooms one round can plan. Store, AI schema and editor all use it. */
 export const MAX_ROOMS = 20;
 
+/** Longest goal, step, checklist item or resource line. Store, AI schema and task editor all use it. */
+export const MAX_TASK_TEXT_LENGTH = 500;
+
 export const ROOM_DOTS = [
   "#fcb900",
   "#4262ff",
@@ -277,6 +280,9 @@ export interface ReplaceWorkflowRequest {
 }
 
 /** One turn of the AI builder chat. An assistant turn is the AI's question or a short note about its proposal. */
+/** Most messages one AI request carries. A longer chat sends its first message and the latest ones. */
+export const MAX_AI_MESSAGES = 20;
+
 export interface AiChatMessage {
   role: "host" | "assistant";
   text: string;

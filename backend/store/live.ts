@@ -17,7 +17,16 @@ interface LiveMeeting {
   taskRevision: number;
   roomRevisions: Record<string, number>;
   challengeRevision: number;
+  /** Where someone was when a participant_left arrived, kept to undo it if it was a room hop's ghost. */
+  recentLeaves: Map<string, { location: string; at: number }>;
 }
+
+/**
+ * A room-to-room move sends a ghost participant_left ("left the meeting") and a
+ * ghost participant_joined about 30 ms apart (verified 2026-11-02). A joined this
+ * soon after a left from a room puts the person back where they were.
+ */
+const GHOST_HOP_MS = 3000;
 // live state is stored in memory, so it will be lost on backend restart. 
 const live = new Map<string, LiveMeeting>();
 const listeners = new Map<string, Set<(state: LiveState) => void>>();
@@ -32,6 +41,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
             taskRevision: 0,
             roomRevisions: {},
             challengeRevision: 0,
+            recentLeaves: new Map(),
         });
     }
     return live.get(parentUUID)!;
@@ -218,6 +228,7 @@ function rosterLocation(meeting: LiveMeeting, roomId: string | null): string {
 // Zoom webhook body. Only the fields we read; Zoom owns the full shape.
 interface WebhookBody {
     event?: string;
+    event_ts?: number;
     payload?: {
         object?: {
             uuid?: string;
@@ -247,11 +258,12 @@ function learnRoom(meeting: LiveMeeting, parentUUID: string, participantUUID: st
     }
 }
 
+
 // Update one participant's location from a webhook event.
 // Entering a breakout room also fires participant_left (reason mentions "breakout")
 // and a participant_joined with a new user_id; both are ignored by the rules below.
 export function applyEvent(body: unknown): void {
-    const { event, payload } = body as WebhookBody
+    const { event, event_ts: at = Date.now(), payload } = body as WebhookBody
     const object = payload?.object
     const parentUUID = object?.uuid
     const participant = object?.participant
@@ -276,15 +288,21 @@ export function applyEvent(body: unknown): void {
         case "meeting.participant_left_breakout_room":
             entry.location = "main"
             break
-        case "meeting.participant_joined":
-            if (!wasKnown || entry.location === "left") entry.location = "main"
+        case "meeting.participant_joined": {
+            const leave = meeting.recentLeaves.get(participantUUID)
+            meeting.recentLeaves.delete(participantUUID)
+            if (entry.location !== "left" && wasKnown) break
+            const hop = leave && at - leave.at <= GHOST_HOP_MS && leave.location !== "main" && leave.location !== "left"
+            entry.location = hop ? leave.location : "main"
             break
+        }
         case "meeting.participant_role_changed":
             // Zoom says "co-host"; the SDK and this app say "coHost".
             entry.role = participant?.new_role === "host" ? "host" : participant?.new_role === "co-host" ? "coHost" : "attendee"
             break
         case "meeting.participant_left":
             if (participant?.leave_reason?.includes("breakout")) return
+            meeting.recentLeaves.set(participantUUID, { location: entry.location, at })
             entry.location = "left"
             break
         default:

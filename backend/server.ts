@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
 import helmet from "helmet";
 import dotenv from "dotenv";
 
@@ -46,9 +46,6 @@ app.use("/api/templates", templateRoutes);
 app.use("/api/ai", aiRoutes);
 // zoom OAuth callback route, only backend should handle this
 app.get("/auth/callback", (req, res) => {
-  console.log("Auth callback received");
-  console.log("Code:", req.query.code);
-
   res.send("Zoom OAuth callback reached backend.");
 });
 
@@ -70,6 +67,21 @@ app.get("/health", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.status(200).json(health());
 });
+
+// Last stop for errors no router handled: a bad JSON body, or a bug. Always the JSON
+// envelope, never Express's HTML page with its stack trace.
+const handleUnknownError: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
+  const status = (error as { status?: number }).status;
+  if (status === 400 || status === 413) {
+    const body: ApiResponse<never> = { success: false, error: "The request body could not be read." };
+    res.status(status).json(body);
+    return;
+  }
+  console.error("Unhandled error:", error);
+  const body: ApiResponse<never> = { success: false, error: "Something went wrong on the server. Try again." };
+  res.status(500).json(body);
+};
+app.use(handleUnknownError);
 
 app.listen(PORT, () => {
   console.log(`Express backend running on port ${PORT}`);

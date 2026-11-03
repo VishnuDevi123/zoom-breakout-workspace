@@ -33,7 +33,7 @@ import ChallengeCards from "./ChallengeCards";
 import EditTaskModal from "./EditTaskModal";
 import NotPlacedSheet from "./NotPlacedSheet";
 import PageFrame, { type FrameTab } from "./PageFrame";
-import RoomResultsPage from "./RoomResultsPage";
+import RoomResultsPage, { type RoomPerson, type RoomPresence } from "./RoomResultsPage";
 import SessionPage from "./SessionPage";
 import { BrandMark, Button, Card, ConfirmModal, Pill, StatusDot } from "./ui";
 import ZoomActionOverlay from "./ZoomActionOverlay";
@@ -211,13 +211,18 @@ export default function LiveRound({
   });
   const goTo = (next: RoomsLevel) => setRooms({ roundId: round.roundId, level: next });
 
-  /** Everyone the plan puts in a room, named from the live store where it knows them. */
-  function peopleIn(roomId: string) {
+  /** Everyone the plan puts in a room, named from the live store where it knows them; where they are while rooms are open. */
+  function peopleIn(roomId: string): RoomPerson[] {
     const planned = round.rooms.find((room) => room.id === roomId)?.participantUUIDs ?? [];
-    return planned.map((participantUUID) => ({
-      participantUUID,
-      name: participants.find((p) => p.participantUUID === participantUUID)?.name || "Participant",
-    }));
+    const roomUUID = live.round?.roomUUIDs[roomId] ?? null;
+    return planned.map((participantUUID) => {
+      const known = participants.find((p) => p.participantUUID === participantUUID);
+      return {
+        participantUUID,
+        name: known?.name || "Participant",
+        presence: open ? presenceOf(known?.location, roomUUID) : null,
+      };
+    });
   }
 
   function membersOf(roomId: string): LiveParticipant[] {
@@ -514,6 +519,13 @@ function LiveRoomCard({
 }
 
 /** How far one room is through the running poll or quiz; null until it locks something in. */
+/** Where a planned person is while rooms are open. A room not entered yet has no uuid, so nobody is "in" it. */
+function presenceOf(location: string | undefined, roomUUID: string | null): RoomPresence {
+  if (!location || location === "left") return "left";
+  if (location === "main") return "main";
+  return location === roomUUID ? "room" : "elsewhere";
+}
+
 function challengeProgress(challenge: ChallengeView, roomId: string): { answered: number; total: number } | null {
   const answers = challenge.results?.rooms.find((room) => room.roomId === roomId)?.answers ?? [];
   const answered = answers.filter((option) => option !== null).length;

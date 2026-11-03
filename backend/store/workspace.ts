@@ -10,8 +10,8 @@ import {
 } from "../types/breakout.ts";
 import { deleteRoundResponses } from "./activity_responses.ts";
 import { deleteRoundChallenges } from "./challenges.ts";
-import { deleteRoundPlan, getRoundPlan, saveRoundPlan } from "./round-plans.ts";
-import { deleteRoundTasks, getRoundTasks, saveRoundTasks } from "./tasks.ts";
+import { deleteRoundPlan, getRoundPlan, saveRoundPlan, validateRoundPlan } from "./round-plans.ts";
+import { deleteRoundTasks, getRoundTasks, saveRoundTasks, validateRoundTasks } from "./tasks.ts";
 import { addPastWorkflow } from "./templates.ts";
 
 // One record per meeting. Room lists live in round-plans, keyed by the same roundId.
@@ -263,25 +263,28 @@ export function endWorkflow(input: unknown): PastWorkflow[] {
   return addPastWorkflow(stored.parentUUID, snapshot);
 }
 
-/** Saves one restored round's rooms (no people) and its task. A round with neither stays bare. */
-function restoreRound(parentUUID: string, round: RoundMeta, position: number, snapshot: unknown): void {
+/** One restored round's rooms (no people) and its task, checked but not saved. A round with neither stays bare. */
+function restoredRound(parentUUID: string, round: RoundMeta, position: number, snapshot: unknown) {
   const source = isRecord(snapshot) ? snapshot : {};
   const roomNames: unknown[] = Array.isArray(source.roomNames) ? source.roomNames : [];
   const activities: unknown[] = Array.isArray(source.activities) ? source.activities : [];
 
-  if (roomNames.length > 0) {
-    const rooms = roomNames.map((name, index) => ({
-      id: crypto.randomUUID(),
-      name,
-      dot: ROOM_DOTS[index % ROOM_DOTS.length],
-      participantUUIDs: [],
-    }));
-    const title = round.title ?? `Round ${position}`;
-    saveRoundPlan({ parentUUID, roundId: round.roundId, title, rooms, stayInMainParticipantUUIDs: [] }, 0);
-  }
-  if (source.task || activities.length > 0) {
-    saveRoundTasks({ parentUUID, roundId: round.roundId, all: source.task ?? null, rooms: {}, activities }, 0);
-  }
+  const rooms = roomNames.map((name, index) => ({
+    id: crypto.randomUUID(),
+    name,
+    dot: ROOM_DOTS[index % ROOM_DOTS.length],
+    participantUUIDs: [],
+  }));
+  const title = round.title ?? `Round ${position}`;
+  const plan =
+    rooms.length > 0
+      ? validateRoundPlan({ parentUUID, roundId: round.roundId, title, rooms, stayInMainParticipantUUIDs: [] })
+      : null;
+  const tasks =
+    source.task || activities.length > 0
+      ? validateRoundTasks({ parentUUID, roundId: round.roundId, all: source.task ?? null, rooms: {}, activities })
+      : null;
+  return { plan, tasks };
 }
 
 /**
@@ -310,7 +313,6 @@ export function replaceWorkflow(input: unknown): Workspace {
     })),
   });
 
-  for (const round of stored?.rounds ?? []) deleteRoundData(parentUUID, round.roundId);
   const saved: Workspace = {
     ...draft,
     rounds: draft.rounds.map((round, index) => ({
@@ -320,8 +322,15 @@ export function replaceWorkflow(input: unknown): Workspace {
     })),
     revision: currentRevision + 1,
   };
+  // Every round is checked before the old workflow is deleted, so a bad snapshot changes nothing.
+  const restored = saved.rounds.map((round, index) => restoredRound(parentUUID, round, index + 1, snapshotRounds[index]));
+
+  for (const round of stored?.rounds ?? []) deleteRoundData(parentUUID, round.roundId);
   workspaces.set(parentUUID, saved);
-  saved.rounds.forEach((round, index) => restoreRound(parentUUID, round, index + 1, snapshotRounds[index]));
+  for (const { plan, tasks } of restored) {
+    if (plan) saveRoundPlan(plan, 0);
+    if (tasks) saveRoundTasks(tasks, 0);
+  }
   return structuredClone(saved);
 }
 

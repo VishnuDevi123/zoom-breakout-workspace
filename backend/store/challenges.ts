@@ -211,6 +211,11 @@ export function revealChallenge(parentUUID: unknown, roundId: string, challengeI
   return getChallengesForHost(meeting, roundId);
 }
 
+/** Called when the round closes: a poll or quiz still open ends with it, so the host sees its results. */
+export function revealRoundChallenges(parentUUID: string, roundId: string): void {
+  for (const challenge of challenges.get(key(parentUUID, roundId)) ?? []) markRevealed(parentUUID, challenge);
+}
+
 /** The room's answers to an open question, after the caller and the timing are checked. */
 function openQuestion(room: RoomRef, challengeId: string, questionInput: string, request: unknown) {
   if (!isRecord(request)) throw new ResponseError("The request body must be an object.", 400);
