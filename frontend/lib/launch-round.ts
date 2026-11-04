@@ -1,6 +1,6 @@
 import { withZoomTimeout } from "@/lib/zoom-call";
 import type { ZoomSdk } from "@/lib/zoom-sdk";
-import type { MeetingRole, RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
+import type { MeetingRole, RoomLink, RosterEntry, RoundPlan, RoundPlanDraft } from "@/types/breakout";
 
 /**
  * Zoom is not ready the instant its previous call resolves: the room set stays
@@ -128,6 +128,27 @@ export async function assignToOpenRooms(
       sdk.assignParticipantToBreakoutRoom({ participantUUID, uuid: room.breakoutRoomId }),
     );
   }
+}
+
+/**
+ * Names the Zoom rooms webhooks could not: each person sits in a room whose webhook
+ * uuid is their `location`, and Zoom's room list says which named room holds them.
+ * Room names match the plan's, as at launch. Only the meeting owner's list carries people.
+ */
+export async function readRoomLinks(
+  sdk: ZoomSdk,
+  plan: RoundPlanDraft,
+  people: { participantUUID: string; location: string }[],
+): Promise<RoomLink[]> {
+  const { rooms, state } = await withZoomTimeout("Read breakout rooms", sdk.getBreakoutRoomList());
+  if (state !== "open") return [];
+  return people.flatMap(({ participantUUID, location }) => {
+    const zoomRoom = rooms.find((room) =>
+      room.participants?.some((person) => person.participantUUID === participantUUID && person.participantStatus === "joined"),
+    );
+    const planned = plan.rooms.find((room) => room.name === zoomRoom?.name);
+    return planned ? [{ roomId: planned.id, roomUUID: location }] : [];
+  });
 }
 
 /** The SDK's role string as a meeting role; anything unknown is an attendee. */

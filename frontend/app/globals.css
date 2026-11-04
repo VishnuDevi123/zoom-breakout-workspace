@@ -2574,6 +2574,16 @@ a.bw-resource-row:hover {
   gap: 10px;
   min-width: 0;
 }
+.bw-results__person-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bw-results__person-text .bw-room-member__status {
+  font-size: var(--bw-fs-label);
+  font-weight: 400;
+}
 .bw-results__person-name {
   flex: 1;
   min-width: 0;
@@ -2967,6 +2977,22 @@ a.bw-resource-row:hover {
 }
 .bw-room-member__status--done {
   color: var(--bw-teal-deep);
+}
+/* Host's room page: move someone to another open room. Quiet until used. */
+.bw-person-move {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--bw-border-soft);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-label);
+  color: var(--bw-accent);
+  cursor: pointer;
+}
+.bw-person-move:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: 1px;
 }
 /* Shared checklist (room page and board page) */
 .bw-checklist {

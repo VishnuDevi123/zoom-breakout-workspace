@@ -14,6 +14,7 @@ import type {
   RemoveIdeaRequest,
   RoomResponsesHostView,
   RoomResponsesView,
+  RoomLink,
   RosterEntry,
   RoundPlanDraft,
   RoundTasks,
@@ -259,6 +260,17 @@ export async function postRoster(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID, participants }),
+    }),
+  );
+}
+
+/** Which Zoom room each planned room runs in, read from Zoom's room list by the host. */
+export async function postRoomLinks(parentUUID: string, roundId: string, links: RoomLink[]): Promise<LiveState> {
+  return apiResult(
+    await fetch("/api/live/room-links", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentUUID, roundId, links }),
     }),
   );
 }

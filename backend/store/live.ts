@@ -1,11 +1,12 @@
 import {
   type LiveParticipant,
+  type RoomLink,
   type LiveRound,
   type LiveState,
   type RosterEntry,
   type SetRoomStatusRequest,
 } from "../types/breakout.ts";
-import {getRoundPlan } from "./round-plans.ts";
+import { getRoundPlan, moveToPlannedRoom } from "./round-plans.ts";
 
 // tracking the current live state participant, rooms and rounds and push any updates to the store
 
@@ -16,6 +17,7 @@ interface LiveMeeting {
   timer?: ReturnType<typeof setTimeout>;
   taskRevision: number;
   roomRevisions: Record<string, number>;
+  planRevision: number;
   challengeRevision: number;
   /** Where someone was when a participant_left arrived, kept to undo it if it was a room hop's ghost. */
   recentLeaves: Map<string, { location: string; at: number }>;
@@ -40,6 +42,7 @@ function meetingFor(parentUUID: string): LiveMeeting{
             participants: new Map(),
             taskRevision: 0,
             roomRevisions: {},
+            planRevision: 0,
             challengeRevision: 0,
             recentLeaves: new Map(),
         });
@@ -56,6 +59,7 @@ export function getLive(parentUUID: string): LiveState{
         participants: [...liveMeeting.participants.values()],
         taskRevision: liveMeeting.taskRevision,
         roomRevisions: { ...liveMeeting.roomRevisions },
+        planRevision: liveMeeting.planRevision,
         challengeRevision: liveMeeting.challengeRevision,
     }
 }
@@ -253,11 +257,46 @@ function learnRoom(meeting: LiveMeeting, parentUUID: string, participantUUID: st
     const plan = getRoundPlan(parentUUID, meeting.round.roundId)
     if (!plan) return
     const room = plan.rooms.find((r) => r.participantUUIDs.includes(participantUUID))
-    if (room && meeting.round.roomUUIDs[room.id] === null) {
+    // A Zoom room already linked to another planned room was linked by its own people or by the host's room list.
+    const linked = Object.values(meeting.round.roomUUIDs).includes(roomUUID)
+    if (room && meeting.round.roomUUIDs[room.id] === null && !linked) {
         meeting.round.roomUUIDs[room.id] = roomUUID
     }
 }
 
+/**
+ * Someone Zoom reports in a linked room the plan does not put them in was moved
+ * there (Zoom's Breakout Rooms window, or Move in this app). The running round's
+ * plan follows, so their room page, the room cards and "Same groups" agree with Zoom.
+ * The host and co-hosts visit rooms on their own and are never placed.
+ */
+function followMove(meeting: LiveMeeting, parentUUID: string, participant: LiveParticipant): void {
+    if (!meeting.round || participant.role !== "attendee") return
+    const roomId = Object.keys(meeting.round.roomUUIDs).find((id) => meeting.round!.roomUUIDs[id] === participant.location)
+    if (!roomId) return
+    if (moveToPlannedRoom(parentUUID, meeting.round.roundId, participant.participantUUID, roomId)) meeting.planRevision += 1
+}
+
+/**
+ * Links read by the host from Zoom's room list (matched by room name). They win
+ * over a link learned from webhooks, which can be wrong when the first person in
+ * a room was moved there. Refused (null) when the round is not the running one.
+ */
+export function linkRooms(parentUUID: string, roundId: string, links: RoomLink[]): LiveState | null {
+    const meeting = meetingFor(parentUUID)
+    const round = meeting.round
+    if (!round || round.roundId !== roundId) return null
+    for (const { roomId, roomUUID } of links) {
+        if (!(roomId in round.roomUUIDs)) continue
+        for (const id of Object.keys(round.roomUUIDs)) {
+            if (round.roomUUIDs[id] === roomUUID) round.roomUUIDs[id] = null
+        }
+        round.roomUUIDs[roomId] = roomUUID
+    }
+    for (const participant of meeting.participants.values()) followMove(meeting, parentUUID, participant)
+    notify(parentUUID)
+    return getLive(parentUUID)
+}
 
 // Update one participant's location from a webhook event.
 // Entering a breakout room also fires participant_left (reason mentions "breakout")
@@ -284,6 +323,7 @@ export function applyEvent(body: unknown): void {
             if (!object?.breakout_room_uuid) return
             entry.location = object.breakout_room_uuid
             learnRoom(meeting, parentUUID, participantUUID, object.breakout_room_uuid)
+            followMove(meeting, parentUUID, entry)
             break
         case "meeting.participant_left_breakout_room":
             entry.location = "main"

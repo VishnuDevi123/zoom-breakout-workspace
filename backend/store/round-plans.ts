@@ -205,3 +205,28 @@ export function deleteRoundPlan(parentUUID: string, roundId: string) {
   plans.delete(planKey(parentUUID, roundId));
 }
 
+/**
+ * Puts one person in one room of a saved plan, out of every other room and out of
+ * "stay in main". Used to follow a move Zoom already made. False when nothing changed.
+ */
+export function moveToPlannedRoom(
+  parentUUID: string,
+  roundId: string,
+  participantUUID: string,
+  roomId: string,
+): boolean {
+  const plan = getRoundPlan(parentUUID, roundId);
+  const target = plan?.rooms.find((room) => room.id === roomId);
+  if (!plan || !target || target.participantUUIDs.includes(participantUUID)) return false;
+
+  const rooms = plan.rooms.map((room) => ({
+    ...room,
+    participantUUIDs:
+      room.id === roomId
+        ? [...room.participantUUIDs, participantUUID]
+        : room.participantUUIDs.filter((uuid) => uuid !== participantUUID),
+  }));
+  const stayInMainParticipantUUIDs = plan.stayInMainParticipantUUIDs.filter((uuid) => uuid !== participantUUID);
+  saveRoundPlan({ ...plan, rooms, stayInMainParticipantUUIDs }, plan.revision);
+  return true;
+}

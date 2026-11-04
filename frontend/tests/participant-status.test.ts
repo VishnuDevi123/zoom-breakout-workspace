@@ -17,6 +17,7 @@ function liveWith(participants: LiveParticipant[], roomUUID: string | null): Liv
     participants,
     taskRevision: 0,
     roomRevisions: {},
+    planRevision: 0,
     challengeRevision: 0,
   };
 }

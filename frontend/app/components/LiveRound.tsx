@@ -81,6 +81,7 @@ export default function LiveRound({
   onLaunchNext,
   onEndWorkflow,
   onPlace,
+  onMove,
   plans,
   onAddRound,
   onUpdateRound,
@@ -103,6 +104,8 @@ export default function LiveRound({
   onEndWorkflow: () => Promise<void>;
   /** Saves the round with people added to rooms and moves them in Zoom. Reports its own errors. */
   onPlace: (next: RoundPlanDraft) => Promise<void>;
+  /** Asks Zoom to move someone to another open room; the plan follows when Zoom reports it. Reports its own errors. */
+  onMove: (person: { participantUUID: string; name: string }, roomName: string) => Promise<void>;
   /** Every round's saved plan, for the Session page's room summaries. */
   plans: Record<string, RoundPlan | null>;
   onAddRound: () => Promise<void>;
@@ -329,6 +332,8 @@ export default function LiveRound({
             room={openRoom}
             people={peopleIn(openRoom.id)}
             presentCount={membersOf(openRoom.id).length}
+            otherRooms={open ? round.rooms.filter((room) => room.id !== openRoom.id) : []}
+            onMove={onMove}
             checklist={tasks.task.checklist}
             activities={tasks.activities}
             results={results}

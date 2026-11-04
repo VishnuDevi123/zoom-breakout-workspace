@@ -106,8 +106,23 @@ export interface LiveState {
   taskRevision: number;
   /** roomId -> counter, bumped on every response write in that room. Clients refetch their own room only. */
   roomRevisions: Record<string, number>;
+  /** Bumped when the backend moves someone in the running round's plan to follow a Zoom move; the host refetches plans. */
+  planRevision: number;
   /** Bumped when the host launches or reveals a poll or quiz; every client refetches /api/challenges. */
   challengeRevision: number;
+}
+
+/** One planned room and the webhook uuid of the Zoom room it runs in, read by the host from Zoom's room list. */
+export interface RoomLink {
+  roomId: string;
+  roomUUID: string;
+}
+
+/** POST /api/live/room-links. Links win over links learned from webhooks. */
+export interface LinkRoomsRequest {
+  parentUUID: string;
+  roundId: string;
+  links: RoomLink[];
 }
 
 /** One person the Zoom SDK reports present when the host opens the app. */

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
 import { revealRoundChallenges } from "../store/challenges.ts";
-import { applyRoster, extendRound, getLive, markClosedRound, markLaunchedRound, setRoomStatus, subscribe } from "../store/live.ts";
-import type { ApiResponse, LiveActionResponse, LiveState, RoomStatus, RosterEntry, Workspace } from "../types/breakout.ts";
+import { applyRoster, extendRound, getLive, linkRooms, markClosedRound, markLaunchedRound, setRoomStatus, subscribe } from "../store/live.ts";
+import type { ApiResponse, LiveActionResponse, LiveState, RoomLink, RoomStatus, RosterEntry, Workspace } from "../types/breakout.ts";
 
 const router = Router();
 
@@ -220,6 +220,38 @@ router.post("/roster", (req, res) => {
   const state = applyRoster(parentUUID, participants);
   const present = state.participants.filter((p) => p.location !== "left").length;
   console.log(`roster: ${participants.length} from Zoom for ${parentUUID}, ${present} now present`);
+  const body: ApiResponse<LiveState> = { success: true, data: state };
+  res.json(body);
+});
+
+function isRoomLink(value: unknown): value is RoomLink {
+  const link = value as Partial<RoomLink> | null;
+  return typeof link?.roomId === "string" && link.roomId.length > 0 && typeof link.roomUUID === "string" && link.roomUUID.length > 0;
+}
+
+/**
+ * Which Zoom room each planned room runs in, read by the host from Zoom's room
+ * list when someone shows up in a room webhooks could not name. 409 when the
+ * round is no longer running.
+ */
+router.post("/room-links", (req, res) => {
+  const parentUUID = parentUUIDFrom(req.body?.parentUUID);
+  const roundId = parentUUIDFrom(req.body?.roundId);
+  const links: unknown = req.body?.links;
+  if (!parentUUID || !roundId || !Array.isArray(links) || links.length === 0 || !links.every(isRoomLink)) {
+    const body: ApiResponse<never> = {
+      success: false,
+      error: "parentUUID, roundId and a non-empty list of room links are required.",
+    };
+    res.status(400).json(body);
+    return;
+  }
+  const state = linkRooms(parentUUID, roundId, links);
+  if (!state) {
+    const body: ApiResponse<never> = { success: false, error: "This round is not running." };
+    res.status(409).json(body);
+    return;
+  }
   const body: ApiResponse<LiveState> = { success: true, data: state };
   res.json(body);
 });

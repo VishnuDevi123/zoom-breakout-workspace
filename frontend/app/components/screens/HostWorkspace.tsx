@@ -119,10 +119,11 @@ export default function HostWorkspace({
         : "landing"
       : view;
 
+  // planRevision: the backend moved someone in the running round's plan to follow a Zoom move.
   const { plans, reload: reloadPlans } = useRoundSummaries(
     meetingUUID,
     rounds.map((round) => round.roundId),
-    view,
+    `${view}:${live.liveState?.planRevision ?? 0}`,
   );
   const livePlan = liveRoundId ? (plans[liveRoundId] ?? null) : null;
   // The next round to run, not simply the next in the list: the host can skip
@@ -201,6 +202,29 @@ export default function HostWorkspace({
     controller.syncRoster();
   }, [runsRounds, liveKnown, runningRoundId, livePlan]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Someone is in a Zoom room the backend cannot name: they were moved there. The
+  // host's room list names it (only the meeting owner's list carries people).
+  const liveRound = live.liveState?.round ?? null;
+  const unknownRoomKey = (live.liveState?.participants ?? [])
+    .filter(
+      (person) =>
+        person.role === "attendee" &&
+        person.location !== "main" &&
+        person.location !== "left" &&
+        !Object.values(liveRound?.roomUUIDs ?? {}).includes(person.location),
+    )
+    .map((person) => `${person.participantUUID} ${person.location}`)
+    .join(",");
+  useEffect(() => {
+    if (!runsRounds || !unknownRoomKey || !livePlan || liveRound?.roundId !== livePlan.roundId) return;
+    controller.linkUnknownRooms(
+      unknownRoomKey.split(",").map((entry) => {
+        const [participantUUID, location] = entry.split(" ");
+        return { participantUUID, location };
+      }),
+    );
+  }, [runsRounds, unknownRoomKey, livePlan?.roundId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The backend owns the clock: it flips timerEnded and pushes it over SSE.
   const timerEnded = live.liveState?.round?.timerEnded ?? false;
   const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;
@@ -231,6 +255,21 @@ export default function HostWorkspace({
       });
     }
     reloadPlans();
+  }
+
+  /**
+   * Move from the room page: Zoom asks the person to join the other room. The plan
+   * is not written here; it follows once Zoom reports them there (backend followMove).
+   */
+  async function moveInLiveRound(person: { participantUUID: string; name: string }, roomName: string) {
+    try {
+      await controller.placeInOpenRooms([{ participantUUID: person.participantUUID, roomName }]);
+      toast.success(`${person.name} was asked to join ${roomName}.`);
+    } catch (error) {
+      toast.error(`Could not move ${person.name}.`, {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
   }
 
   /**
@@ -449,6 +488,7 @@ export default function HostWorkspace({
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
         onEndWorkflow={endWorkflow}
         onPlace={placeInLiveRound}
+        onMove={moveInLiveRound}
         plans={plans}
         onAddRound={addLiveRound}
         onUpdateRound={(roundId, patch) =>
