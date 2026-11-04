@@ -36,12 +36,19 @@ router.post("/launch", (req, res) => {
     (round) => round.roundId === roundId,
   );
   const durationSec = activeRound?.durationSec ?? 0;
+  const previousRoundId = getLive(parentUUID).round?.roundId;
 
   const state = markLaunchedRound(parentUUID, roundId, durationSec);
   if (!state) {
     const body: ApiResponse<never> = { success: false, error: "Round plan not found." };
     res.status(404).json(body);
     return;
+  }
+  // A launch replaces the live round, so an earlier one whose close report was lost
+  // is over. Close it as /close would, or End Workflow stays blocked.
+  if (previousRoundId && previousRoundId !== roundId) {
+    revealRoundChallenges(parentUUID, previousRoundId);
+    markRoundStatus(parentUUID, previousRoundId, "closed");
   }
   // Must run before getWorkspace below, or the reply carries the pre-bump revision.
   markRoundStatus(parentUUID, roundId, "launched");

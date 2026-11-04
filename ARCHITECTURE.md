@@ -61,7 +61,7 @@ save template     host     -> POST /api/templates (from a past workflow) or POST
 use template      host     -> POST /api/workspace/replace {snapshot}     samples and saved templates; refused once a round has run
 delete template   host     -> DELETE /api/templates/:templateId
 draft with AI     host     -> POST /api/ai/workflow {messages, draft}  (X-Zoom-App-Context) -> {kind:"question"} or {kind:"workflow", workflow}
-                  backend  -> OpenAI Responses API                     nothing saved; the chat is resent whole each turn
+                  backend  -> OpenAI Responses API                     nothing saved; the chat is resent each turn
 use AI proposal   host     -> POST /api/workspace/replace {snapshot}     same path and confirm as a template
 ```
 
@@ -103,7 +103,6 @@ Launch, close and skip reply with the workspace as well, because all three chang
 - No sign-in. The backend trusts the `participantUUID` a client sends; hiding drafts and other people's answers is a server filter, not a lock.
 - Zoom cannot add, rename or delete rooms while rooms are open, and only the meeting owner can read who is in each room.
 - Every capability in `ZOOM_CAPABILITIES` must stay ticked on the Marketplace API list, or `config()` fails with `reason:app_not_support`.
-- `replaceWorkflow` is not atomic: a snapshot that fails validation part way leaves the new workflow incomplete.
 - Submissions exist only until End Workflow, so a participant can review past rounds only while the workflow runs.
 - An AI reply takes 4–12 s. The landing progress bar is timed, not real. Cancel only stops the browser waiting; the backend still finishes the OpenAI call.
 - The AI chat lives only in the open landing page: closing the panel keeps it ("Continue your AI chat" reopens it), pressing Generate starts a new one, and leaving the landing page loses it.
