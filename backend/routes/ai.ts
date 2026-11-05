@@ -1,7 +1,7 @@
 import { Router, type ErrorRequestHandler } from "express";
 
 import { AiError, draftWorkflow } from "../services/ai.ts";
-import { AppContextError, ownerUidFrom } from "../services/app-context.ts";
+import { AppContextError, callerFrom } from "../services/app-context.ts";
 import type { ApiResponse, DraftWorkflowResponse } from "../types/breakout.ts";
 
 const router = Router();
@@ -11,10 +11,12 @@ router.use((_req, res, next) => {
   next();
 });
 
-// Host only, like /api/templates: every call spends the OpenAI key, so a request
-// without a signed-in Zoom user's X-Zoom-App-Context stops here with 401/403.
+// Host only: every call spends the OpenAI key. The request names no meeting (nothing
+// is saved), so only the token and its role are checked; failures stop here with 401/403.
 router.use((req, _res, next) => {
-  ownerUidFrom(req.get("X-Zoom-App-Context"));
+  if (callerFrom(req.get("X-Zoom-App-Context")).role !== "host") {
+    throw new AppContextError("Only the host can draft with AI.", 403);
+  }
   next();
 });
 

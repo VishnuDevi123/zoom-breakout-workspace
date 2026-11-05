@@ -1,4 +1,5 @@
 import { Router, type ErrorRequestHandler } from "express";
+import { anyoneInMeeting, hostOrCoHost } from "../services/app-context.ts";
 
 import { parseRoom, ResponseError } from "../store/activity_responses.ts";
 import {
@@ -27,7 +28,7 @@ router.use((_req, res, next) => {
 });
 
 /** GET /api/challenges/:roundId?parentUUID=<meeting uuid>. The host's list, oldest first. */
-router.get("/:roundId", (req, res) => {
+router.get("/:roundId", hostOrCoHost, (req, res) => {
   const body: ApiResponse<ChallengeView[]> = {
     success: true,
     data: getChallengesForHost(req.query.parentUUID, req.params.roundId),
@@ -39,7 +40,7 @@ router.get("/:roundId", (req, res) => {
  * POST /api/challenges/:roundId. Body: LaunchChallengeRequest.
  * 409 when the round is not running or an earlier one still waits for its reveal.
  */
-router.post("/:roundId", (req, res) => {
+router.post("/:roundId", hostOrCoHost, (req, res) => {
   const body: ApiResponse<ChallengeView[]> = {
     success: true,
     data: launchChallenge(req.body?.parentUUID, req.params.roundId, req.body?.draft),
@@ -48,7 +49,7 @@ router.post("/:roundId", (req, res) => {
 });
 
 /** POST /api/challenges/:roundId/:challengeId/reveal. Body: RevealChallengeRequest. */
-router.post("/:roundId/:challengeId/reveal", (req, res) => {
+router.post("/:roundId/:challengeId/reveal", hostOrCoHost, (req, res) => {
   const { roundId, challengeId } = req.params;
   const body: ApiResponse<ChallengeView[]> = {
     success: true,
@@ -58,7 +59,7 @@ router.post("/:roundId/:challengeId/reveal", (req, res) => {
 });
 
 /** GET /api/challenges/:roundId/rooms/:roomId?parentUUID&participantUUID. Null when none was launched. */
-router.get("/:roundId/rooms/:roomId", (req, res) => {
+router.get("/:roundId/rooms/:roomId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId } = req.params;
   const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
   const body: ApiResponse<ChallengeView | null> = {
@@ -69,7 +70,7 @@ router.get("/:roundId/rooms/:roomId", (req, res) => {
 });
 
 /** PUT /api/challenges/:roundId/:challengeId/rooms/:roomId/picks/:question. Body: ChallengeAnswerRequest. */
-router.put("/:roundId/:challengeId/rooms/:roomId/picks/:question", (req, res) => {
+router.put("/:roundId/:challengeId/rooms/:roomId/picks/:question", anyoneInMeeting, (req, res) => {
   const { roundId, challengeId, roomId, question } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   const body: ApiResponse<ChallengeView | null> = {
@@ -83,7 +84,7 @@ router.put("/:roundId/:challengeId/rooms/:roomId/picks/:question", (req, res) =>
  * POST /api/challenges/:roundId/:challengeId/rooms/:roomId/locks/:question. Body: ChallengeAnswerRequest.
  * 409 when the room already locked the question, or time is up.
  */
-router.post("/:roundId/:challengeId/rooms/:roomId/locks/:question", (req, res) => {
+router.post("/:roundId/:challengeId/rooms/:roomId/locks/:question", anyoneInMeeting, (req, res) => {
   const { roundId, challengeId, roomId, question } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   const body: ApiResponse<ChallengeView | null> = {

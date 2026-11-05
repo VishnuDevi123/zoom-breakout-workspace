@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { anyoneInMeeting, hostOnly, hostOrCoHost } from "../services/app-context.ts";
 import {getWorkspace, markRoundStatus} from "../store/workspace.ts"
 import { revealRoundChallenges } from "../store/challenges.ts";
 import { applyRoster, extendRound, getLive, linkRooms, markClosedRound, markLaunchedRound, setRoomStatus, subscribe } from "../store/live.ts";
@@ -11,7 +12,7 @@ function parentUUIDFrom(value: unknown): string | null {
 }
 
 /** Current live state for one meeting. Used by Refresh and debugging. */
-router.get("/", (req, res) => {
+router.get("/", anyoneInMeeting, (req, res) => {
   const parentUUID = parentUUIDFrom(req.query.parentUUID);
   if (!parentUUID) {
     const body: ApiResponse<never> = { success: false, error: "parentUUID is required." };
@@ -23,7 +24,7 @@ router.get("/", (req, res) => {
 });
 
 /** Frontend calls this after the Zoom SDK created, assigned and opened rooms. */
-router.post("/launch", (req, res) => {
+router.post("/launch", hostOnly, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const roundId = parentUUIDFrom(req.body?.roundId);
   if (!parentUUID || !roundId) {
@@ -65,7 +66,7 @@ router.post("/launch", (req, res) => {
 const MAX_ADJUST_SEC = 1800;
 
 /** Add or remove time on the running round. Negative seconds shorten it. */
-router.post("/extend", (req, res) => {
+router.post("/extend", hostOrCoHost, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const seconds = req.body?.seconds;
   // validate is seconds input is number
@@ -102,7 +103,7 @@ function isRoomStatus(value: unknown): value is RoomStatus {
  * A participant tells the host how their room is doing. Refused when the round is
  * not the running one (409) or the plan does not place the caller in the room (403).
  */
-router.post("/room-status", (req, res) => {
+router.post("/room-status", anyoneInMeeting, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const roundId = parentUUIDFrom(req.body?.roundId);
   const roomId = parentUUIDFrom(req.body?.roomId);
@@ -133,7 +134,7 @@ router.post("/room-status", (req, res) => {
 });
 
 /** Frontend calls this after the Zoom SDK closed rooms. */
-router.post("/close", (req, res) => {
+router.post("/close", hostOnly, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   if (!parentUUID) {
     const body: ApiResponse<never> = { success: false, error: "parentUUID is required." };
@@ -157,7 +158,7 @@ router.post("/close", (req, res) => {
  * A round that has run is refused; an unknown round is a no-op, so this only
  * ever reports the workspace as it now stands.
  */
-router.post("/skip", (req, res) => {
+router.post("/skip", hostOnly, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const roundId = parentUUIDFrom(req.body?.roundId);
   const skipped: unknown = req.body?.skipped;
@@ -212,7 +213,7 @@ function rosterFrom(value: unknown): RosterEntry[] | null {
  * An empty list is refused: a co-host's room list carries no people, and that
  * must not be read as everyone having left.
  */
-router.post("/roster", (req, res) => {
+router.post("/roster", hostOnly, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const participants = rosterFrom(req.body?.participants);
   if (!parentUUID || !participants) {
@@ -241,7 +242,7 @@ function isRoomLink(value: unknown): value is RoomLink {
  * list when someone shows up in a room webhooks could not name. 409 when the
  * round is no longer running.
  */
-router.post("/room-links", (req, res) => {
+router.post("/room-links", hostOnly, (req, res) => {
   const parentUUID = parentUUIDFrom(req.body?.parentUUID);
   const roundId = parentUUIDFrom(req.body?.roundId);
   const links: unknown = req.body?.links;
@@ -264,7 +265,7 @@ router.post("/room-links", (req, res) => {
 });
 
 /** Server-sent events: current state on connect, then every change until the client disconnects. */
-router.get("/events", (req, res) => {
+router.get("/events", anyoneInMeeting, (req, res) => {
   const parentUUID = parentUUIDFrom(req.query.parentUUID);
   if (!parentUUID) {
     const body: ApiResponse<never> = { success: false, error: "parentUUID is required." };

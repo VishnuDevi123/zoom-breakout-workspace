@@ -1,4 +1,5 @@
 import { Router, type ErrorRequestHandler } from "express";
+import { anyoneInMeeting, hostOnly } from "../services/app-context.ts";
 
 import { RoundPlanError } from "../store/round-plans.ts";
 import { TaskError } from "../store/tasks.ts";
@@ -23,7 +24,7 @@ router.use((_req, res, next) => {
 });
 
 // GET /api/workspace?parentUUID=<meeting uuid>
-router.get("/", (req, res) => {
+router.get("/", anyoneInMeeting, (req, res) => {
   const workspace = getWorkspace(req.query.parentUUID);
   if (!workspace) {
     const body: ApiResponse<never> = { success: false, error: "No workspace for this meeting." };
@@ -36,7 +37,7 @@ router.get("/", (req, res) => {
 });
 
 // PUT /api/workspace   body: SaveWorkspaceRequest. 201 on create (revision 1), 200 on update.
-router.put("/", (req, res) => {
+router.put("/", hostOnly, (req, res) => {
   const input: unknown = req.body;
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     throw new WorkspaceError("The request body must be an object.", 400);
@@ -49,34 +50,34 @@ router.put("/", (req, res) => {
 });
 
 // POST /api/workspace/rounds. The store validates every field.
-router.post("/rounds", (req, res) => {
+router.post("/rounds", hostOnly, (req, res) => {
   const saved = addRound(req.body?.parentUUID, req.body);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.status(201).json(body);
 });
 
 // DELETE /api/workspace/rounds/:roundId?parentUUID=<meeting uuid>
-router.delete("/rounds/:roundId", (req, res) => {
+router.delete("/rounds/:roundId", hostOnly, (req, res) => {
   const saved = deleteRound(req.query.parentUUID, req.params.roundId);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.json(body);
 });
 
 // POST /api/workspace/end   body: EndWorkflowRequest. Returns this meeting's past workflows.
-router.post("/end", (req, res) => {
+router.post("/end", hostOnly, (req, res) => {
   const past = endWorkflow(req.body);
   const body: ApiResponse<PastWorkflow[]> = { success: true, data: past };
   res.json(body);
 });
 
 // GET /api/workspace/past?parentUUID=<meeting uuid>, newest first.
-router.get("/past", (req, res) => {
+router.get("/past", hostOnly, (req, res) => {
   const body: ApiResponse<PastWorkflow[]> = { success: true, data: getPastWorkflows(req.query.parentUUID) };
   res.json(body);
 });
 
 // POST /api/workspace/replace   body: ReplaceWorkflowRequest. Only before the first launch.
-router.post("/replace", (req, res) => {
+router.post("/replace", hostOnly, (req, res) => {
   const saved = replaceWorkflow(req.body);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.json(body);

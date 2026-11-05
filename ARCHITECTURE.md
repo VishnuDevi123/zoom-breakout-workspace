@@ -44,11 +44,15 @@ reveal            host     -> POST /api/challenges/:roundId/:id/reveal  results 
 launch round N    frontend -> (Same groups) copy the last round's plan into round N
                   frontend -> SDK createBreakoutRooms, assign, configureBreakoutRooms, open
                   frontend -> POST /api/live/launch                      round live, timer armed, workspace status launched
+                                                                         (a round still live from a lost close is closed)
 +/- 1 min         frontend -> POST /api/live/extend                      new endsAt, timer re-armed (also the host's "Add 2 minutes" prompt)
 room status       participant -> POST /api/live/room-status            round.roomStatus[roomId]; pushed with the live state
 timer ends        backend  -> SSE  round.timerEnded = true              frontend closes, then launches the next if auto-start is on
 place mid-round   host     -> SDK getBreakoutRoomList, assignParticipantToBreakoutRoom; PUT the running round's plan
-participant moves Zoom     -> POST /api/webhooks/zoom                    participant location, room mapping learned
+move person       host     -> SDK getBreakoutRoomList, assignParticipantToBreakoutRoom (Move on the room page)
+participant moves Zoom     -> POST /api/webhooks/zoom                    participant location, room mapping learned;
+                                                                         a move to another planned room updates the plan
+link rooms        host     -> SDK getBreakoutRoomList; POST /api/live/room-links   when someone is in a room webhooks could not name
 close round N     frontend -> SDK getBreakoutRoomList, closeBreakoutRooms when still open
                   frontend -> POST /api/live/close                       round cleared, people back to "main", status closed
 skip round        frontend -> POST /api/live/skip                        status skipped <-> planned
@@ -71,7 +75,7 @@ Launch, close and skip reply with the workspace as well, because all three chang
 
 - Meeting key: `parentUUID ?? meetingUUID` from `getMeetingUUID()`, equal to `payload.object.uuid` in webhooks. Inside a breakout room `meetingUUID` is the room, so every store uses the parent.
 - Participant key: `participantUUID` (`participant_uuid` in webhooks). Never `participantId` or `user_id`; Zoom reissues those on every room hop.
-- Plan rooms have app-owned ids; Zoom room ids never enter a plan. The SDK's `breakoutRoomId` and the webhook's `breakout_room_uuid` differ and cannot be mapped; `store/live.ts` learns the webhook uuid from the first planned person who enters.
+- Plan rooms have app-owned ids; Zoom room ids never enter a plan. The SDK's `breakoutRoomId` and the webhook's `breakout_room_uuid` differ and cannot be mapped; `store/live.ts` learns the webhook uuid from the first planned person who enters, and the host's app can link a room by reading Zoom's room list.
 - Round ids are stable (`round-N`, next = highest + 1). Display order comes from the array, never the id. A null title shows as "Round N".
 - AI requests use the same `X-Zoom-App-Context` check as templates (a signed-in Zoom user, not a guest), so nobody outside Zoom can spend the OpenAI key. The `uid` is checked, not stored.
 - Template owner: `uid` (the Zoom user id) inside the encrypted `getAppContext()` token. The host's app sends the token as `X-Zoom-App-Context`; `services/app-context.ts` decrypts it (AES-256-GCM, key = SHA-256 of `ZOOM_CLIENT_SECRET`), checks `exp` and refuses guests, who carry `iid` and no `uid`. The browser never sends a user id, and the same `uid` follows the account across meetings and devices.
@@ -79,12 +83,13 @@ Launch, close and skip reply with the workspace as well, because all three chang
 ## Principles
 
 - Roles: the meeting host runs the session (plan, launch, close, skip, end). A co-host only places people mid-round, edits the running round's task and activities, adjusts its time, and launches or reveals polls and quizzes. Zoom's app context carries no role, so this is a frontend rule.
-- The frontend only interacts with Zoom to lauch breakout rooms, and also from three places: Launch workflow, End round / Launch next, and the live "Not yet placed" sheet.
+- The frontend runs Zoom breakout actions from four places only: Launch workflow, End round / Launch next, the live "Not yet placed" sheet, and Move on the host's room page.
 - Webhooks are the source of live state after host joins. The SDK is read once at a time for:
   1. `getBreakoutRoomList()` when the app opens on a round the backend still calls live.
   2. `getBreakoutRoomList()` again before `closeBreakoutRooms`, to skip a close Zoom does not need.
   3. The roster read when the host opens the app: `getBreakoutRoomList()`, or `getMeetingParticipants()` when no rooms are open.
-  4. `getBreakoutRoomList()` once per placement from the "Not yet placed" sheet, to learn Zoom's room ids.
+  4. `getBreakoutRoomList()` once per placement from the "Not yet placed" sheet or per Move, to learn Zoom's room ids.
+  5. `getBreakoutRoomList()` when webhooks report someone in a room no planned room is linked to, to name that room.
 - The backend records what the frontend reports and what Zoom sends; it never verifies against Zoom.
 - The SSE stream carries counters (`taskRevision`, `roomRevisions`, `challengeRevision`), never content; clients refetch what changed. The one exception is `round.roomStatus`, one status word per room, which is not room content and is safe for every client to see.
 - Writes replace whole records under a revision check, so a stale write gets 409 instead of overwriting someone else's edit.

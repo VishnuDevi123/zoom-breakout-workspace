@@ -1,4 +1,5 @@
 import { Router, type ErrorRequestHandler } from "express";
+import { anyoneInMeeting, hostOrCoHost } from "../services/app-context.ts";
 
 import { getRoundPlan, RoundPlanError, saveRoundPlan } from "../store/round-plans.ts";
 import type { ApiResponse, RoundPlan, SaveRoundPlanRequest } from "../types/breakout.ts";
@@ -14,7 +15,7 @@ router.use((_req, res, next) => {
 
 // server.ts mounts this router at /api/rounds:
 // GET /api/rounds/round-1/rooms?parentUUID=<meeting ID>
-router.get("/:roundId/rooms", (req, res) => {
+router.get("/:roundId/rooms", anyoneInMeeting, (req, res) => {
   // Query/URL parameters choose which draft to read. The meeting ID is a storage
   // key, not proof of authorization; session authentication remains separate.
   const plan = getRoundPlan(req.query.parentUUID, req.params.roundId);
@@ -30,7 +31,7 @@ router.get("/:roundId/rooms", (req, res) => {
 
 // PUT replaces the selected draft, not Zoom rooms. A new draft uses
 // expectedRevision: 0; updates use the revision returned by the last GET/PUT.
-router.put("/:roundId/rooms", (req, res) => {
+router.put("/:roundId/rooms", hostOrCoHost, (req, res) => {
   // A TypeScript interface does not validate network JSON. Check the outer
   // object here, then let the store validate every field before writing.
   const input: unknown = req.body;

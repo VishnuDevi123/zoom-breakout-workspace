@@ -1,4 +1,5 @@
 import { Router, type ErrorRequestHandler } from "express";
+import { anyoneInMeeting, hostOrCoHost } from "../services/app-context.ts";
 
 import { getRoundTasks, saveRoundTasks, TaskError } from "../store/tasks.ts";
 import type {
@@ -16,7 +17,7 @@ router.use((_req, res, next) => {
 });
 
 // GET /api/tasks/:roundId?parentUUID=<meeting uuid>
-router.get("/:roundId", (req, res) => {
+router.get("/:roundId", anyoneInMeeting, (req, res) => {
   const roundTasks = getRoundTasks(req.query.parentUUID, req.params.roundId);
   // if roundTasks empty
   if (!roundTasks) {
@@ -30,7 +31,7 @@ router.get("/:roundId", (req, res) => {
 });
 
 // PUT /api/tasks/:roundId   body: SaveRoundTasksRequest. 201 on create (revision 1), 200 on update.
-router.put("/:roundId", (req, res) => {
+router.put("/:roundId", hostOrCoHost, (req, res) => {
   const input = req.body;
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     throw new TaskError("The request body must be an object.", 400);

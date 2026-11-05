@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import type { NextFunction, Request, Response } from "express";
+
+import type { ApiResponse, MeetingRole } from "../types/breakout.ts";
 
 /** 401: no token, unreadable or expired. 403: a guest (no Zoom account, so no uid). */
 export class AppContextError extends Error {
@@ -19,6 +22,12 @@ interface AppContext {
   exp: number;
   ts: number;
   typ: string;
+  /** The main meeting's UUID, also inside a breakout room (verified 2026-11-04). */
+  mid?: string;
+  /** "host", "co-host" or "participant". Not in Zoom's docs; verified 2026-11-04. */
+  attendrole?: string;
+  /** The app's client id. */
+  aud?: string;
 }
 
 /**
@@ -55,8 +64,8 @@ function decryptAppContext(token: string): AppContext {
   }
 }
 
-/** The template owner for one request: decrypt, check exp, require uid. */
-export function ownerUidFrom(header: string | undefined): string {
+/** Decrypt and check exp: a token that passes is Zoom's and still current. */
+function currentAppContext(header: string | undefined): AppContext {
   if (!header) throw new AppContextError("Missing Zoom app context.", 401);
 
   const context = decryptAppContext(header);
@@ -65,7 +74,90 @@ export function ownerUidFrom(header: string | undefined): string {
   // Zoom documents exp only as a "long": treat 10-digit values as seconds, 13-digit as milliseconds.
   const expiresAtMs = context.exp < 1e12 ? context.exp * 1000 : context.exp;
   if (expiresAtMs <= Date.now()) throw new AppContextError("Zoom app context expired.", 401);
+  return context;
+}
+
+/** The template owner for one request: decrypt, check exp, require uid. */
+export function ownerUidFrom(header: string | undefined): string {
+  const context = currentAppContext(header);
   if (!context.uid) throw new AppContextError("Sign in to Zoom to save templates.", 403);
 
   return context.uid;
 }
+
+/** Who sent a request, as Zoom sealed it in the token. */
+export interface Caller {
+  meetingUUID: string;
+  role: MeetingRole;
+  uid: string;
+  /** Token creation time (ms), for a later check against role changes. */
+  issuedAt: number;
+}
+
+const ROLES: Record<string, MeetingRole> = { host: "host", "co-host": "coHost", participant: "attendee" };
+
+export function callerFrom(header: string | undefined): Caller {
+  const context = currentAppContext(header);
+  // A token Zoom made for another app would not decrypt; aud is a second check on the same thing.
+  if (context.aud !== process.env.ZOOM_CLIENT_ID) throw new AppContextError("Zoom app context is for another app.", 401);
+  if (!context.mid) throw new AppContextError("Open the app inside a Zoom meeting.", 403);
+  // The beta admits signed-in users only; guests carry iid and no uid.
+  if (!context.uid) throw new AppContextError("Sign in to Zoom to use this app.", 403);
+  const role = ROLES[context.attendrole ?? ""];
+  if (!role) throw new AppContextError("This Zoom role cannot use the app.", 403);
+
+  return { meetingUUID: context.mid, role, uid: context.uid, issuedAt: context.ts };
+}
+
+const ROLE_REFUSALS: Record<string, string> = {
+  host: "Only the host can do this.",
+  "host,coHost": "Only the host or a co-host can do this.",
+};
+
+/**
+ * Route guard: the token must be current, from this meeting, and carry one of
+ * `roles`. Every meeting id the request names (body or query) must be the token's,
+ * so a request cannot pass with one meeting and act on another. Puts the caller
+ * on `res.locals.caller`. Answers in the usual envelope itself.
+ */
+// Generic over route params, so a guard in front of a handler keeps the handler's typed req.params.
+type Guard = <Params>(req: Request<Params>, res: Response, next: NextFunction) => void;
+
+export function requireCaller(...roles: MeetingRole[]): Guard {
+  return (req, res, next) => {
+    const refuse = (status: number, error: string) => {
+      const body: ApiResponse<never> = { success: false, error };
+      res.status(status).json(body);
+    };
+
+    let caller: Caller;
+    try {
+      caller = callerFrom(req.get("X-Zoom-App-Context"));
+    } catch (error) {
+      if (!(error instanceof AppContextError)) throw error;
+      refuse(error.status, error.message);
+      return;
+    }
+
+    const named = [req.body?.parentUUID, req.query.parentUUID].filter((value) => value !== undefined);
+    if (named.length === 0) {
+      refuse(400, "parentUUID is required.");
+      return;
+    }
+    if (named.some((value) => value !== caller.meetingUUID)) {
+      refuse(403, "This request is for another meeting.");
+      return;
+    }
+    if (!roles.includes(caller.role)) {
+      refuse(403, ROLE_REFUSALS[roles.join(",")] ?? "Your role cannot do this.");
+      return;
+    }
+
+    res.locals.caller = caller;
+    next();
+  };
+}
+
+export const hostOnly = requireCaller("host");
+export const hostOrCoHost = requireCaller("host", "coHost");
+export const anyoneInMeeting = requireCaller("host", "coHost", "attendee");

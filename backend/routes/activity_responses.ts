@@ -1,4 +1,5 @@
 import { Router, type ErrorRequestHandler } from "express";
+import { anyoneInMeeting, hostOrCoHost } from "../services/app-context.ts";
 
 import {
   addIdea,
@@ -62,7 +63,7 @@ function assertChecklistItem(room: RoomRef, itemId: string): void {
  * GET /api/responses/:roundId/rooms/:roomId?parentUUID=<meeting uuid>&participantUUID=<caller>
  * The caller's view of the room. A room nobody has written to returns empty maps.
  */
-router.get("/:roundId/rooms/:roomId", (req, res) => {
+router.get("/:roundId/rooms/:roomId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId } = req.params;
   const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
   const body: ApiResponse<RoomResponsesView> = {
@@ -79,7 +80,7 @@ router.get("/:roundId/rooms/:roomId", (req, res) => {
  * No caller check: the backend has no login, so like the participant filter this
  * hides drafts but does not lock anything.
  */
-router.get("/:roundId/rooms/:roomId/all", (req, res) => {
+router.get("/:roundId/rooms/:roomId/all", hostOrCoHost, (req, res) => {
   const { roundId, roomId } = req.params;
   const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
   const body: ApiResponse<RoomResponsesHostView> = { success: true, data: getRoomResponsesForHost(room) };
@@ -91,7 +92,7 @@ router.get("/:roundId/rooms/:roomId/all", (req, res) => {
  * Body: SaveAnswerRequest. Autosave sends "working"; "Submit to host" sends "submitted".
  *
  */
-router.put("/:roundId/rooms/:roomId/answers/:activityId", (req, res) => {
+router.put("/:roundId/rooms/:roomId/answers/:activityId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   assertActivity(room, activityId, "individual");
@@ -104,7 +105,7 @@ router.put("/:roundId/rooms/:roomId/answers/:activityId", (req, res) => {
  * POST /api/responses/:roundId/rooms/:roomId/ideas/:activityId
  * Body: AddIdeaRequest. The server sets the note's id, "Idea N" title, author and color
  */
-router.post("/:roundId/rooms/:roomId/ideas/:activityId", (req, res) => {
+router.post("/:roundId/rooms/:roomId/ideas/:activityId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
@@ -118,7 +119,7 @@ router.post("/:roundId/rooms/:roomId/ideas/:activityId", (req, res) => {
  * Body: EditIdeaRequest. Author only (403 otherwise).
  * 200: RoomResponsesView.
  */
-router.put("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", (req, res) => {
+router.put("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId, noteId } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
@@ -131,7 +132,7 @@ router.put("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", (req, res) => {
  * DELETE /api/responses/:roundId/rooms/:roomId/ideas/:activityId/:noteId
  * Body: RemoveIdeaRequest (send Content-Type: application/json so the body is parsed). Author only.
  */
-router.delete("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", (req, res) => {
+router.delete("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId, noteId } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
@@ -144,7 +145,7 @@ router.delete("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", (req, res) =>
  * PUT /api/responses/:roundId/rooms/:roomId/ticks/:itemId
  * Body: TickRequest. Anyone in the room; the latest click wins.
  */
-router.put("/:roundId/rooms/:roomId/ticks/:itemId", (req, res) => {
+router.put("/:roundId/rooms/:roomId/ticks/:itemId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, itemId } = req.params;
   const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
   assertChecklistItem(room, itemId);
