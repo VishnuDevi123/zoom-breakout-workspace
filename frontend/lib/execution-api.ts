@@ -47,11 +47,15 @@ export class ApiError extends Error {
  * or was replaced, so it is read again and the request repeated once (the one
  * retry the user approved, 2026-11-04).
  */
+// The backend's own address when the frontend is hosted elsewhere: Amplify's rewrite holds a
+// response until it ends, so the SSE stream never arrives through it.
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
+
 export async function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const send = async () => {
     const headers = new Headers(init.headers);
     headers.set("X-Zoom-App-Context", await readAppContextToken());
-    return fetch(url, { ...init, headers });
+    return fetch(BACKEND_URL + url, { ...init, headers });
   };
   const response = await send();
   if (response.status !== 401) return response;

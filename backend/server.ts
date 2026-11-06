@@ -1,3 +1,4 @@
+import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import helmet from "helmet";
 import dotenv from "dotenv";
@@ -19,6 +20,16 @@ dotenv.config();
 const app = express();
 
 const PORT = process.env.PORT || 4000;
+
+// The deployed frontend calls the backend from another origin (FRONTEND_URL). Unset, no
+// cross-origin call is allowed; local requests come through Caddy on the same origin.
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || false,
+    allowedHeaders: ["Content-Type", "X-Zoom-App-Context"],
+    maxAge: 600,
+  }),
+);
 
 // Webhooks need the raw bytes to check Zoom's signature, so they parse before express.json().
 app.use(
