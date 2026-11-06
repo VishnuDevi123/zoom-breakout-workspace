@@ -8,9 +8,10 @@ import {
   type RoomChallengeAnswers,
   type RoomChallengeResult,
 } from "../types/breakout.ts";
-import { assertInRoom, requiredString, ResponseError, type RoomRef } from "./activity_responses.ts";
+import { assertInRoom, type RoomRef } from "./activity_responses.ts";
 import { bumpChallengeRevision, bumpRoomRevision, getLive } from "./live.ts";
 import { getRoundPlan } from "./round-plans.ts";
+import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
 // Live polls and quizzes. The host launches one while a round runs; every room
 // answers it as one. One list per (parentUUID, roundId), oldest first.
@@ -42,30 +43,26 @@ function key(parentUUID: string, roundId: string): string {
   return `${parentUUID}:${roundId}`;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function boundedText(value: unknown, field: string, max: number): string {
   const text = typeof value === "string" ? value.trim() : "";
   if (text.length === 0 || text.length > max) {
-    throw new ResponseError(`${field} must be 1 to ${max} characters.`, 400);
+    throw new HttpError(`${field} must be 1 to ${max} characters.`, 400);
   }
   return text;
 }
 
 function wholeNumber(value: unknown, field: string, min: number, max: number): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) {
-    throw new ResponseError(`${field} must be a whole number from ${min} to ${max}.`, 400);
+    throw new HttpError(`${field} must be a whole number from ${min} to ${max}.`, 400);
   }
   return value;
 }
 
 function parseQuestion(value: unknown, position: number): ChallengeQuestion {
   const field = `Question ${position + 1}`;
-  if (!isRecord(value) || !Array.isArray(value.options)) throw new ResponseError(`${field} needs text and options.`, 400);
+  if (!isRecord(value) || !Array.isArray(value.options)) throw new HttpError(`${field} needs text and options.`, 400);
   if (value.options.length < 2 || value.options.length > MAX_CHALLENGE_OPTIONS) {
-    throw new ResponseError(`${field} needs 2 to ${MAX_CHALLENGE_OPTIONS} options.`, 400);
+    throw new HttpError(`${field} needs 2 to ${MAX_CHALLENGE_OPTIONS} options.`, 400);
   }
   return {
     text: boundedText(value.text, field, MAX_QUESTION_LENGTH),
@@ -75,11 +72,11 @@ function parseQuestion(value: unknown, position: number): ChallengeQuestion {
 
 /** The host's draft, checked and trimmed. A poll has one question; a quiz has a right answer for each. */
 function parseDraft(value: unknown): ChallengeDraft {
-  if (!isRecord(value) || !Array.isArray(value.questions)) throw new ResponseError("draft must be an object with questions.", 400);
-  if (value.kind !== "poll" && value.kind !== "quiz") throw new ResponseError('kind must be "poll" or "quiz".', 400);
+  if (!isRecord(value) || !Array.isArray(value.questions)) throw new HttpError("draft must be an object with questions.", 400);
+  if (value.kind !== "poll" && value.kind !== "quiz") throw new HttpError('kind must be "poll" or "quiz".', 400);
   const maxQuestions = value.kind === "poll" ? 1 : MAX_QUIZ_QUESTIONS;
   if (value.questions.length < 1 || value.questions.length > maxQuestions) {
-    throw new ResponseError(`A ${value.kind} holds 1 to ${maxQuestions} questions.`, 400);
+    throw new HttpError(`A ${value.kind} holds 1 to ${maxQuestions} questions.`, 400);
   }
   const questions = value.questions.map(parseQuestion);
   const fields = {
@@ -91,7 +88,7 @@ function parseDraft(value: unknown): ChallengeDraft {
 
   const answerKey = value.answerKey;
   if (!Array.isArray(answerKey) || answerKey.length !== questions.length) {
-    throw new ResponseError("answerKey needs one right option per question.", 400);
+    throw new HttpError("answerKey needs one right option per question.", 400);
   }
   return {
     kind: "quiz",
@@ -171,10 +168,10 @@ export function getRoomChallenge(room: RoomRef, participantUUID: unknown): Chall
 export function launchChallenge(parentUUID: unknown, roundId: string, draftInput: unknown): ChallengeView[] {
   const meeting = requiredString(parentUUID, "parentUUID");
   const draft = parseDraft(draftInput);
-  if (getLive(meeting).round?.roundId !== roundId) throw new ResponseError("This round is not running.", 409);
+  if (getLive(meeting).round?.roundId !== roundId) throw new HttpError("This round is not running.", 409);
   const list = challenges.get(key(meeting, roundId)) ?? [];
   if (list.some((challenge) => !challenge.revealed)) {
-    throw new ResponseError("Reveal the running poll or quiz before launching another.", 409);
+    throw new HttpError("Reveal the running poll or quiz before launching another.", 409);
   }
 
   const launchedAt = Date.now();
@@ -206,7 +203,7 @@ function markRevealed(parentUUID: string, challenge: StoredChallenge): void {
 export function revealChallenge(parentUUID: unknown, roundId: string, challengeId: string): ChallengeView[] {
   const meeting = requiredString(parentUUID, "parentUUID");
   const challenge = challenges.get(key(meeting, roundId))?.find((candidate) => candidate.id === challengeId);
-  if (!challenge) throw new ResponseError("No such poll or quiz in this round.", 404);
+  if (!challenge) throw new HttpError("No such poll or quiz in this round.", 404);
   markRevealed(meeting, challenge);
   return getChallengesForHost(meeting, roundId);
 }
@@ -218,20 +215,20 @@ export function revealRoundChallenges(parentUUID: string, roundId: string): void
 
 /** The room's answers to an open question, after the caller and the timing are checked. */
 function openQuestion(room: RoomRef, challengeId: string, questionInput: string, request: unknown) {
-  if (!isRecord(request)) throw new ResponseError("The request body must be an object.", 400);
+  if (!isRecord(request)) throw new HttpError("The request body must be an object.", 400);
   const participantUUID = requiredString(request.participantUUID, "participantUUID");
   assertInRoom(room, participantUUID);
 
   const challenge = challenges.get(key(room.parentUUID, room.roundId))?.find((candidate) => candidate.id === challengeId);
-  if (!challenge) throw new ResponseError("No such poll or quiz in this round.", 404);
-  if (getLive(room.parentUUID).round?.roundId !== room.roundId) throw new ResponseError("This round is not running.", 409);
-  if (challenge.revealed || Date.now() > challenge.endsAt) throw new ResponseError("Time is up for this one.", 409);
+  if (!challenge) throw new HttpError("No such poll or quiz in this round.", 404);
+  if (getLive(room.parentUUID).round?.roundId !== room.roundId) throw new HttpError("This round is not running.", 409);
+  if (challenge.revealed || Date.now() > challenge.endsAt) throw new HttpError("Time is up for this one.", 409);
 
   const questionCount = challenge.draft.questions.length;
   const index = wholeNumber(Number(questionInput), "question", 0, questionCount - 1);
   const option = wholeNumber(request.option, "option", 0, challenge.draft.questions[index].options.length - 1);
   const answers = (challenge.rooms[room.roomId] ??= emptyAnswers(questionCount));
-  if (answers.locks[index]) throw new ResponseError("Your room already locked this one in.", 409);
+  if (answers.locks[index]) throw new HttpError("Your room already locked this one in.", 409);
   return { answers, index, option, participantUUID };
 }
 

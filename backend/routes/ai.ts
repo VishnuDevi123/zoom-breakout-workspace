@@ -1,7 +1,8 @@
-import { Router, type ErrorRequestHandler } from "express";
+import { Router } from "express";
 
-import { AiError, draftWorkflow } from "../services/ai.ts";
-import { AppContextError, callerFrom } from "../services/app-context.ts";
+import { draftWorkflow } from "../services/ai.ts";
+import { callerFrom } from "../services/app-context.ts";
+import { HttpError } from "../services/http-error.ts";
 import type { ApiResponse, DraftWorkflowResponse } from "../types/breakout.ts";
 
 const router = Router();
@@ -15,30 +16,16 @@ router.use((_req, res, next) => {
 // is saved), so only the token and its role are checked; failures stop here with 401/403.
 router.use((req, _res, next) => {
   if (callerFrom(req.get("X-Zoom-App-Context")).role !== "host") {
-    throw new AppContextError("Only the host can draft with AI.", 403);
+    throw new HttpError("Only the host can draft with AI.", 403);
   }
   next();
 });
 
 // POST /api/ai/workflow   body: DraftWorkflowRequest. Returns a question or a proposal;
 // the host applies a proposal with POST /api/workspace/replace.
-router.post("/workflow", async (req, res, next) => {
-  try {
-    const body: ApiResponse<DraftWorkflowResponse> = { success: true, data: await draftWorkflow(req.body) };
-    res.json(body);
-  } catch (error) {
-    next(error);
-  }
+router.post("/workflow", async (req, res) => {
+  const body: ApiResponse<DraftWorkflowResponse> = { success: true, data: await draftWorkflow(req.body) };
+  res.json(body);
 });
-
-const handleAiError: ErrorRequestHandler = (error: unknown, _req, res, next) => {
-  if (error instanceof AiError || error instanceof AppContextError) {
-    const body: ApiResponse<never> = { success: false, error: error.message };
-    res.status(error.status).json(body);
-    return;
-  }
-  next(error);
-};
-router.use(handleAiError);
 
 export default router;

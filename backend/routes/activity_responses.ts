@@ -1,5 +1,6 @@
-import { Router, type ErrorRequestHandler } from "express";
+import { Router } from "express";
 import { anyoneInMeeting, hostOrCoHost } from "../services/app-context.ts";
+import { HttpError } from "../services/http-error.ts";
 
 import {
   addIdea,
@@ -8,7 +9,6 @@ import {
   getRoomResponsesForHost,
   parseRoom,
   removeIdea,
-  ResponseError,
   setTick,
   submitAnswer,
   type RoomRef,
@@ -46,7 +46,7 @@ function assertActivity(room: RoomRef, activityId: string, kind: Activity["kind"
     (candidate) => candidate.id === activityId,
   );
   if (!activity || activity.kind !== kind) {
-    throw new ResponseError("This activity no longer exists.", 404);
+    throw new HttpError("This activity no longer exists.", 404);
   }
 }
 
@@ -55,7 +55,7 @@ function assertChecklistItem(room: RoomRef, itemId: string): void {
   const tasks = getRoundTasks(room.parentUUID, room.roundId);
   const checklist = (tasks?.rooms[room.roomId] ?? tasks?.all)?.checklist ?? [];
   if (!checklist.some((item) => item.id === itemId)) {
-    throw new ResponseError("This checklist item no longer exists.", 404);
+    throw new HttpError("This checklist item no longer exists.", 404);
   }
 }
 
@@ -65,7 +65,7 @@ function assertChecklistItem(room: RoomRef, itemId: string): void {
  */
 router.get("/:roundId/rooms/:roomId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId } = req.params;
-  const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   const body: ApiResponse<RoomResponsesView> = {
     success: true,
     data: getRoomResponses(room, req.query.participantUUID),
@@ -76,13 +76,11 @@ router.get("/:roundId/rooms/:roomId", anyoneInMeeting, (req, res) => {
 
 /**
  * GET /api/responses/:roundId/rooms/:roomId/all?parentUUID=<meeting uuid>
- * The host's view of the room: every submitted answer, every note and tick.
- * No caller check: the backend has no login, so like the participant filter this
- * hides drafts but does not lock anything.
+ * The host's view of the room: every submitted answer, every note and tick. Host and co-hosts only.
  */
 router.get("/:roundId/rooms/:roomId/all", hostOrCoHost, (req, res) => {
   const { roundId, roomId } = req.params;
-  const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   const body: ApiResponse<RoomResponsesHostView> = { success: true, data: getRoomResponsesForHost(room) };
   res.json(body);
 });
@@ -94,7 +92,7 @@ router.get("/:roundId/rooms/:roomId/all", hostOrCoHost, (req, res) => {
  */
 router.put("/:roundId/rooms/:roomId/answers/:activityId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   assertActivity(room, activityId, "individual");
   const view = submitAnswer(room, activityId, req.body);
   const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
@@ -107,7 +105,7 @@ router.put("/:roundId/rooms/:roomId/answers/:activityId", anyoneInMeeting, (req,
  */
 router.post("/:roundId/rooms/:roomId/ideas/:activityId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
   const view = addIdea(room, activityId, req.body);
   const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
@@ -121,7 +119,7 @@ router.post("/:roundId/rooms/:roomId/ideas/:activityId", anyoneInMeeting, (req, 
  */
 router.put("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId, noteId } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
   const view = editIdea(room, activityId, noteId, req.body);
   const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
@@ -134,7 +132,7 @@ router.put("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", anyoneInMeeting,
  */
 router.delete("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, activityId, noteId } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   assertActivity(room, activityId, "ideaBoard");
   const view = removeIdea(room, activityId, noteId, req.body);
   const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
@@ -147,22 +145,11 @@ router.delete("/:roundId/rooms/:roomId/ideas/:activityId/:noteId", anyoneInMeeti
  */
 router.put("/:roundId/rooms/:roomId/ticks/:itemId", anyoneInMeeting, (req, res) => {
   const { roundId, roomId, itemId } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = parseRoom({ parentUUID: res.locals.caller.meetingUUID, roundId, roomId });
   assertChecklistItem(room, itemId);
   const view = setTick(room, itemId, req.body);
   const body: ApiResponse<RoomResponsesView> = { success: true, data: view };
   res.json(body);
 });
-
-// Same envelope as routes/tasks.ts: store and checks throw, the router turns it into JSON.
-const handleResponseError: ErrorRequestHandler = (error: unknown, _req, res, next) => {
-  if (error instanceof ResponseError) {
-    const body: ApiResponse<never> = { success: false, error: error.message };
-    res.status(error.status).json(body);
-    return;
-  }
-  next(error);
-};
-router.use(handleResponseError);
 
 export default router;

@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 
 import roundPlanRoutes from "./routes/round-plans.ts";
 import type { ApiResponse, HealthResponse } from "./types/breakout.ts";
+import { HttpError } from "./services/http-error.ts";
 import webhookRoutes from "./routes/webhooks.ts";
 import liveRoutes from "./routes/live.ts";
 import workSpaceRoutes from "./routes/workspace.ts";
@@ -72,14 +73,19 @@ app.get("/api/health", (req, res) => {
   res.status(200).json(health());
 });
 
-// Last stop for errors no router handled: a bad JSON body, or a bug. Always the JSON
-// envelope, never Express's HTML page with its stack trace.
+// Every error ends here, sync or async (Express 5): a refusal a store or check threw,
+// a bad JSON body, or a bug. Always the JSON envelope, never Express's HTML page.
 const handleUnknownError: ErrorRequestHandler = (
   error: unknown,
   _req,
   res,
   _next,
 ) => {
+  if (error instanceof HttpError) {
+    const body: ApiResponse<never> = { success: false, error: error.message };
+    res.status(error.status).json(body);
+    return;
+  }
   const status = (error as { status?: number }).status;
   if (status === 400 || status === 413) {
     const body: ApiResponse<never> = {

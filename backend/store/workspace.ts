@@ -13,37 +13,16 @@ import { deleteRoundChallenges } from "./challenges.ts";
 import { deleteRoundPlan, getRoundPlan, saveRoundPlan, validateRoundPlan } from "./round-plans.ts";
 import { deleteRoundTasks, getRoundTasks, saveRoundTasks, validateRoundTasks } from "./tasks.ts";
 import { addPastWorkflow } from "./templates.ts";
+import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
 // One record per meeting. Room lists live in round-plans, keyed by the same roundId.
 const workspaces = new Map<string, Workspace>();
 const MAX_ROUNDS = 20;
 const DEFAULT_DURATION_SEC = 300;
 
-export class WorkspaceError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 404 | 409,
-  ) {
-    super(message);
-    this.name = "WorkspaceError";
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requiredString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new WorkspaceError(`${field} must be a non-empty string.`, 400);
-  }
-  // IDs are opaque: validate without rewriting them. Names/titles are trimmed below.
-  return value;
-}
-
 function requiredDurationSec(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
-    throw new WorkspaceError(`${field} must be a positive integer of seconds.`, 400);
+    throw new HttpError(`${field} must be a positive integer of seconds.`, 400);
   }
   return value;
 }
@@ -56,7 +35,7 @@ function optionalTitle(value: unknown, field: string): string | null {
 
 function workspaceFor(parentUUID: unknown): Workspace {
   const stored = workspaces.get(requiredString(parentUUID, "parentUUID"));
-  if (!stored) throw new WorkspaceError("No workspace for this meeting.", 404);
+  if (!stored) throw new HttpError("No workspace for this meeting.", 404);
   return stored;
 }
 
@@ -71,33 +50,33 @@ function nextRoundId(rounds: RoundMeta[]): string {
 
 function validateSaveRequest(input: unknown): Omit<SaveWorkspaceRequest, "expectedRevision"> {
   if (!isRecord(input)) {
-    throw new WorkspaceError("The workspace must be an object.", 400);
+    throw new HttpError("The workspace must be an object.", 400);
   }
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const title = requiredString(input.title, "title").trim();
   if (typeof input.sameRoomsEveryRound !== "boolean") {
-    throw new WorkspaceError("sameRoomsEveryRound must be a boolean.", 400);
+    throw new HttpError("sameRoomsEveryRound must be a boolean.", 400);
   }
   if (typeof input.samePeopleEveryRound !== "boolean") {
-    throw new WorkspaceError("samePeopleEveryRound must be a boolean.", 400);
+    throw new HttpError("samePeopleEveryRound must be a boolean.", 400);
   }
   if (typeof input.autoStartNextRound !== "boolean") {
-    throw new WorkspaceError("autoStartNextRound must be a boolean.", 400);
+    throw new HttpError("autoStartNextRound must be a boolean.", 400);
   }
 
   if (!Array.isArray(input.rounds) || input.rounds.length > MAX_ROUNDS) {
-    throw new WorkspaceError(`rounds must contain 0 to ${MAX_ROUNDS} rounds.`, 400);
+    throw new HttpError(`rounds must contain 0 to ${MAX_ROUNDS} rounds.`, 400);
   }
 
   const roundIds = new Set<string>();
   const rounds = input.rounds.map((value: unknown, index: number) => {
     const field = `rounds[${index}]`;
     if (!isRecord(value)) {
-      throw new WorkspaceError(`${field} must be an object.`, 400);
+      throw new HttpError(`${field} must be an object.`, 400);
     }
     const roundId = requiredString(value.roundId, `${field}.roundId`);
     if (roundIds.has(roundId)) {
-      throw new WorkspaceError("Round IDs must be unique within a workspace.", 400);
+      throw new HttpError("Round IDs must be unique within a workspace.", 400);
     }
     roundIds.add(roundId);
     // status and dot are server-owned: not copied even if sent.
@@ -124,11 +103,11 @@ function checkRevision(stored: Workspace | undefined, expectedRevision: unknown)
     !Number.isSafeInteger(expectedRevision) ||
     expectedRevision < 0
   ) {
-    throw new WorkspaceError("expectedRevision must be a non-negative safe integer.", 400);
+    throw new HttpError("expectedRevision must be a non-negative safe integer.", 400);
   }
   const currentRevision = stored?.revision ?? 0;
   if (expectedRevision !== currentRevision) {
-    throw new WorkspaceError(
+    throw new HttpError(
       `The workspace changed. Expected revision ${expectedRevision}, but current revision is ${currentRevision}. Reload before saving again.`,
       409,
     );
@@ -154,7 +133,7 @@ export function saveWorkspace(input: unknown, expectedRevision: unknown): Worksp
     storedRounds.length === draft.rounds.length &&
     draft.rounds.every((round) => storedRounds.some((s) => s.roundId === round.roundId));
   if (stored && !sameRoundSet) {
-    throw new WorkspaceError("rounds must contain the same round IDs as the stored workspace.", 400);
+    throw new HttpError("rounds must contain the same round IDs as the stored workspace.", 400);
   }
 
   const rounds: RoundMeta[] = draft.rounds.map((round, index) => {
@@ -175,7 +154,7 @@ export function saveWorkspace(input: unknown, expectedRevision: unknown): Worksp
 export function addRound(parentUUID: unknown, input: unknown): Workspace {
   const stored = workspaceFor(parentUUID);
   if (stored.rounds.length >= MAX_ROUNDS) {
-    throw new WorkspaceError(`A workspace can hold at most ${MAX_ROUNDS} rounds.`, 400);
+    throw new HttpError(`A workspace can hold at most ${MAX_ROUNDS} rounds.`, 400);
   }
   const request = isRecord(input) ? input : {};
 
@@ -200,9 +179,9 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
   const stored = workspaceFor(parentUUID);
   const id = requiredString(roundId, "roundId");
   const round = stored.rounds.find((r) => r.roundId === id);
-  if (!round) throw new WorkspaceError("No round with this ID.", 404);
+  if (!round) throw new HttpError("No round with this ID.", 404);
   if (round.status === "launched") {
-    throw new WorkspaceError("A launched round cannot be deleted. Close it first.", 409);
+    throw new HttpError("A launched round cannot be deleted. Close it first.", 409);
   }
 
   stored.rounds = stored.rounds.filter((r) => r.roundId !== id);
@@ -250,11 +229,11 @@ export function snapshotWorkflow(parentUUID: unknown): WorkflowSnapshot {
  * participant list stays: those people are still in the meeting.
  */
 export function endWorkflow(input: unknown): PastWorkflow[] {
-  if (!isRecord(input)) throw new WorkspaceError("The request body must be an object.", 400);
+  if (!isRecord(input)) throw new HttpError("The request body must be an object.", 400);
   const stored = workspaceFor(input.parentUUID);
   checkRevision(stored, input.expectedRevision);
   if (stored.rounds.some((round) => round.status === "launched")) {
-    throw new WorkspaceError("Close the running round before ending the workflow.", 409);
+    throw new HttpError("Close the running round before ending the workflow.", 409);
   }
 
   const snapshot = snapshotWorkflow(stored.parentUUID);
@@ -294,13 +273,13 @@ function restoredRound(parentUUID: string, round: RoundMeta, position: number, s
  */
 export function replaceWorkflow(input: unknown): Workspace {
   if (!isRecord(input) || !isRecord(input.snapshot)) {
-    throw new WorkspaceError("The request body must be an object with a snapshot.", 400);
+    throw new HttpError("The request body must be an object with a snapshot.", 400);
   }
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const stored = workspaces.get(parentUUID);
   const currentRevision = checkRevision(stored, input.expectedRevision);
   if (stored?.rounds.some((round) => round.status === "launched" || round.status === "closed")) {
-    throw new WorkspaceError("This workflow has started. End it before using another.", 409);
+    throw new HttpError("This workflow has started. End it before using another.", 409);
   }
 
   const snapshotRounds: unknown[] = Array.isArray(input.snapshot.rounds) ? input.snapshot.rounds : [];

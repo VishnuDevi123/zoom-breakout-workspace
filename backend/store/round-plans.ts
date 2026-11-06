@@ -6,32 +6,11 @@ import {
   type RoundPlan,
   type RoundPlanDraft,
 } from "../types/breakout.ts";
+import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
 //storage survives browser reloads, but not a backend restart.
 const plans = new Map<string, RoundPlan>();
 
-
-export class RoundPlanError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 409,
-  ) {
-    super(message);
-    this.name = "RoundPlanError";
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requiredString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new RoundPlanError(`${field} must be a non-empty string.`, 400);
-  }
-  // IDs are opaque: validate without rewriting them. Names/titles are trimmed below.
-  return value;
-}
 
 function planKey(parentUUID: unknown, roundId: unknown): string {
   // A tuple avoids delimiter collisions: ["a:b", "c"] differs from ["a", "b:c"].
@@ -44,7 +23,7 @@ function planKey(parentUUID: unknown, roundId: unknown): string {
 /** Checks and copies a draft without saving it. Replace calls it before it deletes anything. */
 export function validateRoundPlan(input: unknown): RoundPlanDraft {
   if (!isRecord(input)) {
-    throw new RoundPlanError("The round plan must be an object.", 400);
+    throw new HttpError("The round plan must be an object.", 400);
   }
 
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
@@ -55,7 +34,7 @@ export function validateRoundPlan(input: unknown): RoundPlanDraft {
     input.rooms.length < 1 ||
     input.rooms.length > MAX_ROOMS
   ) {
-    throw new RoundPlanError(
+    throw new HttpError(
       `rooms must contain 1 to ${MAX_ROOMS} rooms.`,
       400,
     );
@@ -68,19 +47,19 @@ export function validateRoundPlan(input: unknown): RoundPlanDraft {
     (value: unknown, index: number) => {
       const field = `rooms[${index}]`;
       if (!isRecord(value)) {
-        throw new RoundPlanError(`${field} must be an object.`, 400);
+        throw new HttpError(`${field} must be an object.`, 400);
       }
 
       const id = requiredString(value.id, `${field}.id`);
       const name = requiredString(value.name, `${field}.name`).trim();
       if (roomIds.has(id)) {
-        throw new RoundPlanError(
+        throw new HttpError(
           "Room IDs must be unique within a round.",
           400,
         );
       }
       if (roomNames.has(name.toLowerCase())) {
-        throw new RoundPlanError(
+        throw new HttpError(
           "Room names must be unique within a round.",
           400,
         );
@@ -89,13 +68,13 @@ export function validateRoundPlan(input: unknown): RoundPlanDraft {
       roomNames.add(name.toLowerCase());
 
       if (!ROOM_DOTS.some((dot) => dot === value.dot)) {
-        throw new RoundPlanError(
+        throw new HttpError(
           `${field}.dot must be a supported room color.`,
           400,
         );
       }
       if (!Array.isArray(value.participantUUIDs)) {
-        throw new RoundPlanError(
+        throw new HttpError(
           `${field}.participantUUIDs must be an array.`,
           400,
         );
@@ -107,7 +86,7 @@ export function validateRoundPlan(input: unknown): RoundPlanDraft {
             `${field}.participantUUIDs entry`,
           );
           if (assignedParticipants.has(uuid)) {
-            throw new RoundPlanError(
+            throw new HttpError(
               "A participant can be assigned only once per round.",
               400,
             );
@@ -127,7 +106,7 @@ export function validateRoundPlan(input: unknown): RoundPlanDraft {
   // saves always return the explicit field, so the stored shape converges.
   const stayInMainInput = input.stayInMainParticipantUUIDs ?? [];
   if (!Array.isArray(stayInMainInput)) {
-    throw new RoundPlanError(
+    throw new HttpError(
       "stayInMainParticipantUUIDs must be an array.",
       400,
     );
@@ -140,13 +119,13 @@ export function validateRoundPlan(input: unknown): RoundPlanDraft {
         "stayInMainParticipantUUIDs entry",
       );
       if (assignedParticipants.has(uuid)) {
-        throw new RoundPlanError(
+        throw new HttpError(
           "A participant cannot be assigned to a room and stay in the main meeting.",
           400,
         );
       }
       if (stayInMainParticipants.has(uuid)) {
-        throw new RoundPlanError(
+        throw new HttpError(
           "A participant can be marked to stay in the main meeting only once.",
           400,
         );
@@ -179,7 +158,7 @@ export function saveRoundPlan(
     !Number.isSafeInteger(expectedRevision) ||
     expectedRevision < 0
   ) {
-    throw new RoundPlanError(
+    throw new HttpError(
       "expectedRevision must be a non-negative safe integer below the maximum.",
       400,
     );
@@ -188,7 +167,7 @@ export function saveRoundPlan(
   const key = planKey(draft.parentUUID, draft.roundId);
   const currentRevision = plans.get(key)?.revision ?? 0;
   if (expectedRevision !== currentRevision) {
-    throw new RoundPlanError(
+    throw new HttpError(
       `The draft changed. Expected revision ${expectedRevision}, but current revision is ${currentRevision}. Reload before saving again.`,
       409,
     );

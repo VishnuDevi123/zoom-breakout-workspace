@@ -9,6 +9,7 @@ import {
 } from "../types/breakout.ts";
 import { bumpRoomRevision, getLive } from "./live.ts";
 import { getRoundPlan } from "./round-plans.ts";
+import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
 // What participants wrote: individual answers, idea notes and checklist
 // ticks. One record per (parentUUID, roundId, roomId).
@@ -22,16 +23,6 @@ const MAX_NOTE_TITLE_LENGTH = 100;
 const MAX_NOTE_DESCRIPTION_LENGTH = 1000;
 const MAX_NOTES_PER_BOARD = 50;
 
-export class ResponseError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 403 | 404 | 409,
-  ) {
-    super(message);
-    this.name = "ResponseError";
-  }
-}
-
 /** One room in one round of one meeting. Every function here works on one room. */
 export interface RoomRef {
   parentUUID: string;
@@ -43,29 +34,18 @@ function key({ parentUUID, roundId, roomId }: RoomRef): string {
   return `${parentUUID}:${roundId}:${roomId}`;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function requiredString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new ResponseError(`${field} must be a non-empty string.`, 400);
-  }
-  return value;
-}
-
 /** Trimmed text of at most `max` characters. Empty only when `allowEmpty`. */
 function boundedText(value: unknown, field: string, max: number, allowEmpty = false): string {
   if (typeof value !== "string" || value.length > max) {
-    throw new ResponseError(`${field} must be a string of at most ${max} characters.`, 400);
+    throw new HttpError(`${field} must be a string of at most ${max} characters.`, 400);
   }
   const text = value.trim();
-  if (!allowEmpty && text.length === 0) throw new ResponseError(`${field} must not be empty.`, 400);
+  if (!allowEmpty && text.length === 0) throw new HttpError(`${field} must not be empty.`, 400);
   return text;
 }
 
 function requiredBoolean(value: unknown, field: string): boolean {
-  if (typeof value !== "boolean") throw new ResponseError(`${field} must be true or false.`, 400);
+  if (typeof value !== "boolean") throw new HttpError(`${field} must be true or false.`, 400);
   return value;
 }
 
@@ -86,15 +66,15 @@ export function assertInRoom(room: RoomRef, participantUUID: string): void {
   const plannedRoom = getRoundPlan(room.parentUUID, room.roundId)?.rooms.find(
     (candidate) => candidate.id === room.roomId,
   );
-  if (!plannedRoom) throw new ResponseError("No such room in this round.", 404);
+  if (!plannedRoom) throw new HttpError("No such room in this round.", 404);
   if (!plannedRoom.participantUUIDs.includes(participantUUID)) {
-    throw new ResponseError("You are not in this room.", 403);
+    throw new HttpError("You are not in this room.", 403);
   }
 }
 
 /** Reads participantUUID from a write body and checks the caller belongs in the room. */
 function callerIn(room: RoomRef, request: unknown): { participantUUID: string; body: Record<string, unknown> } {
-  if (!isRecord(request)) throw new ResponseError("The request body must be an object.", 400);
+  if (!isRecord(request)) throw new HttpError("The request body must be an object.", 400);
   const participantUUID = requiredString(request.participantUUID, "participantUUID");
   assertInRoom(room, participantUUID);
   return { participantUUID, body: request };
@@ -199,7 +179,7 @@ export function getRoomResponsesForHost(room: RoomRef): RoomResponsesHostView {
 export function submitAnswer(room: RoomRef, activityId: string, request: unknown): RoomResponsesView {
   const { participantUUID, body } = callerIn(room, request);
   if (body.status !== "working" && body.status !== "submitted") {
-    throw new ResponseError('status must be "working" or "submitted".', 400);
+    throw new HttpError('status must be "working" or "submitted".', 400);
   }
   const status: AnswerStatus = body.status;
   const text = boundedText(body.text, "text", MAX_ANSWER_LENGTH, status === "working");
@@ -222,7 +202,7 @@ export function addIdea(room: RoomRef, activityId: string, request: unknown): Ro
   const record = recordFor(room);
   const notes = (record.ideas[activityId] ??= []);
   if (notes.length >= MAX_NOTES_PER_BOARD) {
-    throw new ResponseError(`A board holds at most ${MAX_NOTES_PER_BOARD} notes.`, 400);
+    throw new HttpError(`A board holds at most ${MAX_NOTES_PER_BOARD} notes.`, 400);
   }
   // A counter, not notes.length: after a removal, length + 1 would repeat a title.
   const number = (record.ideaCounters[activityId] ?? 0) + 1;
@@ -244,9 +224,9 @@ function findOwnNote(room: RoomRef, activityId: string, noteId: string, particip
   const record = responses.get(key(room));
   const notes = record?.ideas[activityId];
   const index = notes?.findIndex((note) => note.id === noteId) ?? -1;
-  if (!record || !notes || index === -1) throw new ResponseError("No such note on this board.", 404);
+  if (!record || !notes || index === -1) throw new HttpError("No such note on this board.", 404);
   if (notes[index].participantUUID !== participantUUID) {
-    throw new ResponseError("Only the note's author can change it.", 403);
+    throw new HttpError("Only the note's author can change it.", 403);
   }
   return { record, notes, index };
 }

@@ -11,27 +11,17 @@ import {
   type DraftWorkflowResponse,
   type WorkflowSnapshot,
 } from "../types/breakout.ts";
+import { HttpError } from "./http-error.ts";
 
 // From the OpenAI structured outputs docs; change here to try another model.
 const MODEL = "gpt-6-luna";
 const MAX_REQUEST_LENGTH = 2000;
 
-/** 400: bad request body. 422: the model refused or returned nothing. 502: the OpenAI call failed. 503: no API key configured. */
-export class AiError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 422 | 502 | 503,
-  ) {
-    super(message);
-    this.name = "AiError";
-  }
-}
-
 // The SDK reads OPENAI_API_KEY in its constructor, and server.ts loads .env after
 // its imports have run, so the client is built on the first request.
 let openai: OpenAI | null = null;
 function client(): OpenAI {
-  if (!process.env.OPENAI_API_KEY) throw new AiError("The AI builder is not set up on this server.", 503);
+  if (!process.env.OPENAI_API_KEY) throw new HttpError("The AI builder is not set up on this server.", 503);
   openai ??= new OpenAI();
   return openai;
 }
@@ -116,24 +106,24 @@ Rules:
 /** The request body: the chat so far, ending with the host's turn, and the last proposal when refining. */
 function validateRequest(input: unknown): DraftWorkflowRequest {
   if (typeof input !== "object" || input === null) {
-    throw new AiError("The request body must be an object.", 400);
+    throw new HttpError("The request body must be an object.", 400);
   }
   const { messages, draft } = input as Record<string, unknown>;
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_AI_MESSAGES) {
-    throw new AiError(`messages must contain 1 to ${MAX_AI_MESSAGES} messages.`, 400);
+    throw new HttpError(`messages must contain 1 to ${MAX_AI_MESSAGES} messages.`, 400);
   }
   const chat = messages.map((message: unknown, index: number): AiChatMessage => {
     const { role, text } = (message ?? {}) as Record<string, unknown>;
     if (role !== "host" && role !== "assistant") {
-      throw new AiError(`messages[${index}].role must be host or assistant.`, 400);
+      throw new HttpError(`messages[${index}].role must be host or assistant.`, 400);
     }
     if (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_REQUEST_LENGTH) {
-      throw new AiError(`messages[${index}].text must be a non-empty string of at most ${MAX_REQUEST_LENGTH} characters.`, 400);
+      throw new HttpError(`messages[${index}].text must be a non-empty string of at most ${MAX_REQUEST_LENGTH} characters.`, 400);
     }
     return { role, text: text.trim() };
   });
   if (chat[chat.length - 1].role !== "host") {
-    throw new AiError("The last message must be the host's.", 400);
+    throw new HttpError("The last message must be the host's.", 400);
   }
   // The draft only steers the model; replace validates whatever the host applies.
   return { messages: chat, draft: (draft ?? null) as WorkflowSnapshot | null };
@@ -213,11 +203,11 @@ export async function draftWorkflow(input: unknown): Promise<DraftWorkflowRespon
   } catch (error) {
     if (!(error instanceof OpenAI.APIError)) throw error;
     console.error("OpenAI request failed:", error.status, error.message);
-    throw new AiError("The AI service is unavailable. Try again.", 502);
+    throw new HttpError("The AI service is unavailable. Try again.", 502);
   }
 
   if (!response.output_parsed) {
-    throw new AiError(refusalText(response) ?? "The AI returned no workflow. Try rephrasing.", 422);
+    throw new HttpError(refusalText(response) ?? "The AI returned no workflow. Try rephrasing.", 422);
   }
   const { reply } = response.output_parsed;
   if (reply.kind === "question") return reply;
