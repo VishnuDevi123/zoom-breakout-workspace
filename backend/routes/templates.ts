@@ -37,7 +37,7 @@ router.post("/", hostOnly, async (req, res) => {
 // The frontend checks the rooms are set; the server only stores what is there.
 router.post("/current", hostOnly, async (req, res) => {
   const ownerUid: string = res.locals.ownerUid;
-  const snapshot = snapshotWorkflow(res.locals.caller.meetingUUID);
+  const snapshot = await snapshotWorkflow(res.locals.caller.meetingUUID);
   const body: ApiResponse<SavedTemplate> = { success: true, data: await addTemplate(ownerUid, snapshot) };
   res.status(201).json(body);
 });

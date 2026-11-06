@@ -8,15 +8,13 @@ import {
   type Workspace,
   type WorkflowRoundSnapshot,
 } from "../types/breakout.ts";
-import { deleteRoundResponses } from "./activity_responses.ts";
-import { deleteRoundChallenges } from "./challenges.ts";
-import { deleteRoundPlan, getRoundPlan, saveRoundPlan, validateRoundPlan } from "./round-plans.ts";
-import { deleteRoundTasks, getRoundTasks, saveRoundTasks, validateRoundTasks } from "./tasks.ts";
+import { getRoundPlan, saveRoundPlan, validateRoundPlan } from "./round-plans.ts";
+import { getRoundTasks, saveRoundTasks, validateRoundTasks } from "./tasks.ts";
 import { addPastWorkflow } from "./templates.ts";
+import { changeItem, deleteItem, deleteItems, readItem, roundItem, saveItem } from "../services/dynamo.ts";
 import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
-// One record per meeting. Room lists live in round-plans, keyed by the same roundId.
-const workspaces = new Map<string, Workspace>();
+// One record per meeting (item "workspace"). Room lists live in round-plans, keyed by the same roundId.
 const MAX_ROUNDS = 20;
 const DEFAULT_DURATION_SEC = 300;
 
@@ -33,8 +31,8 @@ function optionalTitle(value: unknown, field: string): string | null {
   return requiredString(value, field).trim();
 }
 
-function workspaceFor(parentUUID: unknown): Workspace {
-  const stored = workspaces.get(requiredString(parentUUID, "parentUUID"));
+async function workspaceFor(parentUUID: string): Promise<Workspace> {
+  const stored = await getWorkspace(parentUUID);
   if (!stored) throw new HttpError("No workspace for this meeting.", 404);
   return stored;
 }
@@ -97,35 +95,15 @@ function validateSaveRequest(input: unknown): Omit<SaveWorkspaceRequest, "expect
   };
 }
 
-function checkRevision(stored: Workspace | undefined, expectedRevision: unknown): number {
-  if (
-    typeof expectedRevision !== "number" ||
-    !Number.isSafeInteger(expectedRevision) ||
-    expectedRevision < 0
-  ) {
-    throw new HttpError("expectedRevision must be a non-negative safe integer.", 400);
-  }
-  const currentRevision = stored?.revision ?? 0;
-  if (expectedRevision !== currentRevision) {
-    throw new HttpError(
-      `The workspace changed. Expected revision ${expectedRevision}, but current revision is ${currentRevision}. Reload before saving again.`,
-      409,
-    );
-  }
-  return currentRevision;
-}
-
 /** GET does not create. Undefined means this meeting has no workspace yet. */
-export function getWorkspace(parentUUID: unknown): Workspace | undefined {
-  const stored = workspaces.get(requiredString(parentUUID, "parentUUID"));
-  return stored ? structuredClone(stored) : undefined;
+export async function getWorkspace(parentUUID: string): Promise<Workspace | undefined> {
+  return readItem<Workspace>(parentUUID, "workspace");
 }
 
 /** Create (expectedRevision 0) or replace editable fields. Keeps each round's stored status and dot. */
-export function saveWorkspace(input: unknown, expectedRevision: unknown): Workspace {
+export async function saveWorkspace(input: unknown, expectedRevision: unknown): Promise<Workspace> {
   const draft = validateSaveRequest(input);
-  const stored = workspaces.get(draft.parentUUID);
-  const currentRevision = checkRevision(stored, expectedRevision);
+  const stored = await getWorkspace(draft.parentUUID);
 
   // PUT edits rounds; it never adds or removes them. That is POST/DELETE /rounds.
   const storedRounds = stored?.rounds ?? [];
@@ -145,14 +123,12 @@ export function saveWorkspace(input: unknown, expectedRevision: unknown): Worksp
     };
   });
 
-  const saved: Workspace = { ...draft, rounds, revision: currentRevision + 1 };
-  workspaces.set(saved.parentUUID, saved);
-  return structuredClone(saved);
+  return saveItem(draft.parentUUID, "workspace", { ...draft, rounds }, expectedRevision);
 }
 
 /** Add one round with server-assigned roundId, dot, status. */
-export function addRound(parentUUID: unknown, input: unknown): Workspace {
-  const stored = workspaceFor(parentUUID);
+export async function addRound(parentUUID: string, input: unknown): Promise<Workspace> {
+  const stored = await workspaceFor(parentUUID);
   if (stored.rounds.length >= MAX_ROUNDS) {
     throw new HttpError(`A workspace can hold at most ${MAX_ROUNDS} rounds.`, 400);
   }
@@ -170,13 +146,12 @@ export function addRound(parentUUID: unknown, input: unknown): Workspace {
   };
 
   stored.rounds.push(round);
-  stored.revision += 1;
-  return structuredClone(stored);
+  return saveItem(parentUUID, "workspace", stored, stored.revision);
 }
 
 /** Remove one round and its draft. Launched rounds cannot be removed. */
-export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
-  const stored = workspaceFor(parentUUID);
+export async function deleteRound(parentUUID: string, roundId: unknown): Promise<Workspace> {
+  const stored = await workspaceFor(parentUUID);
   const id = requiredString(roundId, "roundId");
   const round = stored.rounds.find((r) => r.roundId === id);
   if (!round) throw new HttpError("No round with this ID.", 404);
@@ -185,23 +160,16 @@ export function deleteRound(parentUUID: unknown, roundId: unknown): Workspace {
   }
 
   stored.rounds = stored.rounds.filter((r) => r.roundId !== id);
-  stored.revision += 1;
-  deleteRoundData(stored.parentUUID, id);
-  return structuredClone(stored);
-}
-
-/** A round's draft, task, submissions and polls or quizzes, which every removal takes along. */
-function deleteRoundData(parentUUID: string, roundId: string): void {
-  deleteRoundPlan(parentUUID, roundId);
-  deleteRoundTasks(parentUUID, roundId);
-  deleteRoundResponses(parentUUID, roundId);
-  deleteRoundChallenges(parentUUID, roundId);
+  const saved = await saveItem(parentUUID, "workspace", stored, stored.revision);
+  // The round's draft, task, submissions and polls or quizzes go with it.
+  await deleteItems(parentUUID, roundItem(id, ""));
+  return saved;
 }
 
 /** One round without people: room names from its draft, task and activities from its tasks. */
-function roundSnapshot(parentUUID: string, round: RoundMeta): WorkflowRoundSnapshot {
-  const plan = getRoundPlan(parentUUID, round.roundId);
-  const tasks = getRoundTasks(parentUUID, round.roundId);
+async function roundSnapshot(parentUUID: string, round: RoundMeta): Promise<WorkflowRoundSnapshot> {
+  const plan = await getRoundPlan(parentUUID, round.roundId);
+  const tasks = await getRoundTasks(parentUUID, round.roundId);
   return {
     title: round.title,
     durationSec: round.durationSec,
@@ -212,14 +180,14 @@ function roundSnapshot(parentUUID: string, round: RoundMeta): WorkflowRoundSnaps
 }
 
 /** The meeting's workflow without people: what End Workflow keeps and Save as template stores. */
-export function snapshotWorkflow(parentUUID: unknown): WorkflowSnapshot {
-  const stored = workspaceFor(parentUUID);
+export async function snapshotWorkflow(parentUUID: string): Promise<WorkflowSnapshot> {
+  const stored = await workspaceFor(parentUUID);
   return {
     title: stored.title,
     sameRoomsEveryRound: stored.sameRoomsEveryRound,
     samePeopleEveryRound: stored.samePeopleEveryRound,
     autoStartNextRound: stored.autoStartNextRound,
-    rounds: stored.rounds.map((round) => roundSnapshot(stored.parentUUID, round)),
+    rounds: await Promise.all(stored.rounds.map((round) => roundSnapshot(parentUUID, round))),
   };
 }
 
@@ -228,18 +196,18 @@ export function snapshotWorkflow(parentUUID: unknown): WorkflowSnapshot {
  * the workspace and every round's draft, task and submissions. The live store's
  * participant list stays: those people are still in the meeting.
  */
-export function endWorkflow(input: unknown): PastWorkflow[] {
+export async function endWorkflow(parentUUID: string, input: unknown): Promise<PastWorkflow[]> {
   if (!isRecord(input)) throw new HttpError("The request body must be an object.", 400);
-  const stored = workspaceFor(input.parentUUID);
-  checkRevision(stored, input.expectedRevision);
+  const stored = await workspaceFor(parentUUID);
   if (stored.rounds.some((round) => round.status === "launched")) {
     throw new HttpError("Close the running round before ending the workflow.", 409);
   }
 
-  const snapshot = snapshotWorkflow(stored.parentUUID);
-  for (const round of stored.rounds) deleteRoundData(stored.parentUUID, round.roundId);
-  workspaces.delete(stored.parentUUID);
-  return addPastWorkflow(stored.parentUUID, snapshot);
+  const snapshot = await snapshotWorkflow(parentUUID);
+  // Only at the revision the host saw, so a workflow changed since then is not ended.
+  await deleteItem(parentUUID, "workspace", input.expectedRevision);
+  await deleteItems(parentUUID, "round#");
+  return addPastWorkflow(parentUUID, snapshot);
 }
 
 /** One restored round's rooms (no people) and its task, checked but not saved. A round with neither stays bare. */
@@ -271,13 +239,11 @@ function restoredRound(parentUUID: string, round: RoundMeta, position: number, s
  * Every round comes back planned, with fresh ids. The round stores validate
  * rooms and tasks; a snapshot from a past workflow already passed them once.
  */
-export function replaceWorkflow(input: unknown): Workspace {
+export async function replaceWorkflow(parentUUID: string, input: unknown): Promise<Workspace> {
   if (!isRecord(input) || !isRecord(input.snapshot)) {
     throw new HttpError("The request body must be an object with a snapshot.", 400);
   }
-  const parentUUID = requiredString(input.parentUUID, "parentUUID");
-  const stored = workspaces.get(parentUUID);
-  const currentRevision = checkRevision(stored, input.expectedRevision);
+  const stored = await getWorkspace(parentUUID);
   if (stored?.rounds.some((round) => round.status === "launched" || round.status === "closed")) {
     throw new HttpError("This workflow has started. End it before using another.", 409);
   }
@@ -292,31 +258,29 @@ export function replaceWorkflow(input: unknown): Workspace {
     })),
   });
 
-  const saved: Workspace = {
-    ...draft,
-    rounds: draft.rounds.map((round, index) => ({
-      ...round,
-      dot: ROOM_DOTS[index % ROOM_DOTS.length],
-      status: "planned",
-    })),
-    revision: currentRevision + 1,
-  };
+  const rounds: RoundMeta[] = draft.rounds.map((round, index) => ({
+    ...round,
+    dot: ROOM_DOTS[index % ROOM_DOTS.length],
+    status: "planned",
+  }));
   // Every round is checked before the old workflow is deleted, so a bad snapshot changes nothing.
-  const restored = saved.rounds.map((round, index) => restoredRound(parentUUID, round, index + 1, snapshotRounds[index]));
+  const restored = rounds.map((round, index) => restoredRound(parentUUID, round, index + 1, snapshotRounds[index]));
 
-  for (const round of stored?.rounds ?? []) deleteRoundData(parentUUID, round.roundId);
-  workspaces.set(parentUUID, saved);
+  const saved = await saveItem(parentUUID, "workspace", { ...draft, rounds }, input.expectedRevision);
+  await deleteItems(parentUUID, "round#");
   for (const { plan, tasks } of restored) {
-    if (plan) saveRoundPlan(plan, 0);
-    if (tasks) saveRoundTasks(tasks, 0);
+    if (plan) await saveRoundPlan(plan, 0);
+    if (tasks) await saveRoundTasks(tasks, 0);
   }
-  return structuredClone(saved);
+  return saved;
 }
 
-/** Called by /api/live/launch and /close. No operatuions when workspace or round is unknown: launch never gates on the workspace. */
-export function markRoundStatus(parentUUID: string, roundId: string, status: RoundStatus): void {
-  const round = workspaces.get(parentUUID)?.rounds.find((r) => r.roundId === roundId);
-  if (!round) return;
-  round.status = status;
-  workspaces.get(parentUUID)!.revision += 1;
+/** Called by /api/live/launch and /close. No change when workspace or round is unknown: launch never gates on the workspace. */
+export async function markRoundStatus(parentUUID: string, roundId: string, status: RoundStatus): Promise<void> {
+  await changeItem<Workspace>(parentUUID, "workspace", (stored) => {
+    const round = stored?.rounds.find((r) => r.roundId === roundId);
+    if (!round) return null;
+    round.status = status;
+    return stored!;
+  });
 }

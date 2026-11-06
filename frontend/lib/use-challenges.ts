@@ -24,6 +24,21 @@ async function attempt<T>(failure: string, send: () => Promise<T>): Promise<T | 
 }
 
 /**
+ * The id of the challenge once its time is up, so the caller refetches its results:
+ * time running out reveals it on the backend, with no counter bump to say so.
+ */
+function useTimeUp(challenge: ChallengeView | null): string | null {
+  const [timeUpFor, setTimeUpFor] = useState<string | null>(null);
+  const open = challenge && !challenge.revealed ? challenge : null;
+  useEffect(() => {
+    // A moment past endsAt, so the backend's clock has passed it too.
+    const timer = open && setTimeout(() => setTimeUpFor(open.id), Math.max(0, open.endsAt - Date.now()) + 500);
+    return () => clearTimeout(timer ?? undefined);
+  }, [open?.id, open?.endsAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  return timeUpFor;
+}
+
+/**
  * The host's polls and quizzes for the shown round, with live results.
  * `refreshKey` changes on every launch, reveal, pick or lock (the meeting's
  * challenge counter plus the room counters), and each change refetches.
@@ -39,6 +54,10 @@ export function useRoundChallenges({
 }) {
   const [loaded, setLoaded] = useState<{ roundId: string; challenges: ChallengeView[] } | null>(null);
 
+  // Another round's list must not show while this one loads.
+  const challenges = loaded?.roundId === roundId ? loaded.challenges : [];
+  const timeUp = useTimeUp(challenges.at(-1) ?? null);
+
   useEffect(() => {
     let alive = true;
     if (!parentUUID || !roundId) return;
@@ -52,10 +71,7 @@ export function useRoundChallenges({
     return () => {
       alive = false;
     };
-  }, [parentUUID, roundId, refreshKey]);
-
-  // Another round's list must not show while this one loads.
-  const challenges = loaded?.roundId === roundId ? loaded.challenges : [];
+  }, [parentUUID, roundId, refreshKey, timeUp]);
 
   async function launch(draft: ChallengeDraft): Promise<boolean> {
     const next = await attempt("Could not launch.", () => launchChallenge(parentUUID, roundId, draft));
@@ -91,6 +107,10 @@ export function useRoomChallenge({
 }) {
   const [loaded, setLoaded] = useState<{ roundId: string; challenge: ChallengeView | null } | null>(null);
 
+  // A challenge read in an earlier round never shows in this one.
+  const challenge = loaded?.roundId === roundId ? loaded.challenge : null;
+  const timeUp = useTimeUp(challenge);
+
   useEffect(() => {
     let alive = true;
     if (!parentUUID || !roundId || !roomId || !participantUUID) return;
@@ -104,10 +124,7 @@ export function useRoomChallenge({
     return () => {
       alive = false;
     };
-  }, [parentUUID, roundId, roomId, participantUUID, refreshKey]);
-
-  // A challenge read in an earlier round never shows in this one.
-  const challenge = loaded?.roundId === roundId ? loaded.challenge : null;
+  }, [parentUUID, roundId, roomId, participantUUID, refreshKey, timeUp]);
 
   /** A suggestion ("pick") or the room's final answer ("lock") for one question. */
   async function answer(part: "pick" | "lock", question: number, option: number): Promise<void> {

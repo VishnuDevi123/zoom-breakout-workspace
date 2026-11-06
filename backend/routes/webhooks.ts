@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import dotenv from "dotenv";
+import { deleteItems } from "../services/dynamo.ts";
 import { applyEvent } from "../store/live.ts";
 
 dotenv.config();
@@ -19,7 +20,7 @@ function signedByZoom(rawBody: Buffer, timestamp: string | undefined, signature:
 }
 
 // Mounted with express.raw in server.ts, so req.body is the unparsed Buffer.
-router.post("/zoom", (req, res) => {
+router.post("/zoom", async (req, res) => {
   const rawBody: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
   if (!signedByZoom(rawBody, req.get("x-zm-request-timestamp"), req.get("x-zm-signature"))) {
     console.warn("webhook: rejected unsigned request");
@@ -33,8 +34,13 @@ router.post("/zoom", (req, res) => {
     res.json({ plainToken, encryptedToken: hmacHex(plainToken) });
     return;
   }
-  applyEvent(event);
   console.log("webhook:", event.event);
+  // The meeting is over for everyone: its data goes (saved templates stay).
+  if (event.event === "meeting.ended" && event.payload?.object?.uuid) {
+    await deleteItems(event.payload.object.uuid, "");
+  } else {
+    await applyEvent(event);
+  }
   res.sendStatus(200);
 });
 

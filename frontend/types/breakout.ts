@@ -92,8 +92,8 @@ export type RoomStatus = "onTrack" | "moreTime" | "done";
 export interface LiveRound {
   roundId: string;
   roomUUIDs: Record<string, string | null>;
+  /** Epoch ms; 0 means untimed. The host's app closes the round when its clock reaches it. */
   endsAt: number;
-  timerEnded: boolean;
   /** Planned room id -> the room's latest signal. A missing room is on track. Starts empty every launch. */
   roomStatus: Record<string, Exclude<RoomStatus, "onTrack">>;
 }

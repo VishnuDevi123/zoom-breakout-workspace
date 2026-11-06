@@ -22,8 +22,8 @@ router.use((_req, res, next) => {
 });
 
 // GET /api/workspace?parentUUID=<meeting uuid>
-router.get("/", anyoneInMeeting, (_req, res) => {
-  const workspace = getWorkspace(res.locals.caller.meetingUUID);
+router.get("/", anyoneInMeeting, async (_req, res) => {
+  const workspace = await getWorkspace(res.locals.caller.meetingUUID);
   if (!workspace) throw new HttpError("No workspace for this meeting.", 404);
 
   const body: ApiResponse<Workspace> = { success: true, data: workspace };
@@ -31,45 +31,45 @@ router.get("/", anyoneInMeeting, (_req, res) => {
 });
 
 // PUT /api/workspace   body: SaveWorkspaceRequest. 201 on create (revision 1), 200 on update.
-router.put("/", hostOnly, (req, res) => {
+router.put("/", hostOnly, async (req, res) => {
   if (!isRecord(req.body)) throw new HttpError("The request body must be an object.", 400);
   const request = req.body as Partial<SaveWorkspaceRequest>;
 
-  const saved = saveWorkspace(request, request.expectedRevision);
+  const saved = await saveWorkspace(request, request.expectedRevision);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.status(saved.revision === 1 ? 201 : 200).json(body);
 });
 
 // POST /api/workspace/rounds. The store validates every field.
-router.post("/rounds", hostOnly, (req, res) => {
-  const saved = addRound(res.locals.caller.meetingUUID, req.body);
+router.post("/rounds", hostOnly, async (req, res) => {
+  const saved = await addRound(res.locals.caller.meetingUUID, req.body);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.status(201).json(body);
 });
 
 // DELETE /api/workspace/rounds/:roundId?parentUUID=<meeting uuid>
-router.delete("/rounds/:roundId", hostOnly, (req, res) => {
-  const saved = deleteRound(res.locals.caller.meetingUUID, req.params.roundId);
+router.delete("/rounds/:roundId", hostOnly, async (req, res) => {
+  const saved = await deleteRound(res.locals.caller.meetingUUID, req.params.roundId);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.json(body);
 });
 
 // POST /api/workspace/end   body: EndWorkflowRequest. Returns this meeting's past workflows.
-router.post("/end", hostOnly, (req, res) => {
-  const past = endWorkflow(req.body);
+router.post("/end", hostOnly, async (req, res) => {
+  const past = await endWorkflow(res.locals.caller.meetingUUID, req.body);
   const body: ApiResponse<PastWorkflow[]> = { success: true, data: past };
   res.json(body);
 });
 
 // GET /api/workspace/past?parentUUID=<meeting uuid>, newest first.
-router.get("/past", hostOnly, (_req, res) => {
-  const body: ApiResponse<PastWorkflow[]> = { success: true, data: getPastWorkflows(res.locals.caller.meetingUUID) };
+router.get("/past", hostOnly, async (_req, res) => {
+  const body: ApiResponse<PastWorkflow[]> = { success: true, data: await getPastWorkflows(res.locals.caller.meetingUUID) };
   res.json(body);
 });
 
 // POST /api/workspace/replace   body: ReplaceWorkflowRequest. Only before the first launch.
-router.post("/replace", hostOnly, (req, res) => {
-  const saved = replaceWorkflow(req.body);
+router.post("/replace", hostOnly, async (req, res) => {
+  const saved = await replaceWorkflow(res.locals.caller.meetingUUID, req.body);
   const body: ApiResponse<Workspace> = { success: true, data: saved };
   res.json(body);
 });

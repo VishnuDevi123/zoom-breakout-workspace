@@ -13,7 +13,7 @@ function person(participantUUID: string, location: string): LiveParticipant {
 function liveWith(participants: LiveParticipant[], roomUUID: string | null): LiveState {
   return {
     parentUUID: "meeting",
-    round: { roundId: "round-1", roomUUIDs: { "room-a": roomUUID }, endsAt: 0, timerEnded: false, roomStatus: {} },
+    round: { roundId: "round-1", roomUUIDs: { "room-a": roomUUID }, endsAt: 0, roomStatus: {} },
     participants,
     taskRevision: 0,
     roomRevisions: {},

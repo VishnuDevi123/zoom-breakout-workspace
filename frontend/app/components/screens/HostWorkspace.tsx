@@ -7,7 +7,7 @@ import { readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execut
 import { canRunRounds } from "@/lib/host-gate";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
 import { assignParticipantToRoom, newPlacements } from "@/lib/room-plan-assignments";
-import { formatClock } from "@/lib/round-clock";
+import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import { copyRooms, groupsForLaunch } from "@/lib/room-plan-copy";
 import { settleForLaunch } from "@/lib/room-plan-assignments";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
@@ -225,8 +225,8 @@ export default function HostWorkspace({
     );
   }, [runsRounds, unknownRoomKey, livePlan?.roundId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The backend owns the clock: it flips timerEnded and pushes it over SSE.
-  const timerEnded = live.liveState?.round?.timerEnded ?? false;
+  // The backend sets endsAt; the host's app closes when its clock reaches it.
+  const timerEnded = useRemainingSec(live.liveState?.round?.endsAt ?? 0) === 0;
   const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;
   useEffect(() => {
     if (!timerEnded || !runsRounds) return;

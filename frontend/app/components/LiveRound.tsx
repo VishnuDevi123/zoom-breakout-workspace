@@ -41,7 +41,7 @@ import ZoomActionOverlay from "./ZoomActionOverlay";
 /**
  * The running round. Room names and dots come from the round's draft; who is
  * where comes from Zoom webhooks via LiveState. The timer counts down to the
- * backend's endsAt, and the backend decides when the round is actually over.
+ * backend's endsAt; the host's app closes the round when it reaches 0.
  */
 /** One press of the timer stepper. */
 const ADJUST_STEP_SEC = 60;
@@ -137,7 +137,7 @@ export default function LiveRound({
   const [viewingResults, setViewingResults] = useState(false);
   const runningChallenge = challenges.latest && !challenges.latest.revealed ? challenges.latest : null;
 
-  // The backend re-arms the timer and pushes the new endsAt over SSE, so there
+  // The backend moves endsAt and pushes it over SSE, so there
   // is nothing to set here: the countdown above follows the pushed state.
   async function adjustTime(seconds: number) {
     try {

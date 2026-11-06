@@ -8,19 +8,15 @@ import {
 } from "../types/breakout.ts";
 import { pruneResponses } from "./activity_responses.ts";
 import { bumpTaskRevision } from "./live.ts";
+import { readItem, roundItem, saveItem } from "../services/dynamo.ts";
 import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
-// One record per (parentUUID, roundId). Separate from round-plans: tasks change
-// after launch, drafts do not.
-const tasks = new Map<string, RoundTasks>();
+// One record per round (item "round#<roundId>#tasks"). Separate from round-plans:
+// tasks change after launch, drafts do not.
 const MAX_ACTIVITIES = 6;
 const CHECKLIST_ITEMS = 6;
 const MAX_LINES = 20;
 const MAX_DESCRIPTION_LENGTH = 2000;
-
-function key(parentUUID: string, roundId: string): string {
-  return `${parentUUID}:${roundId}`;
-}
 
 /** Trimmed, non-empty lines only. Empty array allowed. */
 function stringLines(value: unknown, field: string): string[] {
@@ -143,47 +139,17 @@ export function validateRoundTasks(input: unknown): Omit<SaveRoundTasksRequest, 
   return { parentUUID, roundId, all, rooms, activities: validateActivities(input.activities) };
 }
 
-function checkRevision(stored: RoundTasks | undefined, expectedRevision: unknown): number {
-  if (
-    typeof expectedRevision !== "number" ||
-    !Number.isSafeInteger(expectedRevision) ||
-    expectedRevision < 0
-  ) {
-    throw new HttpError("expectedRevision must be a non-negative safe integer.", 400);
-  }
-  const currentRevision = stored?.revision ?? 0;
-  if (expectedRevision !== currentRevision) {
-    throw new HttpError(
-      `The tasks changed. Expected revision ${expectedRevision}, but current revision is ${currentRevision}. Reload before saving again.`,
-      409,
-    );
-  }
-  return currentRevision;
-}
-
 /** GET does not create. Undefined means no tasks saved for this round yet. */
-export function getRoundTasks(parentUUID: unknown, roundId: unknown): RoundTasks | undefined {
-  const stored = tasks.get(
-    key(requiredString(parentUUID, "parentUUID"), requiredString(roundId, "roundId")),
-  );
-  return stored ? structuredClone(stored) : undefined;
+export async function getRoundTasks(parentUUID: string, roundId: string): Promise<RoundTasks | undefined> {
+  return readItem<RoundTasks>(parentUUID, roundItem(roundId, "tasks"));
 }
 
 /** Create (expectedRevision 0) or replace. Whole record each time; no partial merge. */
-export function saveRoundTasks(input: unknown, expectedRevision: unknown): RoundTasks {
+export async function saveRoundTasks(input: unknown, expectedRevision: unknown): Promise<RoundTasks> {
   const draft = validateRoundTasks(input);
-  const stored = tasks.get(key(draft.parentUUID, draft.roundId));
-  const currentRevision = checkRevision(stored, expectedRevision);
-
-  const saved: RoundTasks = { ...draft, revision: currentRevision + 1 };
-  tasks.set(key(saved.parentUUID, saved.roundId), saved);
-  bumpTaskRevision(saved.parentUUID);
+  const saved = await saveItem(draft.parentUUID, roundItem(draft.roundId, "tasks"), draft, expectedRevision);
+  await bumpTaskRevision(saved.parentUUID);
   // A removed activity or checklist item takes what rooms wrote for it along.
-  pruneResponses(saved);
-  return structuredClone(saved);
-}
-
-/** Called by deleteRound in store/workspace.ts so a removed round leaves no tasks behind. */
-export function deleteRoundTasks(parentUUID: string, roundId: string): void {
-  tasks.delete(key(parentUUID, roundId));
+  await pruneResponses(saved);
+  return saved;
 }
