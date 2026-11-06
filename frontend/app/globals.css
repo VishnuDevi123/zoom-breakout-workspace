@@ -536,12 +536,29 @@ input[type="checkbox"] {
 }
 
 .bw-rooms-input {
-  width: 56px;
+  width: 50px;
   padding: 5px 7px;
   border: 1px solid var(--bw-border-strong);
   border-radius: var(--bw-radius-sm);
   background: var(--bw-surface);
   font-size: var(--bw-fs-meta);
+
+}
+
+/* Rail row: label on the left, its controls at the right edge. Controls never shrink. */
+.bw-rail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--bw-fs-meta);
+}
+
+.bw-rail-row__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Cards are at least 228px wide; the column count follows the space. */
@@ -1411,18 +1428,15 @@ input[type="checkbox"] {
   flex: none;
 }
 
-.bw-member-menu summary,
-.bw-add-person-menu summary {
+.bw-member-menu summary {
   list-style: none;
 }
 
-.bw-member-menu summary::-webkit-details-marker,
-.bw-add-person-menu summary::-webkit-details-marker {
+.bw-member-menu summary::-webkit-details-marker {
   display: none;
 }
 
-.bw-member-menu__popover,
-.bw-add-person-menu__popover {
+.bw-member-menu__popover {
   position: absolute;
   z-index: 3;
   right: 0;
@@ -1440,8 +1454,7 @@ input[type="checkbox"] {
   overflow-y: auto;
 }
 
-.bw-member-menu__popover button,
-.bw-add-person-menu__popover button {
+.bw-member-menu__popover button {
   width: 100%;
   padding: 7px 8px;
   border: 0;
@@ -1455,9 +1468,7 @@ input[type="checkbox"] {
 }
 
 .bw-member-menu__popover button:hover,
-.bw-member-menu__popover button:focus-visible,
-.bw-add-person-menu__popover button:hover,
-.bw-add-person-menu__popover button:focus-visible {
+.bw-member-menu__popover button:focus-visible {
   background: var(--bw-accent-tint);
   outline: none;
 }
@@ -1470,58 +1481,6 @@ input[type="checkbox"] {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.bw-add-person-menu {
-  position: relative;
-  margin-top: auto;
-}
-
-.bw-add-person-menu summary,
-.bw-add-person-button {
-  width: 100%;
-  padding: 6px;
-  border: 1px dashed var(--bw-border-strong);
-  border-radius: var(--bw-radius-sm);
-  background: var(--bw-surface);
-  color: var(--bw-muted-2);
-  font: 500 11px var(--bw-font-ui);
-  text-align: center;
-  cursor: pointer;
-}
-
-.bw-add-person-menu summary:hover,
-.bw-add-person-menu summary:focus-visible {
-  border-color: var(--bw-accent);
-  color: var(--bw-accent-deep);
-  outline: none;
-}
-
-.bw-add-person-menu__popover {
-  right: auto;
-  bottom: 31px;
-  left: 0;
-  width: 100%;
-  max-height: 190px;
-  overflow-y: auto;
-}
-
-.bw-add-person-menu__popover button {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  overflow: hidden;
-}
-
-.bw-add-person-menu__popover button > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bw-add-person-button {
-  margin-top: auto;
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 .bw-placement-select {
@@ -1827,6 +1786,9 @@ input[type="checkbox"] {
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 .bw-expanding[data-open] {
+  /* Four lines at most; longer text scrolls inside the field. */
+  max-height: calc(var(--bw-expanding-closed) + 3lh);
+  overflow-y: auto;
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -1841,6 +1803,12 @@ input[type="checkbox"] {
   .bw-expanding {
     transition: none;
   }
+}
+.bw-field__count {
+  align-self: flex-end;
+  font-size: var(--bw-fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--bw-muted-2);
 }
 .bw-goal-input:focus-visible {
   outline: 2px solid var(--bw-accent);
@@ -2125,6 +2093,7 @@ a.bw-resource-row:hover {
 
 /* ── Page frame (live round, round setup): top bar, one page, bottom navbar ── */
 .bw-frame {
+  container: frame / inline-size;
   height: 100dvh;
   display: grid;
   /* The bar is at least --bw-bar-h and grows when its controls wrap to a second row. */
@@ -2211,6 +2180,42 @@ a.bw-resource-row:hover {
 }
 .bw-setup-actions > * {
   flex: none;
+}
+.bw-setup-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.bw-setup-tools > * {
+  flex: none;
+}
+/*
+ * Narrow panel: two rows instead of three. Back, name and Next share the first
+ * row; the room controls take the whole second row. The title steps down to
+ * 18px and the bar's buttons get tighter padding so the controls fit at 360px.
+ */
+@container frame (max-width: 639px) {
+  .bw-frame--planning .bw-frame__bar {
+    --bw-fs-header: 18px;
+    gap: 8px;
+  }
+  .bw-frame--planning .bw-frame__bar .bw-button--sm {
+    padding: 5px 11px;
+  }
+  .bw-setup-heading {
+    flex: 1 1 0;
+  }
+  .bw-setup-actions {
+    display: contents;
+  }
+  .bw-setup-next {
+    order: 1;
+  }
+  .bw-setup-tools {
+    order: 2;
+    flex: 1 1 100%;
+  }
 }
 .bw-frame__bar .bw-button {
   white-space: nowrap;
@@ -2362,6 +2367,17 @@ a.bw-resource-row:hover {
   font-size: var(--bw-fs-body);
   color: var(--bw-muted);
 }
+/* Confirm title with its ✕ on the right; the ✕ sits in the panel's padding corner. */
+.bw-confirm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -6px -8px -6px 0;
+}
+.bw-confirm-head .bw-modal-title {
+  padding-top: 6px;
+}
 .bw-confirm-message {
   margin: 0;
   font-size: var(--bw-fs-body);
@@ -2371,7 +2387,7 @@ a.bw-resource-row:hover {
 /* ── Workflow page: rounds (60%) beside workflow settings (40%) ──────── */
 .bw-workflow {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 6.5fr) minmax(0, 3.25fr);
 }
 .bw-workflow__settings {
   width: auto;
@@ -2557,6 +2573,16 @@ a.bw-resource-row:hover {
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+.bw-results__person-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bw-results__person-text .bw-room-member__status {
+  font-size: var(--bw-fs-label);
+  font-weight: 400;
 }
 .bw-results__person-name {
   flex: 1;
@@ -2952,6 +2978,22 @@ a.bw-resource-row:hover {
 .bw-room-member__status--done {
   color: var(--bw-teal-deep);
 }
+/* Host's room page: move someone to another open room. Quiet until used. */
+.bw-person-move {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--bw-border-soft);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-surface);
+  font: inherit;
+  font-size: var(--bw-fs-label);
+  color: var(--bw-accent);
+  cursor: pointer;
+}
+.bw-person-move:focus-visible {
+  outline: 2px solid var(--bw-accent);
+  outline-offset: 1px;
+}
 /* Shared checklist (room page and board page) */
 .bw-checklist {
   display: flex;
@@ -3319,22 +3361,27 @@ a.bw-resource-row:hover {
   box-shadow: inset 0 0 0 1px var(--bw-quiz-line);
   color: var(--bw-quiz-deep);
 }
-/* The scrollbar keeps its space but shows only while the body scrolls. */
-.bw-challenge-scroll {
+/* The scrollbar keeps its space but shows only while the body scrolls (useScrollReveal). */
+.bw-challenge-scroll,
+.bw-expanding {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-.bw-challenge-scroll[data-scrolling] {
+.bw-challenge-scroll[data-scrolling],
+.bw-expanding[data-scrolling] {
   scrollbar-color: var(--bw-border-strong) transparent;
 }
-.bw-challenge-scroll::-webkit-scrollbar {
+.bw-challenge-scroll::-webkit-scrollbar,
+.bw-expanding::-webkit-scrollbar {
   width: 6px;
 }
-.bw-challenge-scroll::-webkit-scrollbar-thumb {
+.bw-challenge-scroll::-webkit-scrollbar-thumb,
+.bw-expanding::-webkit-scrollbar-thumb {
   border-radius: 3px;
   background: transparent;
 }
-.bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb {
+.bw-challenge-scroll[data-scrolling]::-webkit-scrollbar-thumb,
+.bw-expanding[data-scrolling]::-webkit-scrollbar-thumb {
   background: var(--bw-border-strong);
 }
 .bw-challenge-scroll--capped {

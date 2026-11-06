@@ -2,11 +2,14 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { useScrollReveal } from "@/lib/use-scroll-reveal";
+
 /**
- * A text field that wraps and grows downwards to show all of its text. By
+ * A text field that wraps and grows downwards as text is typed, up to four lines;
+ * longer text scrolls inside it, so the fields below move only a little. By
  * default it shows one line (fading out at the edge when the text is longer)
- * while it is not being edited; `collapseOnBlur={false}` keeps the full text
- * shown. Both heights are explicit, so the change animates. Enter finishes editing.
+ * while it is not being edited; `collapseOnBlur={false}` keeps the text shown.
+ * Both heights are explicit, so the change animates. Enter finishes editing.
  */
 export default function ExpandingField({
   className,
@@ -32,6 +35,7 @@ export default function ExpandingField({
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   const [focused, setFocused] = useState(false);
+  const scrollReveal = useScrollReveal();
   const open = focused || !collapseOnBlur;
 
   // Open: the full text's height (it grows as you type). Closed: the one-line height from CSS.
@@ -41,6 +45,7 @@ export default function ExpandingField({
     if (!open) {
       element.style.height = "";
       element.scrollLeft = 0;
+      element.scrollTop = 0;
       return;
     }
     // Always open, it may also shrink: measure from no set height (CSS keeps these unanimated).
@@ -54,6 +59,7 @@ export default function ExpandingField({
       ref={field}
       className={`${className} bw-expanding`}
       data-open={open || undefined}
+      {...scrollReveal}
       rows={1}
       // Closed it stays on one line; open it wraps.
       wrap={open ? "soft" : "off"}

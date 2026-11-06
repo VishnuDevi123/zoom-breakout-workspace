@@ -1,6 +1,6 @@
 "use client";
 
-import type { CheckListItem, RoomTask } from "@/types/breakout";
+import { MAX_TASK_TEXT_LENGTH, type CheckListItem, type RoomTask } from "@/types/breakout";
 
 import ExpandingField from "./ExpandingField";
 import { SectionLabel } from "./ui";
@@ -56,9 +56,13 @@ export default function TaskFields({
           className="bw-goal-input"
           value={task.goal}
           placeholder="What should this room achieve?"
+          maxLength={MAX_TASK_TEXT_LENGTH}
           onChange={(goal) => setTask({ ...task, goal })}
           onCommit={() => save(task)}
         />
+        <span className="bw-field__count">
+          {task.goal.length} / {MAX_TASK_TEXT_LENGTH}
+        </span>
       </div>
 
       <div className="bw-field">
@@ -152,6 +156,7 @@ function LineList({
             className="bw-line-row__input"
             value={line}
             placeholder={placeholder}
+            maxLength={MAX_TASK_TEXT_LENGTH}
             // A blank last row is one that was just added, so it takes the caret.
             autoFocus={line === "" && index === lines.length - 1}
             onChange={(text) => onChange(lines.map((current, at) => (at === index ? text : current)))}

@@ -21,8 +21,10 @@ export type ZoomSdk = NonNullable<Window["zoomSdk"]>;
 /**
  * Documented by Zoom as available to every role, including guests. Anything
  * else in this list rejects the whole `config()` call for an attendee.
+ * `getAppContext` is here because every backend request carries its token
+ * (verified safe for attendees in Zoom 2026-11-04).
  */
-const BASE_CAPABILITIES = ["getMeetingUUID", "getUserContext"];
+const BASE_CAPABILITIES = ["getMeetingUUID", "getUserContext", "getAppContext"];
 
 /**
  * Host and co-host only, per Zoom's "Supported roles" line on each method.
@@ -39,7 +41,6 @@ const HOST_CAPABILITIES = [
   "closeBreakoutRooms",
   "getBreakoutRoomList",
   "getMeetingParticipants",
-  "getAppContext",
 ];
 
 /**
@@ -146,15 +147,42 @@ export function configureZoomSdk(): Promise<ZoomBootstrap> {
 }
 
 /**
- * The encrypted app context for the backend's X-Zoom-App-Context header. Only
- * the backend can decrypt it (to the Zoom user's `uid`). Read fresh for each
- * request so an expired token is never reused. Needs the host capabilities.
+ * Zoom's tokens last about 4 hours (verified 2026-11-04), but this page cannot
+ * read `exp`, so one is reused for well under that.
  */
-export async function readAppContextToken(): Promise<string> {
+const TOKEN_REUSE_MS = 60 * 60 * 1000;
+
+let cachedToken: { token: Promise<string>; readAt: number } | null = null;
+
+/**
+ * The encrypted app context for the backend's X-Zoom-App-Context header. Only
+ * the backend can decrypt it; it carries this user's meeting and role. One read
+ * is shared by every request until it is an hour old or forgotten.
+ */
+export function readAppContextToken(): Promise<string> {
+  if (cachedToken && Date.now() - cachedToken.readAt < TOKEN_REUSE_MS) return cachedToken.token;
+  const token = readFreshToken();
+  cachedToken = { token, readAt: Date.now() };
+  // A failed read is not kept, so the next request asks Zoom again.
+  token.catch(() => {
+    if (cachedToken?.token === token) cachedToken = null;
+  });
+  return token;
+}
+
+async function readFreshToken(): Promise<string> {
   const bootstrap = await configureZoomSdk();
   if (bootstrap.kind === "unavailable") throw new Error(bootstrap.error.message);
   const { context } = await bootstrap.sdk.getAppContext();
   return context;
+}
+
+/**
+ * Call when this user's role may have changed, or the backend refused the token:
+ * the next request reads a new one, which carries the current role.
+ */
+export function forgetAppContextToken(): void {
+  cachedToken = null;
 }
 
 let hostPromise: Promise<SdkErrorInfo | null> | null = null;

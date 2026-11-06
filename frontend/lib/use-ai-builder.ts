@@ -4,8 +4,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { draftWorkflowWithAi } from "@/lib/execution-api";
-import { readAppContextToken } from "@/lib/zoom-sdk";
-import type { AiChatMessage, WorkflowSnapshot } from "@/types/breakout";
+import { MAX_AI_MESSAGES, type AiChatMessage, type WorkflowSnapshot } from "@/types/breakout";
 
 /** One chat turn as the builder shows it: the host's text, the AI's question or its proposal. */
 export type AiTurn =
@@ -15,9 +14,13 @@ export type AiTurn =
 
 export type AiAnswer = Exclude<AiTurn, { kind: "host" }>;
 
-/** The chat as the backend reads it; a proposal is summed up in one line, its content travels as `draft`. */
+/**
+ * The chat as the backend reads it; a proposal is summed up in one line, its content travels as `draft`.
+ * A long chat keeps its first message (what the session is for) and the latest ones.
+ */
 function toMessages(turns: AiTurn[]): AiChatMessage[] {
-  return turns.map((turn) => {
+  const kept = turns.length > MAX_AI_MESSAGES ? [turns[0], ...turns.slice(-(MAX_AI_MESSAGES - 1))] : turns;
+  return kept.map((turn) => {
     if (turn.kind === "host") return { role: "host", text: turn.text };
     if (turn.kind === "question") return { role: "assistant", text: turn.text };
     return { role: "assistant", text: `Proposed workflow "${turn.workflow.title}" (${turn.workflow.rounds.length} rounds).` };
@@ -44,7 +47,6 @@ export function useAiBuilder() {
     setPending(true);
     try {
       const reply = await draftWorkflowWithAi(
-        await readAppContextToken(),
         { messages: toMessages(asked), draft: lastDraft },
         controller.signal,
       );

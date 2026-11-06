@@ -7,8 +7,9 @@ import { readSavedRoundPlan, saveRoundPlan, setRoundSkipped } from "@/lib/execut
 import { canRunRounds } from "@/lib/host-gate";
 import { initialsFrom, type Participant } from "@/lib/participant-status";
 import { assignParticipantToRoom, newPlacements } from "@/lib/room-plan-assignments";
-import { formatClock } from "@/lib/round-clock";
+import { formatClock, useRemainingSec } from "@/lib/round-clock";
 import { copyRooms, groupsForLaunch } from "@/lib/room-plan-copy";
+import { settleForLaunch } from "@/lib/room-plan-assignments";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { useLiveState } from "@/lib/use-live-state";
 import { useRoomPlan } from "@/lib/use-room-plan";
@@ -118,10 +119,11 @@ export default function HostWorkspace({
         : "landing"
       : view;
 
+  // planRevision: the backend moved someone in the running round's plan to follow a Zoom move.
   const { plans, reload: reloadPlans } = useRoundSummaries(
     meetingUUID,
     rounds.map((round) => round.roundId),
-    view,
+    `${view}:${live.liveState?.planRevision ?? 0}`,
   );
   const livePlan = liveRoundId ? (plans[liveRoundId] ?? null) : null;
   // The next round to run, not simply the next in the list: the host can skip
@@ -145,10 +147,10 @@ export default function HostWorkspace({
     },
     // Launching happens from saved drafts; the live view has no pending edits.
     flushSave: () => Promise.resolve(true),
-    prepareLaunch: copyGroupsForLaunch,
+    prepareLaunch: prepareGroupsForLaunch,
     onLaunched: (roundId, saved) => {
       if (saved) workspace.applyWorkspace(saved);
-      // "Same groups" wrote this round's plan just before launch; show what launched.
+      // "Same" and "New groups" wrote this round's plan just before launch; show what launched.
       reloadPlans();
       setLaunchedRoundId(roundId);
       setView("live");
@@ -200,8 +202,31 @@ export default function HostWorkspace({
     controller.syncRoster();
   }, [runsRounds, liveKnown, runningRoundId, livePlan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The backend owns the clock: it flips timerEnded and pushes it over SSE.
-  const timerEnded = live.liveState?.round?.timerEnded ?? false;
+  // Someone is in a Zoom room the backend cannot name: they were moved there. The
+  // host's room list names it (only the meeting owner's list carries people).
+  const liveRound = live.liveState?.round ?? null;
+  const unknownRoomKey = (live.liveState?.participants ?? [])
+    .filter(
+      (person) =>
+        person.role === "attendee" &&
+        person.location !== "main" &&
+        person.location !== "left" &&
+        !Object.values(liveRound?.roomUUIDs ?? {}).includes(person.location),
+    )
+    .map((person) => `${person.participantUUID} ${person.location}`)
+    .join(",");
+  useEffect(() => {
+    if (!runsRounds || !unknownRoomKey || !livePlan || liveRound?.roundId !== livePlan.roundId) return;
+    controller.linkUnknownRooms(
+      unknownRoomKey.split(",").map((entry) => {
+        const [participantUUID, location] = entry.split(" ");
+        return { participantUUID, location };
+      }),
+    );
+  }, [runsRounds, unknownRoomKey, livePlan?.roundId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The backend sets endsAt; the host's app closes when its clock reaches it.
+  const timerEnded = useRemainingSec(live.liveState?.round?.endsAt ?? 0) === 0;
   const autoStart = workspace.state.kind === "ready" && workspace.state.workspace.autoStartNextRound;
   useEffect(() => {
     if (!timerEnded || !runsRounds) return;
@@ -233,14 +258,41 @@ export default function HostWorkspace({
   }
 
   /**
-   * "Same groups": a round takes its rooms and people from the round that ran
-   * last, at launch time, so room changes and mid-round placements carry
-   * forward and a copy never goes stale. Other modes launch their own plans.
+   * Move from the room page: Zoom asks the person to join the other room. The plan
+   * is not written here; it follows once Zoom reports them there (backend followMove).
    */
-  async function copyGroupsForLaunch(roundId: string) {
+  async function moveInLiveRound(person: { participantUUID: string; name: string }, roomName: string) {
+    try {
+      await controller.placeInOpenRooms([{ participantUUID: person.participantUUID, roomName }]);
+      toast.success(`${person.name} was asked to join ${roomName}.`);
+    } catch (error) {
+      toast.error(`Could not move ${person.name}.`, {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  }
+
+  /**
+   * Writes a round's plan just before launch, from who Zoom lists right now.
+   * "Same groups", Round 2 and later: rooms and people come from the round that
+   * ran last, so a copy never goes stale. "New groups": the round's own groups,
+   * with leavers dropped and latecomers placed. "Each round" launches as planned.
+   */
+  async function prepareGroupsForLaunch(roundId: string) {
     if (workspace.state.kind !== "ready") return;
     const current = workspace.state.workspace;
-    if (!current.sameRoomsEveryRound || !current.samePeopleEveryRound) return;
+    if (!current.sameRoomsEveryRound) return;
+    const inMeeting = live.liveState?.participants.filter((p) => p.location !== "left") ?? null;
+
+    if (!current.samePeopleEveryRound) {
+      if (!inMeeting) return;
+      const own = await readSavedRoundPlan(meetingUUID, roundId);
+      // The host and co-hosts are never placed in a room.
+      const attendees = inMeeting.filter((p) => p.role === "attendee").map((p) => p.participantUUID);
+      await saveRoundPlan(meetingUUID, settleForLaunch(own, attendees), own.revision);
+      return;
+    }
+
     const index = current.rounds.findIndex((round) => round.roundId === roundId);
     if (index <= 0) return;
     const ran = current.rounds
@@ -248,9 +300,7 @@ export default function HostWorkspace({
       .reverse()
       .find((round) => round.status === "closed" || round.status === "launched");
     const source = await readSavedRoundPlan(meetingUUID, (ran ?? current.rounds[0]).roundId);
-    const present = live.liveState
-      ? new Set(live.liveState.participants.filter((p) => p.location !== "left").map((p) => p.participantUUID))
-      : null;
+    const present = inMeeting && new Set(inMeeting.map((p) => p.participantUUID));
     const target = { parentUUID: meetingUUID, roundId, title: roundLabel(current, roundId) };
     const existing = await readSavedRoundPlan(meetingUUID, roundId).catch(() => null);
     await saveRoundPlan(meetingUUID, groupsForLaunch(source, target, present), existing?.revision ?? 0);
@@ -438,6 +488,7 @@ export default function HostWorkspace({
         onLaunchNext={() => nextRound && controller.launch(nextRound.roundId)}
         onEndWorkflow={endWorkflow}
         onPlace={placeInLiveRound}
+        onMove={moveInLiveRound}
         plans={plans}
         onAddRound={addLiveRound}
         onUpdateRound={(roundId, patch) =>
@@ -467,7 +518,7 @@ export default function HostWorkspace({
         onDeleteRound={workspace.deleteRound}
         onUpdateRound={workspace.updateRound}
         onUpdateWorkspace={workspace.updateWorkspace}
-        prepareLaunch={copyGroupsForLaunch}
+        prepareLaunch={prepareGroupsForLaunch}
         onSaveTemplate={() =>
           reportFailure("Could not save the template.", async () => {
             await library.saveCurrent();

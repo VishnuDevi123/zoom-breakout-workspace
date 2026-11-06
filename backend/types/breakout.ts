@@ -9,6 +9,9 @@
 /** Most rooms one round can plan. Store, AI schema and editor all use it. */
 export const MAX_ROOMS = 20;
 
+/** Longest goal, step, checklist item or resource line. Store, AI schema and task editor all use it. */
+export const MAX_TASK_TEXT_LENGTH = 500;
+
 export const ROOM_DOTS = [
   "#fcb900",
   "#4262ff",
@@ -89,8 +92,8 @@ export type RoomStatus = "onTrack" | "moreTime" | "done";
 export interface LiveRound {
   roundId: string;
   roomUUIDs: Record<string, string | null>;
+  /** Epoch ms; 0 means untimed. The host's app closes the round when its clock reaches it. */
   endsAt: number;
-  timerEnded: boolean;
   /** Planned room id -> the room's latest signal. A missing room is on track. Starts empty every launch. */
   roomStatus: Record<string, Exclude<RoomStatus, "onTrack">>;
 }
@@ -103,8 +106,23 @@ export interface LiveState {
   taskRevision: number;
   /** roomId -> counter, bumped on every response write in that room. Clients refetch their own room only. */
   roomRevisions: Record<string, number>;
+  /** Bumped when the backend moves someone in the running round's plan to follow a Zoom move; the host refetches plans. */
+  planRevision: number;
   /** Bumped when the host launches or reveals a poll or quiz; every client refetches /api/challenges. */
   challengeRevision: number;
+}
+
+/** One planned room and the webhook uuid of the Zoom room it runs in, read by the host from Zoom's room list. */
+export interface RoomLink {
+  roomId: string;
+  roomUUID: string;
+}
+
+/** POST /api/live/room-links. Links win over links learned from webhooks. */
+export interface LinkRoomsRequest {
+  parentUUID: string;
+  roundId: string;
+  links: RoomLink[];
 }
 
 /** One person the Zoom SDK reports present when the host opens the app. */
@@ -277,6 +295,9 @@ export interface ReplaceWorkflowRequest {
 }
 
 /** One turn of the AI builder chat. An assistant turn is the AI's question or a short note about its proposal. */
+/** Most messages one AI request carries. A longer chat sends its first message and the latest ones. */
+export const MAX_AI_MESSAGES = 20;
+
 export interface AiChatMessage {
   role: "host" | "assistant";
   text: string;

@@ -1,6 +1,6 @@
-import { Router, type ErrorRequestHandler } from "express";
+import { Router } from "express";
+import { anyoneInMeeting, hostOrCoHost } from "../services/app-context.ts";
 
-import { parseRoom, ResponseError } from "../store/activity_responses.ts";
 import {
   getChallengesForHost,
   getRoomChallenge,
@@ -16,7 +16,7 @@ import type { ApiResponse, ChallengeView } from "../types/breakout.ts";
 // The host's routes return every challenge of the round with live results.
 // A room member's routes return the round's latest challenge as their room sees
 // it: their room's picks and locks, and every room's results once revealed.
-// Like /api/responses, the backend has no login: the room check uses the plan.
+// Like /api/responses, a room member must be placed in that room by the plan.
 
 const router = Router();
 
@@ -27,10 +27,10 @@ router.use((_req, res, next) => {
 });
 
 /** GET /api/challenges/:roundId?parentUUID=<meeting uuid>. The host's list, oldest first. */
-router.get("/:roundId", (req, res) => {
+router.get("/:roundId", hostOrCoHost, async (req, res) => {
   const body: ApiResponse<ChallengeView[]> = {
     success: true,
-    data: getChallengesForHost(req.query.parentUUID, req.params.roundId),
+    data: await getChallengesForHost(res.locals.caller.meetingUUID, req.params.roundId),
   };
   res.json(body);
 });
@@ -39,42 +39,42 @@ router.get("/:roundId", (req, res) => {
  * POST /api/challenges/:roundId. Body: LaunchChallengeRequest.
  * 409 when the round is not running or an earlier one still waits for its reveal.
  */
-router.post("/:roundId", (req, res) => {
+router.post("/:roundId", hostOrCoHost, async (req, res) => {
   const body: ApiResponse<ChallengeView[]> = {
     success: true,
-    data: launchChallenge(req.body?.parentUUID, req.params.roundId, req.body?.draft),
+    data: await launchChallenge(res.locals.caller.meetingUUID, req.params.roundId, req.body?.draft),
   };
   res.status(201).json(body);
 });
 
 /** POST /api/challenges/:roundId/:challengeId/reveal. Body: RevealChallengeRequest. */
-router.post("/:roundId/:challengeId/reveal", (req, res) => {
+router.post("/:roundId/:challengeId/reveal", hostOrCoHost, async (req, res) => {
   const { roundId, challengeId } = req.params;
   const body: ApiResponse<ChallengeView[]> = {
     success: true,
-    data: revealChallenge(req.body?.parentUUID, roundId, challengeId),
+    data: await revealChallenge(res.locals.caller.meetingUUID, roundId, challengeId),
   };
   res.json(body);
 });
 
 /** GET /api/challenges/:roundId/rooms/:roomId?parentUUID&participantUUID. Null when none was launched. */
-router.get("/:roundId/rooms/:roomId", (req, res) => {
+router.get("/:roundId/rooms/:roomId", anyoneInMeeting, async (req, res) => {
   const { roundId, roomId } = req.params;
-  const room = parseRoom({ parentUUID: req.query.parentUUID, roundId, roomId });
+  const room = { parentUUID: res.locals.caller.meetingUUID, roundId, roomId };
   const body: ApiResponse<ChallengeView | null> = {
     success: true,
-    data: getRoomChallenge(room, req.query.participantUUID),
+    data: await getRoomChallenge(room, req.query.participantUUID),
   };
   res.json(body);
 });
 
 /** PUT /api/challenges/:roundId/:challengeId/rooms/:roomId/picks/:question. Body: ChallengeAnswerRequest. */
-router.put("/:roundId/:challengeId/rooms/:roomId/picks/:question", (req, res) => {
+router.put("/:roundId/:challengeId/rooms/:roomId/picks/:question", anyoneInMeeting, async (req, res) => {
   const { roundId, challengeId, roomId, question } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = { parentUUID: res.locals.caller.meetingUUID, roundId, roomId };
   const body: ApiResponse<ChallengeView | null> = {
     success: true,
-    data: pickOption(room, challengeId, question, req.body),
+    data: await pickOption(room, challengeId, question, req.body),
   };
   res.json(body);
 });
@@ -83,25 +83,14 @@ router.put("/:roundId/:challengeId/rooms/:roomId/picks/:question", (req, res) =>
  * POST /api/challenges/:roundId/:challengeId/rooms/:roomId/locks/:question. Body: ChallengeAnswerRequest.
  * 409 when the room already locked the question, or time is up.
  */
-router.post("/:roundId/:challengeId/rooms/:roomId/locks/:question", (req, res) => {
+router.post("/:roundId/:challengeId/rooms/:roomId/locks/:question", anyoneInMeeting, async (req, res) => {
   const { roundId, challengeId, roomId, question } = req.params;
-  const room = parseRoom({ parentUUID: req.body?.parentUUID, roundId, roomId });
+  const room = { parentUUID: res.locals.caller.meetingUUID, roundId, roomId };
   const body: ApiResponse<ChallengeView | null> = {
     success: true,
-    data: lockAnswer(room, challengeId, question, req.body),
+    data: await lockAnswer(room, challengeId, question, req.body),
   };
   res.json(body);
 });
-
-// Same envelope as routes/activity_responses.ts: the store throws, the router turns it into JSON.
-const handleChallengeError: ErrorRequestHandler = (error: unknown, _req, res, next) => {
-  if (error instanceof ResponseError) {
-    const body: ApiResponse<never> = { success: false, error: error.message };
-    res.status(error.status).json(body);
-    return;
-  }
-  next(error);
-};
-router.use(handleChallengeError);
 
 export default router;

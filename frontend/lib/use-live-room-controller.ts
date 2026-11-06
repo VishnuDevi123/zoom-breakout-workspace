@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { ApiError, markRoundClosed, markRoundLaunched, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
+import { ApiError, markRoundClosed, markRoundLaunched, postRoomLinks, postRoster, readSavedRoundPlan } from "@/lib/execution-api";
 import { canManageRooms, canRunRounds } from "@/lib/host-gate";
 import {
   assignToOpenRooms,
@@ -11,6 +11,7 @@ import {
   closeRoundInZoom,
   launchRoundInZoom,
   readMeetingRoster,
+  readRoomLinks,
 } from "@/lib/launch-round";
 import { configureZoomSdk, type ZoomSdk } from "@/lib/zoom-sdk";
 import type { RoundPlanDraft, Workspace, ZoomRole } from "@/types/breakout";
@@ -29,6 +30,9 @@ const LAUNCH_DELAY_MS = 1_500;
  */
 const REPORT_WAIT_MS = 2_000;
 const REPORT_ATTEMPTS = 30;
+
+/** Wait before reading Zoom's room list after a move, which it reflects a moment after the webhook. */
+const LINK_DELAY_MS = 1_000;
 
 export type LiveOperationState =
   | { kind: "idle" }
@@ -229,5 +233,24 @@ export function useLiveRoomController(input: ControllerInput) {
     await assignToOpenRooms(sdk, placements);
   }
 
-  return { operation, launch, close, recordLaunch, roomsOpenInZoom, reconcile, syncRoster, placeInOpenRooms };
+  /**
+   * People webhooks report in a Zoom room the app cannot name yet: someone was moved
+   * there. Zoom's room list names it, and the backend moves them in the plan.
+   * Quiet on failure: the room page still shows them as "In another room".
+   */
+  function linkUnknownRooms(people: { participantUUID: string; location: string }[]) {
+    void (async () => {
+      try {
+        // Zoom's room list catches up with a move a moment after the webhook.
+        await new Promise((resolve) => setTimeout(resolve, LINK_DELAY_MS));
+        const { sdk } = await hostSdk();
+        const links = await readRoomLinks(sdk, input.round, people);
+        if (links.length > 0) await postRoomLinks(input.parentUUID, input.round.roundId, links);
+      } catch (error) {
+        console.warn("Room links: reading Zoom's room list failed.", error);
+      }
+    })();
+  }
+
+  return { operation, launch, close, recordLaunch, roomsOpenInZoom, reconcile, syncRoster, placeInOpenRooms, linkUnknownRooms };
 }

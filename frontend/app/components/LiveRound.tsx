@@ -33,7 +33,7 @@ import ChallengeCards from "./ChallengeCards";
 import EditTaskModal from "./EditTaskModal";
 import NotPlacedSheet from "./NotPlacedSheet";
 import PageFrame, { type FrameTab } from "./PageFrame";
-import RoomResultsPage from "./RoomResultsPage";
+import RoomResultsPage, { type RoomPerson, type RoomPresence } from "./RoomResultsPage";
 import SessionPage from "./SessionPage";
 import { BrandMark, Button, Card, ConfirmModal, Pill, StatusDot } from "./ui";
 import ZoomActionOverlay from "./ZoomActionOverlay";
@@ -41,7 +41,7 @@ import ZoomActionOverlay from "./ZoomActionOverlay";
 /**
  * The running round. Room names and dots come from the round's draft; who is
  * where comes from Zoom webhooks via LiveState. The timer counts down to the
- * backend's endsAt, and the backend decides when the round is actually over.
+ * backend's endsAt; the host's app closes the round when it reaches 0.
  */
 /** One press of the timer stepper. */
 const ADJUST_STEP_SEC = 60;
@@ -81,6 +81,7 @@ export default function LiveRound({
   onLaunchNext,
   onEndWorkflow,
   onPlace,
+  onMove,
   plans,
   onAddRound,
   onUpdateRound,
@@ -103,6 +104,8 @@ export default function LiveRound({
   onEndWorkflow: () => Promise<void>;
   /** Saves the round with people added to rooms and moves them in Zoom. Reports its own errors. */
   onPlace: (next: RoundPlanDraft) => Promise<void>;
+  /** Asks Zoom to move someone to another open room; the plan follows when Zoom reports it. Reports its own errors. */
+  onMove: (person: { participantUUID: string; name: string }, roomName: string) => Promise<void>;
   /** Every round's saved plan, for the Session page's room summaries. */
   plans: Record<string, RoundPlan | null>;
   onAddRound: () => Promise<void>;
@@ -134,7 +137,7 @@ export default function LiveRound({
   const [viewingResults, setViewingResults] = useState(false);
   const runningChallenge = challenges.latest && !challenges.latest.revealed ? challenges.latest : null;
 
-  // The backend re-arms the timer and pushes the new endsAt over SSE, so there
+  // The backend moves endsAt and pushes it over SSE, so there
   // is nothing to set here: the countdown above follows the pushed state.
   async function adjustTime(seconds: number) {
     try {
@@ -211,13 +214,18 @@ export default function LiveRound({
   });
   const goTo = (next: RoomsLevel) => setRooms({ roundId: round.roundId, level: next });
 
-  /** Everyone the plan puts in a room, named from the live store where it knows them. */
-  function peopleIn(roomId: string) {
+  /** Everyone the plan puts in a room, named from the live store where it knows them; where they are while rooms are open. */
+  function peopleIn(roomId: string): RoomPerson[] {
     const planned = round.rooms.find((room) => room.id === roomId)?.participantUUIDs ?? [];
-    return planned.map((participantUUID) => ({
-      participantUUID,
-      name: participants.find((p) => p.participantUUID === participantUUID)?.name || "Participant",
-    }));
+    const roomUUID = live.round?.roomUUIDs[roomId] ?? null;
+    return planned.map((participantUUID) => {
+      const known = participants.find((p) => p.participantUUID === participantUUID);
+      return {
+        participantUUID,
+        name: known?.name || "Participant",
+        presence: open ? presenceOf(known?.location, roomUUID) : null,
+      };
+    });
   }
 
   function membersOf(roomId: string): LiveParticipant[] {
@@ -324,6 +332,8 @@ export default function LiveRound({
             room={openRoom}
             people={peopleIn(openRoom.id)}
             presentCount={membersOf(openRoom.id).length}
+            otherRooms={open ? round.rooms.filter((room) => room.id !== openRoom.id) : []}
+            onMove={onMove}
             checklist={tasks.task.checklist}
             activities={tasks.activities}
             results={results}
@@ -514,6 +524,13 @@ function LiveRoomCard({
 }
 
 /** How far one room is through the running poll or quiz; null until it locks something in. */
+/** Where a planned person is while rooms are open. A room not entered yet has no uuid, so nobody is "in" it. */
+function presenceOf(location: string | undefined, roomUUID: string | null): RoomPresence {
+  if (!location || location === "left") return "left";
+  if (location === "main") return "main";
+  return location === roomUUID ? "room" : "elsewhere";
+}
+
 function challengeProgress(challenge: ChallengeView, roomId: string): { answered: number; total: number } | null {
   const answers = challenge.results?.rooms.find((room) => room.roomId === roomId)?.answers ?? [];
   const answered = answers.filter((option) => option !== null).length;

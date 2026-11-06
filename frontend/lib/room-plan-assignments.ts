@@ -79,7 +79,7 @@ export function keepParticipantInMain(
 /**
  * Place only people who are not placed yet, each into the smallest room. Nobody
  * already placed moves, which is what the live sheet needs: people in open rooms
- * must stay put. The planner rebalances with `rebalanceEvenly` instead.
+ * must stay put. The planner's Assign evenly deals afresh with `shuffleEvenly` instead.
  */
 export function autoAssignParticipantsEvenly(
   draft: RoundPlanDraft,
@@ -117,47 +117,10 @@ export function autoAssignParticipantsEvenly(
 }
 
 /**
- * Spread the given people evenly across the rooms, moving as few as possible.
- * The planner's "Auto-assign evenly" uses this, so a changed room count
- * rebalances rather than only placing newcomers.
- *
- * Room sizes differ by at most one, earlier rooms taking the remainder. Everyone
- * keeps their room while it is not over its size; an over-full room gives up its
- * most recently added people first. People kept in the main room stay there,
- * and planned people missing from the list stay put and do not count.
- */
-export function rebalanceEvenly(draft: RoundPlanDraft, participantUUIDs: string[]): RoundPlanDraft {
-  if (draft.rooms.length === 0) return draft;
-  const keptInMain = new Set(draft.stayInMainParticipantUUIDs);
-  const movable = new Set(participantUUIDs.filter((uuid) => !keptInMain.has(uuid)));
-
-  const base = Math.floor(movable.size / draft.rooms.length);
-  const remainder = movable.size % draft.rooms.length;
-  const sizeFor = (index: number) => base + (index < remainder ? 1 : 0);
-
-  const placed = new Set(draft.rooms.flatMap((room) => room.participantUUIDs));
-  const waiting = [...movable].filter((uuid) => !placed.has(uuid));
-  const staying = draft.rooms.map((room, index) => {
-    const movableHere = room.participantUUIDs.filter((uuid) => movable.has(uuid));
-    waiting.push(...movableHere.slice(sizeFor(index)));
-    return movableHere.slice(0, sizeFor(index));
-  });
-
-  return {
-    ...draft,
-    rooms: draft.rooms.map((room, index) => {
-      const absent = room.participantUUIDs.filter((uuid) => !movable.has(uuid));
-      const joining = waiting.splice(0, sizeFor(index) - staying[index].length);
-      return { ...room, participantUUIDs: [...absent, ...staying[index], ...joining] };
-    }),
-  };
-}
-
-/**
- * "New groups each round": deal the given people into the rooms in a random
- * order, sizes differing by at most one. Unlike `rebalanceEvenly` nobody keeps
- * their room, so each round comes out mixed. People kept in main stay there,
- * and planned people missing from the list stay put.
+ * Assign evenly: deal the given people into the rooms in a random order, sizes
+ * differing by at most one. Every press is a fresh mix, so each round of "New
+ * groups" comes out different. People kept in main stay there, and planned
+ * people missing from the list stay put.
  */
 export function shuffleEvenly(
   draft: RoundPlanDraft,
@@ -184,6 +147,25 @@ export function shuffleEvenly(
       ],
     })),
   };
+}
+
+/**
+ * "New groups" at launch: keep the host's groups for people still here, drop
+ * people who left, and put latecomers into the smallest rooms. A round nobody
+ * was placed in gets a fresh random deal of everyone present.
+ */
+export function settleForLaunch(draft: RoundPlanDraft, presentUUIDs: string[]): RoundPlanDraft {
+  const present = new Set(presentUUIDs);
+  const kept: RoundPlanDraft = {
+    ...draft,
+    rooms: draft.rooms.map((room) => ({
+      ...room,
+      participantUUIDs: room.participantUUIDs.filter((uuid) => present.has(uuid)),
+    })),
+    stayInMainParticipantUUIDs: draft.stayInMainParticipantUUIDs.filter((uuid) => present.has(uuid)),
+  };
+  const anyPlaced = kept.rooms.some((room) => room.participantUUIDs.length > 0);
+  return anyPlaced ? autoAssignParticipantsEvenly(kept, presentUUIDs) : shuffleEvenly(kept, presentUUIDs);
 }
 
 /** People a later draft puts in a room who were in no room before, with the room they got. */

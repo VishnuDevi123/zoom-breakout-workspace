@@ -1,33 +1,15 @@
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import { DeleteCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
-import { documentClient, templatesTable } from "../services/dynamo.ts";
+import { changeItem, documentClient, readItem, templatesTable } from "../services/dynamo.ts";
 import type { PastWorkflow, SavedTemplate, WorkflowSnapshot } from "../types/breakout.ts";
+import { HttpError, isRecord, requiredString } from "../services/http-error.ts";
 
-// Ended workflows per meeting stay in memory (a restart loses them, by choice).
-// Saved templates live in DynamoDB, one item per template: partition key `ownerUid`
+// Ended workflows are one meeting record (item "past"), newest first.
+// Saved templates live in TEMPLATES_TABLE, one item per template: partition key `ownerUid`
 // (the Zoom user id from services/app-context.ts), sort key `id`. No participant data.
-const pastWorkflows = new Map<string, PastWorkflow[]>();
-
-export class TemplateError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 404 | 409,
-  ) {
-    super(message);
-    this.name = "TemplateError";
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requiredString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new TemplateError(`${field} must be a non-empty string.`, 400);
-  }
-  return value;
+interface PastWorkflows {
+  workflows: PastWorkflow[];
 }
 
 function snapshotOf(past: PastWorkflow): WorkflowSnapshot {
@@ -36,32 +18,34 @@ function snapshotOf(past: PastWorkflow): WorkflowSnapshot {
     sameRoomsEveryRound: past.sameRoomsEveryRound,
     samePeopleEveryRound: past.samePeopleEveryRound,
     autoStartNextRound: past.autoStartNextRound,
-    rounds: structuredClone(past.rounds),
+    rounds: past.rounds,
   };
 }
 
 /** Called by endWorkflow in store/workspace.ts. Returns the meeting's past workflows. */
-export function addPastWorkflow(parentUUID: string, snapshot: WorkflowSnapshot): PastWorkflow[] {
-  const past: PastWorkflow = { ...structuredClone(snapshot), id: crypto.randomUUID(), endedAt: new Date().toISOString() };
-  pastWorkflows.set(parentUUID, [past, ...(pastWorkflows.get(parentUUID) ?? [])]);
-  return getPastWorkflows(parentUUID);
+export async function addPastWorkflow(parentUUID: string, snapshot: WorkflowSnapshot): Promise<PastWorkflow[]> {
+  const past: PastWorkflow = { ...snapshot, id: crypto.randomUUID(), endedAt: new Date().toISOString() };
+  const saved = await changeItem<PastWorkflows>(parentUUID, "past", (current) => ({
+    workflows: [past, ...(current?.workflows ?? [])],
+  }));
+  return saved?.workflows ?? [];
 }
 
-export function getPastWorkflows(parentUUID: unknown): PastWorkflow[] {
-  return structuredClone(pastWorkflows.get(requiredString(parentUUID, "parentUUID")) ?? []);
+export async function getPastWorkflows(parentUUID: string): Promise<PastWorkflow[]> {
+  return (await readItem<PastWorkflows>(parentUUID, "past"))?.workflows ?? [];
 }
 
 /** Copy one past workflow of this meeting into the owner's templates. */
 export async function saveTemplate(ownerUid: string, input: unknown): Promise<SavedTemplate> {
-  if (!isRecord(input)) throw new TemplateError("The request body must be an object.", 400);
+  if (!isRecord(input)) throw new HttpError("The request body must be an object.", 400);
   const parentUUID = requiredString(input.parentUUID, "parentUUID");
   const pastWorkflowId = requiredString(input.pastWorkflowId, "pastWorkflowId");
 
-  const past = pastWorkflows.get(parentUUID)?.find((workflow) => workflow.id === pastWorkflowId);
-  if (!past) throw new TemplateError("No past workflow with this ID in this meeting.", 404);
+  const past = (await getPastWorkflows(parentUUID)).find((workflow) => workflow.id === pastWorkflowId);
+  if (!past) throw new HttpError("No past workflow with this ID in this meeting.", 404);
   const templates = await getTemplates(ownerUid);
   if (templates.some((template) => template.sourcePastWorkflowId === pastWorkflowId)) {
-    throw new TemplateError("This past workflow is already saved.", 409);
+    throw new HttpError("This past workflow is already saved.", 409);
   }
   return addTemplate(ownerUid, snapshotOf(past), pastWorkflowId);
 }
@@ -73,7 +57,7 @@ export async function addTemplate(
   sourcePastWorkflowId?: string,
 ): Promise<SavedTemplate> {
   const saved: SavedTemplate = {
-    ...structuredClone(snapshot),
+    ...snapshot,
     id: crypto.randomUUID(),
     ownerUid,
     savedAt: new Date().toISOString(),
@@ -97,7 +81,7 @@ export async function deleteTemplate(ownerUid: string, templateId: unknown): Pro
     );
   } catch (error) {
     if (error instanceof ConditionalCheckFailedException) {
-      throw new TemplateError("No saved template with this ID.", 404);
+      throw new HttpError("No saved template with this ID.", 404);
     }
     throw error;
   }

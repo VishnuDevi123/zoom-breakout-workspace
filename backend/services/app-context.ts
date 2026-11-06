@@ -1,15 +1,9 @@
 import crypto from "node:crypto";
+import type { NextFunction, Request, Response } from "express";
 
-/** 401: no token, unreadable or expired. 403: a guest (no Zoom account, so no uid). */
-export class AppContextError extends Error {
-  constructor(
-    message: string,
-    readonly status: 401 | 403,
-  ) {
-    super(message);
-    this.name = "AppContextError";
-  }
-}
+import type { MeetingRole } from "../types/breakout.ts";
+import { personOf } from "../store/live.ts";
+import { HttpError } from "./http-error.ts";
 
 /** The decrypted X-Zoom-App-Context payload; only the fields we use are typed. */
 interface AppContext {
@@ -19,6 +13,12 @@ interface AppContext {
   exp: number;
   ts: number;
   typ: string;
+  /** The main meeting's UUID, also inside a breakout room (verified 2026-11-04). */
+  mid?: string;
+  /** "host", "co-host" or "participant". Not in Zoom's docs; verified 2026-11-04. */
+  attendrole?: string;
+  /** The app's client id. */
+  aud?: string;
 }
 
 /**
@@ -51,21 +51,104 @@ function decryptAppContext(token: string): AppContext {
     return JSON.parse(json) as AppContext;
   } catch {
     // A wrong secret, a cut token or a tampered one all fail the GCM tag check here.
-    throw new AppContextError("Zoom app context could not be read.", 401);
+    throw new HttpError("Zoom app context could not be read.", 401);
   }
+}
+
+/** Decrypt and check exp: a token that passes is Zoom's and still current. */
+function currentAppContext(header: string | undefined): AppContext {
+  if (!header) throw new HttpError("Missing Zoom app context.", 401);
+
+  const context = decryptAppContext(header);
+  // Without a numeric exp the check below would compare NaN and let the token through.
+  if (typeof context.exp !== "number") throw new HttpError("Zoom app context has no expiry.", 401);
+  // Zoom documents exp only as a "long": treat 10-digit values as seconds, 13-digit as milliseconds.
+  const expiresAtMs = context.exp < 1e12 ? context.exp * 1000 : context.exp;
+  if (expiresAtMs <= Date.now()) throw new HttpError("Zoom app context expired.", 401);
+  return context;
 }
 
 /** The template owner for one request: decrypt, check exp, require uid. */
 export function ownerUidFrom(header: string | undefined): string {
-  if (!header) throw new AppContextError("Missing Zoom app context.", 401);
-
-  const context = decryptAppContext(header);
-  // Without a numeric exp the check below would compare NaN and let the token through.
-  if (typeof context.exp !== "number") throw new AppContextError("Zoom app context has no expiry.", 401);
-  // Zoom documents exp only as a "long": treat 10-digit values as seconds, 13-digit as milliseconds.
-  const expiresAtMs = context.exp < 1e12 ? context.exp * 1000 : context.exp;
-  if (expiresAtMs <= Date.now()) throw new AppContextError("Zoom app context expired.", 401);
-  if (!context.uid) throw new AppContextError("Sign in to Zoom to save templates.", 403);
+  const context = currentAppContext(header);
+  if (!context.uid) throw new HttpError("Sign in to Zoom to save templates.", 403);
 
   return context.uid;
 }
+
+/** Who sent a request, as Zoom sealed it in the token. */
+export interface Caller {
+  meetingUUID: string;
+  role: MeetingRole;
+  uid: string;
+  /** Token creation time (ms), checked against the caller's last role change. */
+  issuedAt: number;
+}
+
+const ROLES: Record<string, MeetingRole> = { host: "host", "co-host": "coHost", participant: "attendee" };
+
+export function callerFrom(header: string | undefined): Caller {
+  const context = currentAppContext(header);
+  // A token Zoom made for another app would not decrypt; aud is a second check on the same thing.
+  if (context.aud !== process.env.ZOOM_CLIENT_ID) throw new HttpError("Zoom app context is for another app.", 401);
+  if (!context.mid) throw new HttpError("Open the app inside a Zoom meeting.", 403);
+  // The beta admits signed-in users only; guests carry iid and no uid.
+  if (!context.uid) throw new HttpError("Sign in to Zoom to use this app.", 403);
+  const role = ROLES[context.attendrole ?? ""];
+  if (!role) throw new HttpError("This Zoom role cannot use the app.", 403);
+
+  return { meetingUUID: context.mid, role, uid: context.uid, issuedAt: context.ts };
+}
+
+const ROLE_REFUSALS: Record<string, string> = {
+  host: "Only the host can do this.",
+  "host,coHost": "Only the host or a co-host can do this.",
+};
+
+// Routes read the checked caller as res.locals.caller.
+declare global {
+  namespace Express {
+    interface Locals {
+      caller: Caller;
+    }
+  }
+}
+
+/**
+ * Route guard: the token must be current, from this meeting, and carry one of
+ * `roles`. Every meeting id the request names (body or query) must be the token's,
+ * so a request cannot pass with one meeting and act on another, and a
+ * participantUUID it names must be one the caller joined with. Puts the caller
+ * on `res.locals.caller`; routes use its `meetingUUID` as the meeting.
+ */
+// Generic over route params, so a guard in front of a handler keeps the handler's typed req.params.
+type Guard = <Params>(req: Request<Params>, res: Response, next: NextFunction) => Promise<void>;
+
+export function requireCaller(...roles: MeetingRole[]): Guard {
+  return async (req, res, next) => {
+    const caller = callerFrom(req.get("X-Zoom-App-Context"));
+    const named = [req.body?.parentUUID, req.query.parentUUID].filter((value) => value !== undefined);
+    if (named.length === 0) throw new HttpError("parentUUID is required.", 400);
+    if (named.some((value) => value !== caller.meetingUUID)) {
+      throw new HttpError("This request is for another meeting.", 403);
+    }
+    if (!roles.includes(caller.role)) {
+      throw new HttpError(ROLE_REFUSALS[roles.join(",")] ?? "Your role cannot do this.", 403);
+    }
+    // Who the caller is in this meeting, from webhooks keyed by the token's uid.
+    const person = await personOf(caller.meetingUUID, caller.uid);
+    // A token made before the caller's last role change may carry the old role; the app reads a fresh one on 401.
+    if (caller.issuedAt < (person?.roleChangedAt ?? 0)) throw new HttpError("Your role changed. Try again.", 401);
+    const participantUUID: unknown = req.body?.participantUUID ?? req.query.participantUUID;
+    if (participantUUID !== undefined && !person?.participantUUIDs.includes(String(participantUUID))) {
+      throw new HttpError("This request names someone else.", 403);
+    }
+
+    res.locals.caller = caller;
+    next();
+  };
+}
+
+export const hostOnly = requireCaller("host");
+export const hostOrCoHost = requireCaller("host", "coHost");
+export const anyoneInMeeting = requireCaller("host", "coHost", "attendee");

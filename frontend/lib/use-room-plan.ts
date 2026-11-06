@@ -11,9 +11,10 @@ import {
   type RoundPlanDraft,
   type SaveRoundPlanRequest,
 } from "@/types/breakout";
+import { apiFetch } from "@/lib/execution-api";
 import {
   assignParticipantToRoom,
-  rebalanceEvenly,
+  shuffleEvenly,
   clearParticipantPlacement,
   keepParticipantInMain as keepInMain,
 } from "@/lib/room-plan-assignments";
@@ -173,7 +174,7 @@ export function useRoomPlan(
 
           try {
             if (shouldRebase) {
-              const latestResponse = await fetch(
+              const latestResponse = await apiFetch(
                 `/api/rounds/${encodeURIComponent(selectedRound.roundId)}/rooms?parentUUID=${encodeURIComponent(parentUUID)}`,
                 { cache: "no-store", signal: controller.signal },
               );
@@ -192,7 +193,7 @@ export function useRoomPlan(
               ...currentDraft,
               expectedRevision: revisionRef.current,
             };
-            const response = await fetch(
+            const response = await apiFetch(
               `/api/rounds/${encodeURIComponent(selectedRound.roundId)}/rooms`,
               {
                 method: "PUT",
@@ -304,7 +305,7 @@ export function useRoomPlan(
 
     async function load() {
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/rounds/${encodeURIComponent(selectedRound.roundId)}/rooms?parentUUID=${encodeURIComponent(parentUUID)}`,
           { cache: "no-store", signal: controller.signal },
         );
@@ -456,7 +457,7 @@ export function useRoomPlan(
 
   const autoAssignParticipants = useCallback(
     (participantUUIDs: string[]) => {
-      updateDraft((draft) => rebalanceEvenly(draft, participantUUIDs));
+      updateDraft((draft) => shuffleEvenly(draft, participantUUIDs));
     },
     [updateDraft],
   );

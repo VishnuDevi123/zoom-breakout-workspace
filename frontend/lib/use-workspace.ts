@@ -10,6 +10,7 @@ import type {
   WorkflowSnapshot,
   Workspace,
 } from "@/types/breakout";
+import { apiFetch } from "@/lib/execution-api";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -48,7 +49,7 @@ export function useWorkspace(parentUUID: string) {
 
     async function load() {
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/workspace?parentUUID=${encodeURIComponent(parentUUID)}`,
           { cache: "no-store", signal: controller.signal },
         );
@@ -88,7 +89,7 @@ export function useWorkspace(parentUUID: string) {
   /** PUT the whole editable record. Round ids must match the stored set. */
   async function saveWorkspace(request: Omit<SaveWorkspaceRequest, "parentUUID">): Promise<Workspace> {
     const workspace = await apiResult<Workspace>(
-      await fetch("/api/workspace", {
+      await apiFetch("/api/workspace", {
         method: "PUT",
         headers: JSON_HEADERS,
         body: JSON.stringify({ parentUUID, ...request }),
@@ -124,7 +125,7 @@ export function useWorkspace(parentUUID: string) {
   /** Swap a workflow that has not started (or none) for a template's rounds, rooms and tasks. */
   async function replaceWith(snapshot: WorkflowSnapshot): Promise<void> {
     const workspace = await apiResult<Workspace>(
-      await fetch("/api/workspace/replace", {
+      await apiFetch("/api/workspace/replace", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ parentUUID, expectedRevision: revision.current, snapshot }),
@@ -136,7 +137,7 @@ export function useWorkspace(parentUUID: string) {
   /** The backend keeps the workflow without people as a past workflow; the meeting then has none. */
   async function endWorkflow(): Promise<PastWorkflow[]> {
     const past = await apiResult<PastWorkflow[]>(
-      await fetch("/api/workspace/end", {
+      await apiFetch("/api/workspace/end", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ parentUUID, expectedRevision: revision.current }),
@@ -151,7 +152,7 @@ export function useWorkspace(parentUUID: string) {
   /** Appends a round; the new one is last. Returns the workspace so a caller can find it. */
   async function addRound(options: { durationSec?: number } = {}): Promise<Workspace> {
     const workspace = await apiResult<Workspace>(
-      await fetch("/api/workspace/rounds", {
+      await apiFetch("/api/workspace/rounds", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({ parentUUID, ...options }),
@@ -163,7 +164,7 @@ export function useWorkspace(parentUUID: string) {
 
   async function deleteRound(roundId: string): Promise<void> {
     const workspace = await apiResult<Workspace>(
-      await fetch(
+      await apiFetch(
         `/api/workspace/rounds/${encodeURIComponent(roundId)}?parentUUID=${encodeURIComponent(parentUUID)}`,
         { method: "DELETE" },
       ),

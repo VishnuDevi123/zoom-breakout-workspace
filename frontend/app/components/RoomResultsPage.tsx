@@ -6,9 +6,21 @@ import type { Activity, CheckListItem, PlannedRoom, RoomResponsesHostView } from
 
 import { Card, SectionLabel, StatusDot } from "./ui";
 
+/** Where a planned person is while rooms are open. */
+export type RoomPresence = "room" | "main" | "elsewhere" | "left";
+
+const PRESENCE_LABELS: Record<RoomPresence, string> = {
+  room: "In room",
+  main: "In main room",
+  elsewhere: "In another room",
+  left: "Not in meeting",
+};
+
 export interface RoomPerson {
   participantUUID: string;
   name: string;
+  /** Null once the rooms are closed: everyone is back in the main room. */
+  presence: RoomPresence | null;
 }
 
 /**
@@ -21,6 +33,8 @@ export default function RoomResultsPage({
   room,
   people,
   presentCount,
+  otherRooms,
+  onMove,
   checklist,
   activities,
   results,
@@ -31,6 +45,9 @@ export default function RoomResultsPage({
   /** Everyone the plan puts in this room; names are for information only. */
   people: RoomPerson[];
   presentCount: number;
+  /** Rooms someone can be moved to; empty once the rooms are closed. */
+  otherRooms: PlannedRoom[];
+  onMove: (person: RoomPerson, roomName: string) => void;
   checklist: CheckListItem[];
   activities: Activity[];
   results: RoomResponsesHostView | null;
@@ -58,7 +75,32 @@ export default function RoomResultsPage({
               <span className="bw-initials" aria-hidden>
                 {initialsFrom(person.name)}
               </span>
-              <span className="bw-results__person-name" title={person.name}>{person.name}</span>
+              {/* Where they are sits under the name, so a narrow column keeps the name readable. */}
+              <span className="bw-results__person-text">
+                <span className="bw-results__person-name" title={person.name}>{person.name}</span>
+                {person.presence ? (
+                  <span className={`bw-room-member__status bw-room-member__status--${person.presence === "room" ? "done" : "open"}`}>
+                    {PRESENCE_LABELS[person.presence]}
+                  </span>
+                ) : null}
+              </span>
+              {otherRooms.length > 0 && person.presence !== "left" ? (
+                <select
+                  className="bw-person-move"
+                  aria-label={`Move ${person.name} to another room`}
+                  value=""
+                  onChange={(event) => onMove(person, event.target.value)}
+                >
+                  <option value="" disabled>
+                    Move
+                  </option>
+                  {otherRooms.map((other) => (
+                    <option key={other.id} value={other.name}>
+                      {other.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
             </div>
           ))}
         </section>

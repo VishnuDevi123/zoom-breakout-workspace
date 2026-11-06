@@ -1,17 +1,19 @@
 "use client";
 
+import { useState } from "react";
+
 import { initialsFrom, type Participant } from "@/lib/participant-status";
 import { useDismissibleMenus } from "@/lib/use-dismissible-menus";
 import type { useRoomPlan } from "@/lib/use-room-plan";
 import type { useRoundTasks } from "@/lib/use-round-tasks";
-import type { RoundPlanDraft } from "@/types/breakout";
+import type { PlannedRoom, RoundPlanDraft } from "@/types/breakout";
 
 import ActivityList from "../ActivityList";
 import NotPlacedSheet from "../NotPlacedSheet";
 import PageFrame, { type FrameTab } from "../PageFrame";
 import RoomCard from "../RoomCard";
 import TaskFields from "../TaskFields";
-import { Button, Card, EditableName, Pill, SectionLabel, Spinner } from "../ui";
+import { Button, Card, ConfirmModal, EditableName, Pill, SectionLabel, Spinner } from "../ui";
 
 export type SetupTab = "rooms" | "tasks";
 
@@ -66,6 +68,15 @@ export default function RoundSetup({
   onNext: () => void;
 }) {
   const menuRootRef = useDismissibleMenus();
+  // The room waiting for "Remove room?"; an empty room goes without asking.
+  const [removing, setRemoving] = useState<PlannedRoom | null>(null);
+
+  function askToRemoveRoom(roomId: string) {
+    const room = round.rooms.find((candidate) => candidate.id === roomId);
+    if (!room || round.rooms.length <= 1) return;
+    if (room.participantUUIDs.length === 0) plan.removeRoom(room.id);
+    else setRemoving(room);
+  }
   const round = draft.draft;
   const tabs = roomsLocked
     ? SETUP_TABS.map((option) =>
@@ -89,10 +100,14 @@ export default function RoundSetup({
         <EditableName value={title} placeholder={placeholder} className="bw-setup-title" onSave={onRename} />
         <span className="bw-header-subtitle">{subtitle}</span>
       </div>
-      {/* One group, so on a narrow panel it moves to a second row together, right-aligned. */}
+      {/* One group beside the name; on a narrow panel Next stays by the name and the room controls take their own row. */}
       <div className="bw-setup-actions">
-        {tab === "rooms" ? <RoomControls plan={plan} round={round} roster={roster} rosterKnown={rosterKnown} /> : null}
-        <Button size="sm" onClick={() => void leave(onNext)}>
+        {tab === "rooms" ? (
+          <div className="bw-setup-tools">
+            <RoomControls plan={plan} round={round} roster={roster} rosterKnown={rosterKnown} onRemoveRoom={askToRemoveRoom} />
+          </div>
+        ) : null}
+        <Button size="sm" className="bw-setup-next" onClick={() => void leave(onNext)}>
           {nextLabel}
         </Button>
       </div>
@@ -113,7 +128,7 @@ export default function RoundSetup({
       {tab === "rooms" ? (
         <div ref={menuRootRef}>
           <SaveProblem save={draft.save} onRetry={plan.retrySave} onReload={plan.reloadDraft} />
-          <RoomGrid plan={plan} round={round} roster={roster} rosterKnown={rosterKnown} />
+          <RoomGrid plan={plan} round={round} roster={roster} rosterKnown={rosterKnown} onRemoveRoom={askToRemoveRoom} />
         </div>
       ) : (
         <div className="bw-session">
@@ -125,6 +140,15 @@ export default function RoundSetup({
           </section>
         </div>
       )}
+      {removing ? (
+        <ConfirmModal
+          title={`Remove ${removing.name}?`}
+          message={`${removing.participantUUIDs.length} ${removing.participantUUIDs.length === 1 ? "person" : "people"} in this room will move to Not yet placed. This can't be undone.`}
+          confirmLabel="Remove room"
+          onConfirm={async () => plan.removeRoom(removing.id)}
+          onClose={() => setRemoving(null)}
+        />
+      ) : null}
     </PageFrame>
   );
 }
@@ -196,14 +220,17 @@ function RoomControls({
   round,
   roster,
   rosterKnown,
+  onRemoveRoom,
 }: {
   plan: RoomPlan;
   round: RoundPlanDraft;
   roster: Participant[];
   rosterKnown: boolean;
+  onRemoveRoom: (roomId: string) => void;
 }) {
   const lastRoom = round.rooms.at(-1);
   const people = placeable(roster);
+  const blocked = !rosterKnown ? "Waiting for the live roster." : people.length === 0 ? "Nobody to place yet." : undefined;
 
   return (
     <>
@@ -212,7 +239,7 @@ function RoomControls({
           type="button"
           aria-label={lastRoom ? `Remove ${lastRoom.name}` : "Remove room"}
           disabled={round.rooms.length <= 1}
-          onClick={() => lastRoom && removeRoom(plan, lastRoom.id, round)}
+          onClick={() => lastRoom && onRemoveRoom(lastRoom.id)}
         >
           −
         </button>
@@ -226,8 +253,8 @@ function RoomControls({
       <Button
         variant="secondary"
         size="sm"
-        disabled={!rosterKnown || people.length === 0}
-        title={!rosterKnown ? "Waiting for the live roster." : people.length === 0 ? "Nobody to place yet." : undefined}
+        disabled={Boolean(blocked)}
+        title={blocked}
         onClick={() => plan.autoAssignParticipants(people.map((person) => person.participantUUID))}
       >
         Assign evenly
@@ -236,32 +263,22 @@ function RoomControls({
   );
 }
 
-/** Removing a room with people in it asks first; they go back to "Not yet placed". */
-function removeRoom(plan: RoomPlan, roomId: string, round: RoundPlanDraft) {
-  const room = round.rooms.find((candidate) => candidate.id === roomId);
-  if (!room || round.rooms.length <= 1) return;
-  const count = room.participantUUIDs.length;
-  if (count > 0 && !window.confirm(`Remove ${room.name}? ${count} planned ${count === 1 ? "person" : "people"} will become unplaced.`)) {
-    return;
-  }
-  plan.removeRoom(room.id);
-}
-
 function RoomGrid({
   plan,
   round,
   roster,
   rosterKnown,
+  onRemoveRoom,
 }: {
   plan: RoomPlan;
   round: RoundPlanDraft;
   roster: Participant[];
   rosterKnown: boolean;
+  /** Asks first when the room has people; they go back to "Not yet placed". */
+  onRemoveRoom: (roomId: string) => void;
 }) {
   const byId = new Map(roster.map((person) => [person.participantUUID, person]));
   const currentRosterIds = new Set(byId.keys());
-  const placed = new Set([...round.rooms.flatMap((room) => room.participantUUIDs), ...round.stayInMainParticipantUUIDs]);
-  const unplaced = rosterKnown ? placeable(roster).filter((person) => !placed.has(person.participantUUID)) : [];
 
   return (
     <div className="bw-room-grid">
@@ -271,12 +288,11 @@ function RoomGrid({
           room={room}
           participants={room.participantUUIDs.map((uuid) => byId.get(uuid) ?? unavailable(uuid))}
           rooms={round.rooms}
-          unassignedParticipants={unplaced}
           currentRosterIds={currentRosterIds}
           rosterKnown={rosterKnown}
           canRemove={round.rooms.length > 1}
           onRename={(name) => plan.renameRoom(room.id, name)}
-          onRemove={() => removeRoom(plan, room.id, round)}
+          onRemove={() => onRemoveRoom(room.id)}
           onAssignParticipant={plan.assignParticipant}
           onUnassignParticipant={plan.unassignParticipant}
           onKeepParticipantInMain={plan.keepParticipantInMain}

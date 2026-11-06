@@ -10,7 +10,6 @@ export default function RoomCard({
   room,
   participants,
   rooms,
-  unassignedParticipants,
   currentRosterIds,
   rosterKnown,
   canRemove,
@@ -23,7 +22,6 @@ export default function RoomCard({
   room: PlannedRoom;
   participants: Participant[];
   rooms: PlannedRoom[];
-  unassignedParticipants: Participant[];
   currentRosterIds: Set<string>;
   rosterKnown: boolean;
   canRemove: boolean;
@@ -94,44 +92,8 @@ export default function RoomCard({
             Nobody planned here yet
           </span>
         ) : null}
-
       </div>
 
-      {unassignedParticipants.length > 0 ? (
-        <details className="bw-add-person-menu" data-dismissible-menu>
-          <summary>+ Add person</summary>
-          <div className="bw-add-person-menu__popover">
-            {unassignedParticipants.map((participant) => (
-              <button
-                type="button"
-                key={participant.participantUUID}
-                onClick={() =>
-                  onAssignParticipant({
-                    participantUUID: participant.participantUUID,
-                    roomId: room.id,
-                  })
-                }
-              >
-                <span className="bw-avatar">{participant.initials}</span>
-                <span>{participant.displayName}{roleSuffix(participant.role)}</span>
-              </button>
-            ))}
-          </div>
-        </details>
-      ) : (
-        <button
-          type="button"
-          className="bw-add-person-button"
-          disabled
-          title={
-            rosterKnown
-              ? "No assignable participant is waiting for a room."
-              : "Refresh the live roster first."
-          }
-        >
-          + Add person
-        </button>
-      )}
     </Card>
   );
 }

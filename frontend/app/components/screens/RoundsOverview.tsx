@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { ApiError, readRoundTasks, readSavedRoundPlan, saveRoundPlan } from "@/lib/execution-api";
 import { formatClock } from "@/lib/round-clock";
-import { rebalanceEvenly, shuffleEvenly } from "@/lib/room-plan-assignments";
+import { shuffleEvenly } from "@/lib/room-plan-assignments";
 import { copyRooms } from "@/lib/room-plan-copy";
 import { useLiveRoomController } from "@/lib/use-live-room-controller";
 import { newRoom } from "@/lib/use-room-plan";
@@ -30,6 +30,9 @@ const MIN_DURATION_SEC = 30;
 
 /** How rounds get their groups. Stored as the workspace's two existing flags. */
 type Grouping = "same" | "new" | "each";
+
+/** The workflow page's bulk edits; one runs at a time, only its button spins, and the others ignore clicks without fading. */
+type BulkAction = "rooms" | "assign";
 
 export const GROUPING_OPTIONS: { id: Grouping; label: string; hint: string }[] = [
   { id: "same", label: "Same groups every round", hint: "Set rooms and people once, in Round 1." },
@@ -105,14 +108,15 @@ export default function RoundsOverview({
     workspace.rounds.find((round) => round.status !== "closed" && round.status !== "skipped") ??
     null;
 
-  const [applying, setApplying] = useState(false);
+  const [applying, setApplying] = useState<BulkAction | null>(null);
+  const grouping = groupingOf(workspace);
   // Everyone Zoom still reports in the meeting. The host is never placed in a room.
   const eligibleUUIDs = (live?.participants ?? [])
     .filter((participant) => participant.location !== "left" && participant.role === "attendee")
     .map((participant) => participant.participantUUID);
 
-  /** First draft for a round nobody has configured: seeded from round 1 when the host asked for that. */
-  function startingDraft(round: RoundMeta): RoundPlanDraft {
+  /** First draft for a round nobody has configured: seeded from round 1 when the grouping asks for that. */
+  function startingDraft(round: RoundMeta, flags: Pick<Workspace, "sameRoomsEveryRound" | "samePeopleEveryRound">): RoundPlanDraft {
     const empty: RoundPlanDraft = {
       parentUUID,
       roundId: round.roundId,
@@ -122,8 +126,8 @@ export default function RoundsOverview({
     };
     const first = workspace.rounds[0];
     const source = first && first.roundId !== round.roundId ? plans[first.roundId] : null;
-    if (!source || !workspace.sameRoomsEveryRound) return empty;
-    return copyRooms(source, empty, { withPeople: workspace.samePeopleEveryRound });
+    if (!source || !flags.sameRoomsEveryRound) return empty;
+    return copyRooms(source, empty, { withPeople: flags.samePeopleEveryRound });
   }
 
   /**
@@ -131,10 +135,10 @@ export default function RoundsOverview({
    * stale revision (409) the change is applied once more to the saved plan. Any
    * other failure is reported as it is.
    */
-  async function writePlan(round: RoundMeta, change: (draft: RoundPlanDraft) => RoundPlanDraft) {
+  async function writePlan(round: RoundMeta, change: (draft: RoundPlanDraft) => RoundPlanDraft, mode: Grouping) {
     const known = plans[round.roundId] ?? null;
     try {
-      await saveRoundPlan(parentUUID, change(known ?? startingDraft(round)), known?.revision ?? 0);
+      await saveRoundPlan(parentUUID, change(known ?? startingDraft(round, GROUPING_FLAGS[mode])), known?.revision ?? 0);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 409)) throw error;
       const fresh = await readSavedRoundPlan(parentUUID, round.roundId).catch(() => null);
@@ -147,18 +151,24 @@ export default function RoundsOverview({
    * Apply one change to every round that has not run. A launched round's rooms are
    * open in Zoom, and a closed round's plan decides who may read its submissions.
    */
-  async function applyToAllRounds(change: (draft: RoundPlanDraft) => RoundPlanDraft, done: string) {
-    setApplying(true);
+  async function applyToAllRounds(
+    action: BulkAction,
+    change: (draft: RoundPlanDraft) => RoundPlanDraft,
+    done: string,
+    mode: Grouping = grouping,
+  ) {
+    if (applying) return;
+    setApplying(action);
     try {
       const editable = workspace.rounds.filter((round) => round.status === "planned" || round.status === "skipped");
-      for (const round of editable) await writePlan(round, change);
+      for (const round of editable) await writePlan(round, change, mode);
       onPlansChanged();
       toast.success(done);
     } catch (error) {
       onPlansChanged();
       toast.error(error instanceof Error ? error.message : "Could not save the rooms.");
     } finally {
-      setApplying(false);
+      setApplying(null);
     }
   }
 
@@ -170,7 +180,22 @@ export default function RoundsOverview({
     }
   }
 
-  const grouping = groupingOf(workspace);
+  /** Assign evenly: a fresh random mix of everyone here in every round that has not run. */
+  function assignEveryRound(mode: Grouping = grouping) {
+    return applyToAllRounds(
+      "assign",
+      (draft) => shuffleEvenly(draft.rooms.length === 0 ? withRoomCount(draft, 1) : draft, eligibleUUIDs),
+      "People spread evenly across every round.",
+      mode,
+    );
+  }
+
+  /** Picking "New groups" shows its groups at once, so the host sees the mix before launch. */
+  async function chooseGrouping(choice: Grouping) {
+    await onUpdateWorkspace(GROUPING_FLAGS[choice]);
+    if (choice === "new" && grouping !== "new" && eligibleUUIDs.length > 0) await assignEveryRound(choice);
+  }
+
   const firstRoundId = workspace.rounds[0]?.roundId ?? null;
   // "Same groups": a later round launches with the groups of the round before it,
   // so readiness looks at the last round that ran, or Round 1.
@@ -261,9 +286,7 @@ export default function RoundsOverview({
                   type="radio"
                   name="grouping"
                   checked={grouping === option.id}
-                  onChange={() =>
-                    void run(() => onUpdateWorkspace(GROUPING_FLAGS[option.id]))
-                  }
+                  onChange={() => void run(() => chooseGrouping(option.id))}
                 />
                 <span className="bw-choice__text">
                   <span className="bw-choice__label">{option.label}</span>
@@ -277,66 +300,34 @@ export default function RoundsOverview({
             <>
               <SectionLabel>Every round</SectionLabel>
               <RoomsForEveryRound
-                busy={applying}
+                busy={applying === "rooms"}
                 onApply={(count) =>
                   void applyToAllRounds(
+                    "rooms",
                     (draft) => withRoomCount(draft, count),
                     `Every round now has ${count} ${count === 1 ? "room" : "rooms"}.`,
                   )
                 }
               />
-              <Button
-                variant="secondary"
-                size="sm"
-                busy={applying}
-                disabled={eligibleUUIDs.length === 0}
-                title={
-                  eligibleUUIDs.length > 0
-                    ? undefined
-                    : "Waiting for people to join."
-                }
-                onClick={() =>
-                  void applyToAllRounds(
-                    (draft) =>
-                      rebalanceEvenly(
-                        draft.rooms.length === 0
-                          ? withRoomCount(draft, 1)
-                          : draft,
-                        eligibleUUIDs,
-                      ),
-                    "People spread evenly across every round.",
-                  )
-                }
-              >
-                Assign evenly
-              </Button>
-              {grouping === "new" ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  busy={applying}
-                  disabled={eligibleUUIDs.length === 0}
-                  title={
-                    eligibleUUIDs.length > 0
-                      ? undefined
-                      : "Waiting for people to join."
-                  }
-                  onClick={() =>
-                    void applyToAllRounds(
-                      (draft) =>
-                        shuffleEvenly(
-                          draft.rooms.length === 0
-                            ? withRoomCount(draft, 1)
-                            : draft,
-                          eligibleUUIDs,
-                        ),
-                      "Every round now has its own mix of people.",
-                    )
-                  }
-                >
-                  Shuffle people into every round
-                </Button>
-              ) : null}
+              <div className="bw-rail-row">
+                <span>Assign people</span>
+                <div className="bw-rail-row__controls">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    busy={applying === "assign"}
+                    disabled={eligibleUUIDs.length === 0}
+                    title={
+                      eligibleUUIDs.length > 0
+                        ? undefined
+                        : "Waiting for people to join."
+                    }
+                    onClick={() => void assignEveryRound()}
+                  >
+                    Assign evenly
+                  </Button>
+                </div>
+              </div>
             </>
           )}
 
@@ -364,6 +355,7 @@ export default function RoundsOverview({
                 target ? (plans[groupsSourceFor(target.roundId)] ?? null) : null
               }
               presentUUIDs={eligibleUUIDs}
+              settledAtLaunch={grouping === "new"}
               prepareLaunch={prepareLaunch}
               onLaunched={onLaunched}
             >
@@ -452,11 +444,19 @@ function SaveAsTemplate({
 }
 
 /** What stops a launch, or only deserves a warning. */
-function readiness(workspace: Workspace, target: RoundMeta | null, plan: RoundPlan | null, presentUUIDs: string[]) {
+function readiness(
+  workspace: Workspace,
+  target: RoundMeta | null,
+  plan: RoundPlan | null,
+  presentUUIDs: string[],
+  settledAtLaunch: boolean,
+) {
   if (workspace.rounds.length === 0 || !target) return { blocker: "Add a round to launch.", unplaced: 0 };
   const label = roundLabel(workspace, target.roundId);
   if (target.status === "launched") return { blocker: `${label} is already running.`, unplaced: 0 };
   if (!plan || plan.rooms.length === 0) return { blocker: `${label} has no rooms yet.`, unplaced: 0 };
+  // "New groups" places latecomers at launch, so nobody is left unplaced.
+  if (settledAtLaunch) return { blocker: null, unplaced: 0 };
   const planned = new Set([...plan.rooms.flatMap((room) => room.participantUUIDs), ...plan.stayInMainParticipantUUIDs]);
   return { blocker: null, unplaced: presentUUIDs.filter((uuid) => !planned.has(uuid)).length };
 }
@@ -472,6 +472,7 @@ function LaunchWorkflow({
   target,
   plan,
   presentUUIDs,
+  settledAtLaunch,
   prepareLaunch,
   onLaunched,
   children,
@@ -483,6 +484,8 @@ function LaunchWorkflow({
   /** The plan the round will launch with: its own, or in "Same groups" the one it copies. */
   plan: RoundPlan | null;
   presentUUIDs: string[];
+  /** "New groups": at launch, people who left are dropped and everyone present gets a room. */
+  settledAtLaunch: boolean;
   prepareLaunch: (roundId: string) => Promise<void>;
   onLaunched: (roundId: string) => void;
   /** Shown between the readiness list and the Launch button (Save as template). */
@@ -499,9 +502,12 @@ function LaunchWorkflow({
     prepareLaunch,
     onLaunched,
   });
-  const { blocker, unplaced } = readiness(workspace, target, plan, presentUUIDs);
+  const { blocker, unplaced } = readiness(workspace, target, plan, presentUUIDs, settledAtLaunch);
   const roomCount = plan?.rooms.length ?? 0;
-  const placed = plan?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0;
+  const keptInMain = new Set(plan?.stayInMainParticipantUUIDs);
+  const placed = settledAtLaunch
+    ? presentUUIDs.filter((uuid) => !keptInMain.has(uuid)).length
+    : (plan?.rooms.reduce((sum, room) => sum + room.participantUUIDs.length, 0) ?? 0);
   const position = target ? workspace.rounds.findIndex((round) => round.roundId === target.roundId) + 1 : 0;
   // "Round 2 of 3", plus the host's own name for it when it has one.
   const which = `Round ${position} of ${workspace.rounds.length}${label === `Round ${position}` ? "" : ` (${label})`}`;
@@ -564,26 +570,29 @@ function RoomsForEveryRound({
   const valid = Number.isInteger(count) && count >= 1 && count <= MAX_ROOMS;
 
   return (
-    <div className="bw-switch-row">
+    <div className="bw-rail-row">
       <span>Rooms per round</span>
-      <input
-        type="number"
-        min={1}
-        max={MAX_ROOMS}
-        value={value}
-        aria-label="Rooms in every round"
-        className="bw-rooms-input bw-mono"
-        onChange={(event) => setValue(event.target.value)}
-      />
-      <Button
-        variant="secondary"
-        size="sm"
-        disabled={busy || !valid}
-        title={valid ? undefined : `Enter 1 to ${MAX_ROOMS}.`}
-        onClick={() => onApply(count)}
-      >
-        Apply
-      </Button>
+      <div className="bw-rail-row__controls">
+        <input
+          type="number"
+          min={1}
+          max={MAX_ROOMS}
+          value={value}
+          aria-label="Rooms in every round"
+          className="bw-rooms-input bw-mono"
+          onChange={(event) => setValue(event.target.value)}
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          busy={busy}
+          disabled={!valid}
+          title={valid ? undefined : `Enter 1 to ${MAX_ROOMS}.`}
+          onClick={() => onApply(count)}
+        >
+          Apply
+        </Button>
+      </div>
     </div>
   );
 }

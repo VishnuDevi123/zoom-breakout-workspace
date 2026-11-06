@@ -3,33 +3,25 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 
 import {
+  MAX_AI_MESSAGES,
   MAX_ROOMS,
+  MAX_TASK_TEXT_LENGTH,
   type AiChatMessage,
   type DraftWorkflowRequest,
   type DraftWorkflowResponse,
   type WorkflowSnapshot,
 } from "../types/breakout.ts";
+import { HttpError } from "./http-error.ts";
 
 // From the OpenAI structured outputs docs; change here to try another model.
 const MODEL = "gpt-6-luna";
 const MAX_REQUEST_LENGTH = 2000;
 
-/** 400: bad request body. 422: the model refused or returned nothing. 502: the OpenAI call failed. 503: no API key configured. */
-export class AiError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 422 | 502 | 503,
-  ) {
-    super(message);
-    this.name = "AiError";
-  }
-}
-
 // The SDK reads OPENAI_API_KEY in its constructor, and server.ts loads .env after
 // its imports have run, so the client is built on the first request.
 let openai: OpenAI | null = null;
 function client(): OpenAI {
-  if (!process.env.OPENAI_API_KEY) throw new AiError("The AI builder is not set up on this server.", 503);
+  if (!process.env.OPENAI_API_KEY) throw new HttpError("The AI builder is not set up on this server.", 503);
   openai ??= new OpenAI();
   return openai;
 }
@@ -43,10 +35,10 @@ const ActivityDraft = z.object({
 });
 
 const TaskDraft = z.object({
-  goal: z.string().min(1).max(500),
-  instructions: z.array(z.string().max(500)).max(20),
-  resources: z.array(z.string().max(500)).max(20),
-  checklist: z.array(z.string().min(1).max(500)).max(6),
+  goal: z.string().min(1).max(MAX_TASK_TEXT_LENGTH),
+  instructions: z.array(z.string().max(MAX_TASK_TEXT_LENGTH)).max(20),
+  resources: z.array(z.string().max(MAX_TASK_TEXT_LENGTH)).max(20),
+  checklist: z.array(z.string().min(1).max(MAX_TASK_TEXT_LENGTH)).max(6),
 });
 
 const RoundDraft = z.object({
@@ -90,7 +82,7 @@ const SYSTEM_PROMPT = `You design breakout-room workflows for a Zoom meeting hos
 
 A workflow is a list of rounds. In each round the participants split into breakout rooms for a set time.
 - title: a round's title, or null. A null title shows as "Round 1", "Round 2" and so on, so use null instead of a title that only repeats the round number.
-- roomNames: one name per room. The number of names is the room count. Use short names that fit the activity, or "Room 1", "Room 2" and so on.
+- roomNames: one name per room. The number of names is the room count. Use short names that fit the activity, or "Room 1", "Room 2" and so on. Names within a round must all differ: when the host wants one name for every room, number them ("Team 1", "Team 2").
 - task: what every room works on. goal is one sentence; instructions are short steps; checklist items are things the room ticks off together. Use null for a round with no task.
 - activities: questions for participants. "individual" = each person writes a private answer to the host. "ideaBoard" = the room posts shared sticky notes. title is the question; description adds a clue or context, or is empty.
 - grouping: how people are grouped across rounds.
@@ -111,29 +103,27 @@ Rules:
 - Leave the autoStartNextRound flag false unless the host says to start automatically.
 `;
 
-const MAX_MESSAGES = 20;
-
 /** The request body: the chat so far, ending with the host's turn, and the last proposal when refining. */
 function validateRequest(input: unknown): DraftWorkflowRequest {
   if (typeof input !== "object" || input === null) {
-    throw new AiError("The request body must be an object.", 400);
+    throw new HttpError("The request body must be an object.", 400);
   }
   const { messages, draft } = input as Record<string, unknown>;
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
-    throw new AiError(`messages must contain 1 to ${MAX_MESSAGES} messages.`, 400);
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_AI_MESSAGES) {
+    throw new HttpError(`messages must contain 1 to ${MAX_AI_MESSAGES} messages.`, 400);
   }
   const chat = messages.map((message: unknown, index: number): AiChatMessage => {
     const { role, text } = (message ?? {}) as Record<string, unknown>;
     if (role !== "host" && role !== "assistant") {
-      throw new AiError(`messages[${index}].role must be host or assistant.`, 400);
+      throw new HttpError(`messages[${index}].role must be host or assistant.`, 400);
     }
     if (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_REQUEST_LENGTH) {
-      throw new AiError(`messages[${index}].text must be a non-empty string of at most ${MAX_REQUEST_LENGTH} characters.`, 400);
+      throw new HttpError(`messages[${index}].text must be a non-empty string of at most ${MAX_REQUEST_LENGTH} characters.`, 400);
     }
     return { role, text: text.trim() };
   });
   if (chat[chat.length - 1].role !== "host") {
-    throw new AiError("The last message must be the host's.", 400);
+    throw new HttpError("The last message must be the host's.", 400);
   }
   // The draft only steers the model; replace validates whatever the host applies.
   return { messages: chat, draft: (draft ?? null) as WorkflowSnapshot | null };
@@ -161,13 +151,34 @@ function refusalText(response: OpenAI.Responses.Response): string | null {
   return null;
 }
 
+/**
+ * The store refuses repeated room names in a round, so a name the model repeats
+ * is numbered: ["Team", "Team", "Lab"] becomes ["Team 1", "Team 2", "Lab"].
+ */
+function distinctRoomNames(names: string[]): string[] {
+  const trimmed = names.map((name) => name.trim());
+  const counts = new Map<string, number>();
+  for (const name of trimmed) counts.set(name.toLowerCase(), (counts.get(name.toLowerCase()) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return trimmed.map((name) => {
+    const key = name.toLowerCase();
+    if (counts.get(key) === 1) return name;
+    const number = (seen.get(key) ?? 0) + 1;
+    seen.set(key, number);
+    return `${name} ${number}`;
+  });
+}
+
 /** Maps the grouping to the workspace flags, adds the ids the stores need and converts minutes to seconds. */
 export function toSnapshot({ grouping, ...draft }: WorkflowDraft): WorkflowSnapshot {
   return {
     ...draft,
     ...GROUPING_FLAGS[grouping],
-    rounds: draft.rounds.map(({ durationMinutes, task, activities, ...round }) => ({
+    rounds: draft.rounds.map(({ durationMinutes, task, activities, title, roomNames, ...round }) => ({
       ...round,
+      // The store refuses a blank title; null shows as "Round N".
+      title: title?.trim() || null,
+      roomNames: distinctRoomNames(roomNames),
       durationSec: durationMinutes * 60,
       task: task
         ? { ...task, checklist: task.checklist.map((label) => ({ id: crypto.randomUUID(), label })) }
@@ -192,11 +203,11 @@ export async function draftWorkflow(input: unknown): Promise<DraftWorkflowRespon
   } catch (error) {
     if (!(error instanceof OpenAI.APIError)) throw error;
     console.error("OpenAI request failed:", error.status, error.message);
-    throw new AiError("The AI service is unavailable. Try again.", 502);
+    throw new HttpError("The AI service is unavailable. Try again.", 502);
   }
 
   if (!response.output_parsed) {
-    throw new AiError(refusalText(response) ?? "The AI returned no workflow. Try rephrasing.", 422);
+    throw new HttpError(refusalText(response) ?? "The AI returned no workflow. Try rephrasing.", 422);
   }
   const { reply } = response.output_parsed;
   if (reply.kind === "question") return reply;
