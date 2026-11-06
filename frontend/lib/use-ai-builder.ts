@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { draftWorkflowWithAi } from "@/lib/execution-api";
-import { readAppContextToken } from "@/lib/zoom-sdk";
 import { MAX_AI_MESSAGES, type AiChatMessage, type WorkflowSnapshot } from "@/types/breakout";
 
 /** One chat turn as the builder shows it: the host's text, the AI's question or its proposal. */
@@ -48,7 +47,6 @@ export function useAiBuilder() {
     setPending(true);
     try {
       const reply = await draftWorkflowWithAi(
-        await readAppContextToken(),
         { messages: toMessages(asked), draft: lastDraft },
         controller.signal,
       );

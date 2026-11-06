@@ -10,7 +10,6 @@ import {
   saveCurrentAsTemplate,
   saveTemplate,
 } from "@/lib/execution-api";
-import { readAppContextToken } from "@/lib/zoom-sdk";
 import type { PastWorkflow, SavedTemplate } from "@/types/breakout";
 
 /**
@@ -32,8 +31,7 @@ export function useWorkflowLibrary(parentUUID: string) {
   }, [parentUUID]);
 
   useEffect(() => {
-    readAppContextToken()
-      .then(readTemplates)
+    readTemplates()
       .then(setTemplates)
       .catch((error: unknown) =>
         toast.error("Could not load saved templates.", { description: error instanceof Error ? error.message : undefined }),
@@ -41,18 +39,18 @@ export function useWorkflowLibrary(parentUUID: string) {
   }, []);
 
   async function savePast(pastWorkflowId: string): Promise<void> {
-    const saved = await saveTemplate(await readAppContextToken(), { parentUUID, pastWorkflowId });
+    const saved = await saveTemplate({ parentUUID, pastWorkflowId });
     setTemplates((current) => [saved, ...current]);
   }
 
   /** The workflow being built, as the server holds it now. */
   async function saveCurrent(): Promise<void> {
-    const saved = await saveCurrentAsTemplate(await readAppContextToken(), { parentUUID });
+    const saved = await saveCurrentAsTemplate({ parentUUID });
     setTemplates((current) => [saved, ...current]);
   }
 
   async function removeTemplate(templateId: string): Promise<void> {
-    setTemplates(await deleteTemplate(await readAppContextToken(), templateId));
+    setTemplates(await deleteTemplate(templateId));
   }
 
   // Past workflows this host already saved; deleting the template frees it again.

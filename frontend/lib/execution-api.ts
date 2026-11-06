@@ -28,6 +28,7 @@ import type {
   TickRequest,
   Workspace,
 } from "@/types/breakout";
+import { forgetAppContextToken, readAppContextToken } from "@/lib/zoom-sdk";
 
 /** Carries the HTTP status so a caller can tell a 409 conflict from other failures. */
 export class ApiError extends Error {
@@ -38,6 +39,24 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/**
+ * Every backend call goes through here: it adds this user's app context token,
+ * which the backend checks for meeting and role. A 401 means the token expired
+ * or was replaced, so it is read again and the request repeated once (the one
+ * retry the user approved, 2026-11-04).
+ */
+export async function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const send = async () => {
+    const headers = new Headers(init.headers);
+    headers.set("X-Zoom-App-Context", await readAppContextToken());
+    return fetch(url, { ...init, headers });
+  };
+  const response = await send();
+  if (response.status !== 401) return response;
+  forgetAppContextToken();
+  return send();
 }
 
 async function apiResult<T>(response: Response): Promise<T> {
@@ -56,7 +75,7 @@ export async function readSavedRoundPlan(
   roundId: string,
 ): Promise<RoundPlan> {
   return apiResult(
-    await fetch(
+    await apiFetch(
       `/api/rounds/${encodeURIComponent(roundId)}/rooms?parentUUID=${encodeURIComponent(parentUUID)}`,
       { cache: "no-store" },
     ),
@@ -69,7 +88,7 @@ export async function readSavedRoundPlan(
  * Null when no workspace exists for this meeting yet.
  */
 export async function readWorkspace(parentUUID: string): Promise<Workspace | null> {
-  const response = await fetch(`/api/workspace?parentUUID=${encodeURIComponent(parentUUID)}`, {
+  const response = await apiFetch(`/api/workspace?parentUUID=${encodeURIComponent(parentUUID)}`, {
     cache: "no-store",
   });
   if (response.status === 404) return null;
@@ -81,7 +100,7 @@ export async function readRoundTasks(
   parentUUID: string,
   roundId: string,
 ): Promise<RoundTasks | null> {
-  const response = await fetch(
+  const response = await apiFetch(
     `/api/tasks/${encodeURIComponent(roundId)}?parentUUID=${encodeURIComponent(parentUUID)}`,
     { cache: "no-store" },
   );
@@ -92,7 +111,7 @@ export async function readRoundTasks(
 /** Whole record each time: the store has no partial merge. */
 export async function saveRoundTasks(request: SaveRoundTasksRequest): Promise<RoundTasks> {
   return apiResult(
-    await fetch(`/api/tasks/${encodeURIComponent(request.roundId)}`, {
+    await apiFetch(`/api/tasks/${encodeURIComponent(request.roundId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -111,7 +130,7 @@ export async function saveRoundPlan(
 ): Promise<RoundPlan> {
   const body: SaveRoundPlanRequest = { ...draft, parentUUID, expectedRevision };
   return apiResult(
-    await fetch(`/api/rounds/${encodeURIComponent(draft.roundId)}/rooms`, {
+    await apiFetch(`/api/rounds/${encodeURIComponent(draft.roundId)}/rooms`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -125,7 +144,7 @@ export async function markRoundLaunched(
   roundId: string,
 ): Promise<LiveActionResponse> {
   return apiResult(
-    await fetch("/api/live/launch", {
+    await apiFetch("/api/live/launch", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({parentUUID, roundId}),
@@ -139,7 +158,7 @@ export async function adjustRoundTime(
   seconds: number,
 ): Promise<LiveState> {
   return apiResult(
-    await fetch("/api/live/extend", {
+    await apiFetch("/api/live/extend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID, seconds }),
@@ -150,7 +169,7 @@ export async function adjustRoundTime(
 /** A participant's tap on their room's status. The new state also arrives over SSE. */
 export async function setRoomStatus(request: SetRoomStatusRequest): Promise<LiveState> {
   return apiResult(
-    await fetch("/api/live/room-status", {
+    await apiFetch("/api/live/room-status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -165,7 +184,7 @@ export async function setRoundSkipped(
   skipped: boolean,
 ): Promise<Workspace> {
   return apiResult(
-    await fetch("/api/live/skip", {
+    await apiFetch("/api/live/skip", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID, roundId, skipped }),
@@ -177,7 +196,7 @@ export async function markRoundClosed(
   parentUUID: string,
 ): Promise<LiveActionResponse> {
   return apiResult(
-    await fetch("/api/live/close", {
+    await apiFetch("/api/live/close", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID }),
@@ -187,63 +206,49 @@ export async function markRoundClosed(
 
 /** Workflows this meeting has ended, newest first. */
 export async function readPastWorkflows(parentUUID: string): Promise<PastWorkflow[]> {
-  return apiResult(await fetch(`/api/workspace/past?parentUUID=${encodeURIComponent(parentUUID)}`, { cache: "no-store" }));
+  return apiResult(await apiFetch(`/api/workspace/past?parentUUID=${encodeURIComponent(parentUUID)}`, { cache: "no-store" }));
 }
 
-// Template calls carry the app context token; the backend reads the owner from it.
-function templateHeaders(appContext: string): Record<string, string> {
-  return { "Content-Type": "application/json", "X-Zoom-App-Context": appContext };
+/** The signed-in Zoom user's saved templates, newest first. The backend reads the owner from the token. */
+export async function readTemplates(): Promise<SavedTemplate[]> {
+  return apiResult(await apiFetch("/api/templates", { cache: "no-store" }));
 }
 
-/** The signed-in Zoom user's saved templates, newest first. */
-export async function readTemplates(appContext: string): Promise<SavedTemplate[]> {
-  return apiResult(await fetch("/api/templates", { cache: "no-store", headers: templateHeaders(appContext) }));
-}
-
-export async function saveTemplate(appContext: string, request: SaveTemplateRequest): Promise<SavedTemplate> {
+export async function saveTemplate(request: SaveTemplateRequest): Promise<SavedTemplate> {
   return apiResult(
-    await fetch("/api/templates", {
+    await apiFetch("/api/templates", {
       method: "POST",
-      headers: templateHeaders(appContext),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     }),
   );
 }
 
 /** Returns the templates left after the delete. */
-export async function deleteTemplate(appContext: string, templateId: string): Promise<SavedTemplate[]> {
-  return apiResult(
-    await fetch(`/api/templates/${encodeURIComponent(templateId)}`, {
-      method: "DELETE",
-      headers: templateHeaders(appContext),
-    }),
-  );
+export async function deleteTemplate(templateId: string): Promise<SavedTemplate[]> {
+  return apiResult(await apiFetch(`/api/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" }));
 }
 
 /** Save the workflow being built as one of the user's templates. */
-export async function saveCurrentAsTemplate(
-  appContext: string,
-  request: SaveCurrentTemplateRequest,
-): Promise<SavedTemplate> {
+export async function saveCurrentAsTemplate(request: SaveCurrentTemplateRequest): Promise<SavedTemplate> {
   return apiResult(
-    await fetch("/api/templates/current", {
+    await apiFetch("/api/templates/current", {
       method: "POST",
-      headers: templateHeaders(appContext),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     }),
   );
 }
 
-/** Ask the AI for a workflow, or for the details it needs first. Host only, like templates; saves nothing. */
+/** Ask the AI for a workflow, or for the details it needs first. Host only; saves nothing. */
 export async function draftWorkflowWithAi(
-  appContext: string,
   request: DraftWorkflowRequest,
   signal: AbortSignal,
 ): Promise<DraftWorkflowResponse> {
   return apiResult(
-    await fetch("/api/ai/workflow", {
+    await apiFetch("/api/ai/workflow", {
       method: "POST",
-      headers: templateHeaders(appContext),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
       signal,
     }),
@@ -256,7 +261,7 @@ export async function postRoster(
   participants: RosterEntry[],
 ): Promise<LiveState> {
   return apiResult(
-    await fetch("/api/live/roster", {
+    await apiFetch("/api/live/roster", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID, participants }),
@@ -267,7 +272,7 @@ export async function postRoster(
 /** Which Zoom room each planned room runs in, read from Zoom's room list by the host. */
 export async function postRoomLinks(parentUUID: string, roundId: string, links: RoomLink[]): Promise<LiveState> {
   return apiResult(
-    await fetch("/api/live/room-links", {
+    await apiFetch("/api/live/room-links", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parentUUID, roundId, links }),
@@ -286,7 +291,7 @@ export async function readRoomResultsForHost(
   roomId: string,
 ): Promise<RoomResponsesHostView> {
   const query = `parentUUID=${encodeURIComponent(parentUUID)}`;
-  return apiResult(await fetch(`${roomResponsesUrl(roundId, roomId)}/all?${query}`, { cache: "no-store" }));
+  return apiResult(await apiFetch(`${roomResponsesUrl(roundId, roomId)}/all?${query}`, { cache: "no-store" }));
 }
 
 /** The caller's view of their room: notes, ticks, own answers, everyone's answer status. */
@@ -297,7 +302,7 @@ export async function readRoomResponses(
   participantUUID: string,
 ): Promise<RoomResponsesView> {
   const query = `parentUUID=${encodeURIComponent(parentUUID)}&participantUUID=${encodeURIComponent(participantUUID)}`;
-  return apiResult(await fetch(`${roomResponsesUrl(roundId, roomId)}?${query}`, { cache: "no-store" }));
+  return apiResult(await apiFetch(`${roomResponsesUrl(roundId, roomId)}?${query}`, { cache: "no-store" }));
 }
 
 /** Tick or untick one task checklist item for the whole room. */
@@ -311,7 +316,7 @@ async function writeRoomResponse(
   request: object,
 ): Promise<RoomResponsesView> {
   return apiResult(
-    await fetch(url, {
+    await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -352,7 +357,7 @@ function challengesUrl(roundId: string): string {
 
 async function postJson<T>(method: "POST" | "PUT", url: string, request: object): Promise<T> {
   return apiResult(
-    await fetch(url, {
+    await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -363,7 +368,7 @@ async function postJson<T>(method: "POST" | "PUT", url: string, request: object)
 /** The host's polls and quizzes for one round, oldest first, each with live results. */
 export async function readChallengesForHost(parentUUID: string, roundId: string): Promise<ChallengeView[]> {
   const query = `parentUUID=${encodeURIComponent(parentUUID)}`;
-  return apiResult(await fetch(`${challengesUrl(roundId)}?${query}`, { cache: "no-store" }));
+  return apiResult(await apiFetch(`${challengesUrl(roundId)}?${query}`, { cache: "no-store" }));
 }
 
 /** 409 when the round is not running or the last one has not been revealed. */
@@ -384,7 +389,7 @@ export async function readRoomChallenge(
 ): Promise<ChallengeView | null> {
   const query = `parentUUID=${encodeURIComponent(parentUUID)}&participantUUID=${encodeURIComponent(participantUUID)}`;
   return apiResult(
-    await fetch(`${challengesUrl(roundId)}/rooms/${encodeURIComponent(roomId)}?${query}`, { cache: "no-store" }),
+    await apiFetch(`${challengesUrl(roundId)}/rooms/${encodeURIComponent(roomId)}?${query}`, { cache: "no-store" }),
   );
 }
 

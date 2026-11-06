@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   configureZoomSdk,
+  forgetAppContextToken,
   forgetHostCapabilities,
   grantHostCapabilities,
   normalizeSdkError,
@@ -98,6 +99,8 @@ export function useHostGate(): HostGateValue & { recheckRole: () => void } {
      * controls this client would be refused for.
      */
     async function applyRole({ role, screenName }: ApplyRoleInput) {
+      // The token carries the role, so a cached one may now be wrong.
+      forgetAppContextToken();
       if (!canManageRooms(role)) {
         forgetHostCapabilities();
         if (!aliveRef.current) return;
