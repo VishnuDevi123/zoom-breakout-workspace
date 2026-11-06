@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 import type { MeetingRole } from "../types/breakout.ts";
+import { personOf } from "../store/live.ts";
 import { HttpError } from "./http-error.ts";
 
 /** The decrypted X-Zoom-App-Context payload; only the fields we use are typed. */
@@ -80,7 +81,7 @@ export interface Caller {
   meetingUUID: string;
   role: MeetingRole;
   uid: string;
-  /** Token creation time (ms), for a later check against role changes. */
+  /** Token creation time (ms), checked against the caller's last role change. */
   issuedAt: number;
 }
 
@@ -116,14 +117,15 @@ declare global {
 /**
  * Route guard: the token must be current, from this meeting, and carry one of
  * `roles`. Every meeting id the request names (body or query) must be the token's,
- * so a request cannot pass with one meeting and act on another. Puts the caller
+ * so a request cannot pass with one meeting and act on another, and a
+ * participantUUID it names must be one the caller joined with. Puts the caller
  * on `res.locals.caller`; routes use its `meetingUUID` as the meeting.
  */
 // Generic over route params, so a guard in front of a handler keeps the handler's typed req.params.
-type Guard = <Params>(req: Request<Params>, res: Response, next: NextFunction) => void;
+type Guard = <Params>(req: Request<Params>, res: Response, next: NextFunction) => Promise<void>;
 
 export function requireCaller(...roles: MeetingRole[]): Guard {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const caller = callerFrom(req.get("X-Zoom-App-Context"));
     const named = [req.body?.parentUUID, req.query.parentUUID].filter((value) => value !== undefined);
     if (named.length === 0) throw new HttpError("parentUUID is required.", 400);
@@ -132,6 +134,14 @@ export function requireCaller(...roles: MeetingRole[]): Guard {
     }
     if (!roles.includes(caller.role)) {
       throw new HttpError(ROLE_REFUSALS[roles.join(",")] ?? "Your role cannot do this.", 403);
+    }
+    // Who the caller is in this meeting, from webhooks keyed by the token's uid.
+    const person = await personOf(caller.meetingUUID, caller.uid);
+    // A token made before the caller's last role change may carry the old role; the app reads a fresh one on 401.
+    if (caller.issuedAt < (person?.roleChangedAt ?? 0)) throw new HttpError("Your role changed. Try again.", 401);
+    const participantUUID: unknown = req.body?.participantUUID ?? req.query.participantUUID;
+    if (participantUUID !== undefined && !person?.participantUUIDs.includes(String(participantUUID))) {
+      throw new HttpError("This request names someone else.", 403);
     }
 
     res.locals.caller = caller;

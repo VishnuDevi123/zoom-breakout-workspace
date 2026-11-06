@@ -15,6 +15,14 @@ import { getRoundPlan, moveToPlannedRoom } from "./round-plans.ts";
 interface LiveRecord extends Omit<LiveState, "parentUUID"> {
     /** Where someone was when a participant_left arrived, kept to undo it if it was a room hop's ghost. */
     recentLeaves: Record<string, { location: string; at: number }>;
+    /** Zoom user id -> who they are in this meeting, from webhooks. Never sent to clients. */
+    people?: Record<string, Person>;
+}
+
+/** One signed-in user: every participantUUID they joined with (a rejoin adds one) and their last role change. */
+export interface Person {
+    participantUUIDs: string[];
+    roleChangedAt: number;
 }
 
 /**
@@ -36,6 +44,10 @@ function stateOf(parentUUID: string, live: LiveRecord = emptyLive()): LiveState 
 
 export async function getLive(parentUUID: string): Promise<LiveState> {
     return stateOf(parentUUID, await readItem<LiveRecord>(parentUUID, "live"));
+}
+
+export async function personOf(parentUUID: string, uid: string): Promise<Person | undefined> {
+    return (await readItem<LiveRecord>(parentUUID, "live"))?.people?.[uid];
 }
 
 // register listener; return unsubscribe function.
@@ -194,6 +206,8 @@ interface WebhookBody {
             participant?: {
                 id?: string;
                 participant_uuid?: string;
+                /** The token's uid; absent for guests. */
+                participant_user_id?: string;
                 user_name?: string;
                 leave_reason?: string;
                 new_role?: string;
@@ -262,6 +276,10 @@ export async function applyEvent(body: unknown): Promise<void> {
     if (!event || !parentUUID || !participantUUID) return
 
     await changeLive(parentUUID, async (live) => {
+        const uid = participant?.participant_user_id
+        // Records written before people existed have none (deployment rule: read old records).
+        const person = uid ? ((live.people ??= {})[uid] ??= { participantUUIDs: [], roleChangedAt: 0 }) : null
+        if (person && !person.participantUUIDs.includes(participantUUID)) person.participantUUIDs.push(participantUUID)
         const known = live.participants.find((p) => p.participantUUID === participantUUID)
         const entry: LiveParticipant = known ?? {
             participantUUID,
@@ -289,6 +307,7 @@ export async function applyEvent(body: unknown): Promise<void> {
                 break
             }
             case "meeting.participant_role_changed":
+                if (person) person.roleChangedAt = at
                 // Zoom says "co-host"; the SDK and this app say "coHost".
                 entry.role = participant?.new_role === "host" ? "host" : participant?.new_role === "co-host" ? "coHost" : "attendee"
                 break
